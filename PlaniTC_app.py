@@ -19,38 +19,92 @@ st.set_page_config(
 # ─── CSS personalizado ───────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .main-title {
-        font-size: 2rem; font-weight: 700; color: #0D47A1;
-        border-bottom: 3px solid #1565C0; padding-bottom: 0.3rem; margin-bottom: 0.2rem;
+    /* Fondo negro general */
+    .stApp {
+        background-color: #000000;
     }
-    .subtitle { font-size: 0.95rem; color: #546E7A; margin-bottom: 1.5rem; }
+    /* Sidebar negro */
+    [data-testid="stSidebar"] {
+        background-color: #111111;
+    }
+    /* Todo el texto blanco */
+    html, body, [class*="css"], .stMarkdown, .stText,
+    label, .stSelectbox label, .stNumberInput label,
+    .stTextInput label, .stTextArea label, .stCheckbox label,
+    .stSlider label, p, span, div {
+        color: #FFFFFF !important;
+    }
+    /* Inputs y selectboxes oscuros */
+    .stSelectbox > div > div,
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+        border: 1px solid #444444 !important;
+    }
+    /* Título principal */
+    .main-title {
+        font-size: 2rem; font-weight: 700; color: #FFFFFF;
+        border-bottom: 3px solid #888888; padding-bottom: 0.3rem; margin-bottom: 0.2rem;
+    }
+    .subtitle { font-size: 0.95rem; color: #AAAAAA; margin-bottom: 1.5rem; }
+    /* Banners de sección en gris */
     .section-header {
-        background: linear-gradient(90deg, #1565C0, #1976D2);
-        color: white; padding: 0.5rem 1rem;
+        background: #3A3A3A;
+        color: #FFFFFF; padding: 0.5rem 1rem;
         border-radius: 6px; font-weight: 600;
         margin: 1rem 0 0.8rem 0; font-size: 1rem;
     }
+    /* Tarjetas métricas */
     .metric-card {
-        background: #E3F2FD; border-left: 4px solid #1565C0;
+        background: #1A1A1A; border-left: 4px solid #888888;
         border-radius: 6px; padding: 0.6rem 1rem; margin: 0.3rem 0;
     }
-    .metric-label { font-size: 0.75rem; color: #546E7A; font-weight: 600; text-transform: uppercase; }
-    .metric-value { font-size: 1.4rem; font-weight: 700; color: #0D47A1; }
+    .metric-label { font-size: 0.75rem; color: #AAAAAA; font-weight: 600; text-transform: uppercase; }
+    .metric-value { font-size: 1.4rem; font-weight: 700; color: #FFFFFF; }
+    /* Alertas */
     .alert-info {
-        background: #E8F5E9; border-left: 4px solid #2E7D32;
+        background: #0A2A0A; border-left: 4px solid #2E7D32;
         border-radius: 6px; padding: 0.8rem 1rem; margin: 0.5rem 0;
-        color: #1B5E20; font-size: 0.9rem;
+        color: #88CC88; font-size: 0.9rem;
     }
     .alert-warn {
-        background: #FFF3E0; border-left: 4px solid #E65100;
+        background: #2A1500; border-left: 4px solid #E65100;
         border-radius: 6px; padding: 0.8rem 1rem; margin: 0.5rem 0;
-        color: #BF360C; font-size: 0.9rem;
+        color: #FFAA66; font-size: 0.9rem;
     }
+    /* Resumen parámetros */
     .param-summary {
-        background: #F8F9FA; border: 1px solid #DEE2E6;
+        background: #1A1A1A; border: 1px solid #444444;
         border-radius: 8px; padding: 1rem; font-size: 0.85rem;
+        color: #FFFFFF;
     }
-    .stTabs [data-baseweb="tab"] { font-size: 0.95rem; font-weight: 600; }
+    /* Tabs */
+    .stTabs [data-baseweb="tab"] {
+        font-size: 0.95rem; font-weight: 600;
+        color: #FFFFFF !important;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #111111;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #3A3A3A !important;
+    }
+    /* Métricas de Streamlit */
+    [data-testid="metric-container"] {
+        background-color: #1A1A1A;
+        border: 1px solid #444444;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+    }
+    /* Expanders */
+    .streamlit-expanderHeader {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+    }
+    /* Divisor */
+    hr { border-color: #444444; }
     canvas { border-radius: 50%; }
 </style>
 """, unsafe_allow_html=True)
@@ -93,7 +147,7 @@ TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"
 
 MODULACION_CORRIENTE = ["MANUAL", "AUTO mA", "CARE DOSE 4D"]
 
-KVP_OPCIONES = [70, 80, 90, 100, 110, 120, 140]
+KVP_OPCIONES = [70, 80, 90, 100, 110, 120]
 
 MAS_OPCIONES = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
 
