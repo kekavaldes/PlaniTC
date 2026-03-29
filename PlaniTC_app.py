@@ -932,19 +932,48 @@ with tab1b:
             topo2_voz  = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, key="t2vz")
             topo2_dir  = st.selectbox("Dirección topograma", DIRECCIONES, key="t2dir")
 
+        st.markdown("---")
+
+        # Botón de inicio con símbolo de trisector de radiación
+        st.markdown("""
+        <style>
+        .btn-iniciar button {
+            background-color: #1A1A1A !important;
+            border: 2px solid #FFD700 !important;
+            color: #FFD700 !important;
+            font-size: 1.1rem !important;
+            font-weight: 700 !important;
+            border-radius: 10px !important;
+            padding: 0.6rem 1.5rem !important;
+            width: 100% !important;
+            letter-spacing: 0.05em !important;
+        }
+        .btn-iniciar button:hover {
+            background-color: #FFD700 !important;
+            color: #000000 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="btn-iniciar">', unsafe_allow_html=True)
+        if st.button("☢️  INICIAR TOPOGRAMA", key="btn_iniciar_topo", use_container_width=True):
+            st.session_state["topograma_iniciado"] = True
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if st.session_state.get("topograma_iniciado", False):
+            if st.button("↺  Repetir topograma", key="btn_reset_topo", use_container_width=True):
+                st.session_state["topograma_iniciado"] = False
+                st.rerun()
+
     with col_tp2:
-        st.markdown('<div class="section-header">🖼️ Vista previa del topograma</div>', unsafe_allow_html=True)
-        _region_prev  = st.session_state.get("region_anat", "CUERPO")
-        _examen_prev  = st.session_state.get("examen", "")
+        _region_prev   = st.session_state.get("region_anat", "CUERPO")
+        _examen_prev   = st.session_state.get("examen", "")
         _pos_tubo_prev = st.session_state.get("t1pt", "ARRIBA 0°")
 
         def _tubo_to_proy_prev(pos_tubo, region, examen):
             pos = pos_tubo.upper()
             if "DERECHA" in pos or "IZQUIERDA" in pos:
-                if region == "CABEZA":
-                    return IMG_CEREBRO_B64, "Lateral"
-                else:
-                    return IMG_ABDOMEN_B64, "Lateral"
+                return (IMG_CEREBRO_B64, "Lateral") if region == "CABEZA" else (IMG_ABDOMEN_B64, "Lateral")
             else:
                 if region == "CABEZA":
                     return IMG_CEREBRO_B64, "Lateral"
@@ -954,22 +983,46 @@ with tab1b:
                     return IMG_ABDOMEN_B64, "AP"
 
         _img_b64_prev, _proy_prev = _tubo_to_proy_prev(_pos_tubo_prev, _region_prev, _examen_prev)
-        if _img_b64_prev:
+
+        if not st.session_state.get("topograma_iniciado", False):
+            # Estado de espera — mostrar pantalla oscura con instrucción
+            st.markdown('<div class="section-header">🖼️ Topograma</div>', unsafe_allow_html=True)
             st.markdown(f"""
-            <div style="text-align:center;">
-              <img src="data:image/jpeg;base64,{_img_b64_prev}"
-                   style="width:100%; border-radius:6px; border:1px solid #444;">
-              <div style="font-size:11px; color:#888; margin-top:4px;">
-                Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
-              </div>
+            <div style="
+                border: 1px solid #333; border-radius: 8px;
+                background: #0A0A0A; height: 380px;
+                display: flex; flex-direction: column;
+                align-items: center; justify-content: center;
+                text-align: center; gap: 16px;">
+                <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
+                <div style="color: #555; font-size: 0.95rem;">
+                    Configure los parámetros del topograma<br>
+                    y presione <strong style="color:#FFD700;">INICIAR TOPOGRAMA</strong>
+                </div>
+                <div style="color:#333; font-size:0.8rem;">
+                    Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
+                </div>
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.info("Selecciona una región con imagen disponible.")
-
-    st.markdown("""<div class="alert-info">
-    ✅ Configura el topograma y continúa a <b>⚡ Adquisición</b> para planificar el rango de exploración.
-    </div>""", unsafe_allow_html=True)
+            # Topograma adquirido
+            st.markdown('<div class="section-header">✅ Topograma adquirido</div>', unsafe_allow_html=True)
+            if _img_b64_prev:
+                st.markdown(f"""
+                <div style="text-align:center;">
+                  <img src="data:image/jpeg;base64,{_img_b64_prev}"
+                       style="width:100%; border-radius:6px; border:1px solid #FFD700;">
+                  <div style="font-size:11px; color:#888; margin-top:6px;">
+                    Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
+                    · {topo1_long} mm · {topo1_kv} kV · {topo1_ma} mA
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("""<div class="alert-info">
+                ✅ Topograma adquirido correctamente. Continúa a <b>⚡ Adquisición</b>.
+                </div>""", unsafe_allow_html=True)
+            else:
+                st.info("Imagen no disponible para esta región.")
 
 # ───────────────────────────────────────────────────────────────
 # TAB 2: ADQUISICIÓN
