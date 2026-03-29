@@ -872,7 +872,7 @@ with tab1:
             st.markdown(f"""
             <div style="text-align:center; margin-top:10px;">
                 <img src="data:image/jpeg;base64,{_img_pos}"
-                     style="width:100%; border-radius:8px; border:1px solid #333;">
+                     style="width:75%; border-radius:8px; border:1px solid #333;">
                 <div style="font-size:11px; color:#888; margin-top:4px;">
                     {posicion} · {entrada}
                 </div>
@@ -886,7 +886,7 @@ with tab1:
             st.markdown(f"""
             <div style="text-align:center;">
                 <img src="data:image/png;base64,{_img_region}"
-                     style="max-height:340px; max-width:100%;
+                     style="max-height:460px; max-width:100%;
                             object-fit:contain; display:block; margin:auto;">
                 <div style="font-size:12px; color:#888; margin-top:6px;">
                     {region_anat}
