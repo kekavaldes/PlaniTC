@@ -822,6 +822,41 @@ with tab0:
     </div>
     """, unsafe_allow_html=True)
 
+    # Botón que navega a la pestaña Ingreso
+    st.markdown("""
+    <style>
+    .btn-empezar button {
+        background-color: #1565C0 !important;
+        color: #FFFFFF !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        border: none !important;
+        border-radius: 30px !important;
+        padding: 0.7rem 2.5rem !important;
+        margin-top: 0.5rem !important;
+        letter-spacing: 0.04em !important;
+        box-shadow: 0 4px 15px rgba(21,101,192,0.4) !important;
+    }
+    .btn-empezar button:hover {
+        background-color: #1976D2 !important;
+        box-shadow: 0 6px 20px rgba(21,101,192,0.6) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    col_b1, col_b2, col_b3 = st.columns([2, 1, 2])
+    with col_b2:
+        st.markdown('<div class="btn-empezar">', unsafe_allow_html=True)
+        if st.button("👤  Empezar aquí", key="btn_empezar", use_container_width=True):
+            st.session_state["ir_a_ingreso"] = True
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.session_state.get("ir_a_ingreso", False):
+        st.session_state["ir_a_ingreso"] = False
+        js = "<script>window.parent.document.querySelectorAll('[data-baseweb=tab]')[1].click();</script>"
+        st.components.v1.html(js, height=0)
+
 # ───────────────────────────────────────────────────────────────
 # TAB 1: INGRESO
 # ───────────────────────────────────────────────────────────────
