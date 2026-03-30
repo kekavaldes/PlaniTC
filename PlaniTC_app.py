@@ -811,7 +811,6 @@ with tab0:
         </div>
     </div>""", height=520)
     st.markdown(f"""
-    <div style="text-align:center; margin-top: 0.2rem;">
     <div style="text-align:center; margin-top: 1rem;">
         <p style="font-size:1.05rem; color:#AAAAAA; margin:0;">
             Simulador educativo de planificación de Tomografía Computada
@@ -1026,7 +1025,7 @@ with tab1b:
         def _tubo_to_proy_prev(pos_tubo, region, examen):
             if not pos_tubo:
                 return IMG_ABDOMEN_B64, "AP"
-            pos = pos_tubo.upper()
+            pos = str(pos_tubo).upper()
             if "DERECHA" in pos or "IZQUIERDA" in pos:
                 return (IMG_CEREBRO_B64, "Lateral") if region == "CABEZA" else (IMG_ABDOMEN_B64, "Lateral")
             else:
@@ -1094,6 +1093,8 @@ with tab2:
     # La imagen cambia según posición del tubo seleccionada en el topograma
     # ARRIBA 0° / ABAJO 180° → proyección AP  |  DERECHA/IZQUIERDA 90° → lateral
     def _tubo_to_proy(pos_tubo, region, examen):
+        if not pos_tubo:
+            return IMG_ABDOMEN_B64, "AP"
         pos = pos_tubo.upper()
         if "DERECHA" in pos or "IZQUIERDA" in pos:
             # Lateral — para cabeza usamos la imagen lateral real
