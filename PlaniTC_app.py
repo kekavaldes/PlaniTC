@@ -781,9 +781,34 @@ tab0, tab1, tab1b, tab2, tab3, tab4, tab5 = st.tabs([
 with tab0:
     st.markdown(f"""
     <div style="text-align:center; padding: 1rem 0 0.5rem 0;">
-        <img src="data:image/jpeg;base64,{IMG_PORTADA_B64}"
-             style="width:100%; max-width:900px; border-radius:12px;
-                    border: 2px solid #333; display:block; margin:auto;">
+        <div style="position:relative; display:inline-block; width:100%; max-width:900px;">
+            <img src="data:image/jpeg;base64,{IMG_PORTADA_B64}"
+                 style="width:100%; border-radius:12px;
+                        border: 2px solid #333; display:block;">
+            <button onclick="
+                var tabs = window.parent.document.querySelectorAll('[data-baseweb=tab]');
+                if(tabs.length > 1) tabs[1].click();
+            " style="
+                position: absolute;
+                bottom: 18%;
+                right: 10%;
+                background: rgba(255,255,255,0.92);
+                color: #0D47A1;
+                border: none;
+                border-radius: 30px;
+                padding: 0.65rem 1.8rem;
+                font-size: 1.05rem;
+                font-weight: 700;
+                cursor: pointer;
+                box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+                letter-spacing: 0.03em;
+                transition: all 0.2s;
+            "
+            onmouseover="this.style.background='#1565C0';this.style.color='#fff';"
+            onmouseout="this.style.background='rgba(255,255,255,0.92)';this.style.color='#0D47A1';">
+                👤 Empezar aquí
+            </button>
+        </div>
     </div>
     <div style="text-align:center; margin-top: 1.2rem;">
         <p style="font-size:1.05rem; color:#AAAAAA; margin:0;">
@@ -822,40 +847,7 @@ with tab0:
     </div>
     """, unsafe_allow_html=True)
 
-    # Botón que navega a la pestaña Ingreso
-    st.markdown("""
-    <style>
-    .btn-empezar button {
-        background-color: #1565C0 !important;
-        color: #FFFFFF !important;
-        font-size: 1.1rem !important;
-        font-weight: 700 !important;
-        border: none !important;
-        border-radius: 30px !important;
-        padding: 0.7rem 2.5rem !important;
-        margin-top: 0.5rem !important;
-        letter-spacing: 0.04em !important;
-        box-shadow: 0 4px 15px rgba(21,101,192,0.4) !important;
-    }
-    .btn-empezar button:hover {
-        background-color: #1976D2 !important;
-        box-shadow: 0 6px 20px rgba(21,101,192,0.6) !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
-    col_b1, col_b2, col_b3 = st.columns([2, 1, 2])
-    with col_b2:
-        st.markdown('<div class="btn-empezar">', unsafe_allow_html=True)
-        if st.button("👤  Empezar aquí", key="btn_empezar", use_container_width=True):
-            st.session_state["ir_a_ingreso"] = True
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    if st.session_state.get("ir_a_ingreso", False):
-        st.session_state["ir_a_ingreso"] = False
-        js = "<script>window.parent.document.querySelectorAll('[data-baseweb=tab]')[1].click();</script>"
-        st.components.v1.html(js, height=0)
 
 # ───────────────────────────────────────────────────────────────
 # TAB 1: INGRESO
