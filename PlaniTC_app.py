@@ -236,7 +236,7 @@ TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"
 
 MODULACION_CORRIENTE = ["MANUAL", "AUTO mA", "CARE DOSE 4D"]
 
-KVP_OPCIONES = [70, 80, 90, 100, 110, 120]
+KVP_OPCIONES = [70, 80, 90, 100, 110, 120, 140]
 
 MAS_OPCIONES = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
 
@@ -779,8 +779,8 @@ tab0, tab1, tab1b, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 0: PORTADA
 # ───────────────────────────────────────────────────────────────
 with tab0:
-    st.markdown(f"""
-    <div style="text-align:center; padding: 1rem 0 0.5rem 0;">
+    st.components.v1.html(f"""
+    <div style="text-align:center; padding: 0.5rem 0;">
         <div style="position:relative; display:inline-block; width:100%; max-width:900px;">
             <img src="data:image/jpeg;base64,{IMG_PORTADA_B64}"
                  style="width:100%; border-radius:12px;
@@ -809,8 +809,10 @@ with tab0:
                 👤 Empezar aquí
             </button>
         </div>
-    </div>
-    <div style="text-align:center; margin-top: 1.2rem;">
+    </div>""", height=520)
+    st.markdown(f"""
+    <div style="text-align:center; margin-top: 0.2rem;">
+    <div style="text-align:center; margin-top: 1rem;">
         <p style="font-size:1.05rem; color:#AAAAAA; margin:0;">
             Simulador educativo de planificación de Tomografía Computada
         </p>
