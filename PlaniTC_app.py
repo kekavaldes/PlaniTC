@@ -849,7 +849,6 @@ with tab1:
         st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
         region_anat = st.selectbox("Región anatómica", [None] + list(REGIONES.keys()), index=0,
                 format_func=lambda x: "— Seleccionar —" if x is None else x)
-        region_anat_seleccionada = region_anat  # Guardar si fue None o no
         if region_anat is None: region_anat = "CUERPO"
         st.session_state["region_anat"] = region_anat if region_anat else "CUERPO"
 
@@ -896,28 +895,20 @@ with tab1:
 
     with col_ing3:
         st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
-        if region_anat_seleccionada is None:
-            st.markdown("""
-            <div style="color:#555; text-align:center; padding:2rem; border:1px dashed #333;
-                        border-radius:8px; margin-top:1rem;">
-                Selecciona una región anatómica para ver la imagen
+        _img_region = IMG_REGIONES.get(region_anat)
+        if _img_region:
+            st.markdown(f"""
+            <div style="text-align:center;">
+                <img src="data:image/png;base64,{_img_region}"
+                     style="max-height:460px; max-width:100%;
+                            object-fit:contain; display:block; margin:auto;">
+                <div style="font-size:12px; color:#888; margin-top:6px;">
+                    {region_anat}
+                </div>
             </div>
             """, unsafe_allow_html=True)
         else:
-            _img_region = IMG_REGIONES.get(region_anat)
-            if _img_region:
-                st.markdown(f"""
-                <div style="text-align:center;">
-                    <img src="data:image/png;base64,{_img_region}"
-                         style="max-height:460px; max-width:100%;
-                                object-fit:contain; display:block; margin:auto;">
-                    <div style="font-size:12px; color:#888; margin-top:6px;">
-                        {region_anat}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown('<div style="color:#555; text-align:center; padding:2rem;">Sin imagen disponible</div>', unsafe_allow_html=True)
+            st.markdown('<div style="color:#555; text-align:center; padding:2rem;">Sin imagen disponible</div>', unsafe_allow_html=True)
 
     col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 2])
     with col_btn2:
@@ -998,34 +989,8 @@ with tab1b:
         </style>
         """, unsafe_allow_html=True)
 
-        _topo_campos_completos = all([
-            topo1_kv is not None,
-            topo1_ma is not None,
-            topo1_pos is not None,
-            topo1_long is not None,
-            topo1_dir is not None,
-            topo1_voz is not None,
-        ])
-
-        if not _topo_campos_completos:
-            _campos_faltantes = []
-            if topo1_kv   is None: _campos_faltantes.append("kV")
-            if topo1_ma   is None: _campos_faltantes.append("mA")
-            if topo1_pos  is None: _campos_faltantes.append("Posición tubo")
-            if topo1_long is None: _campos_faltantes.append("Longitud")
-            if topo1_dir  is None: _campos_faltantes.append("Dirección")
-            if topo1_voz  is None: _campos_faltantes.append("Instrucción de voz")
-            st.markdown(f"""
-            <div style="background:#1A1100; border:1px solid #554400; border-radius:8px;
-                        padding:0.6rem 1rem; margin-bottom:0.5rem; font-size:0.82rem; color:#FFAA00;">
-                ⚠️ Completa todos los campos antes de iniciar:<br>
-                <span style="color:#FF8800;">{'  ·  '.join(_campos_faltantes)}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
         st.markdown('<div class="btn-iniciar">', unsafe_allow_html=True)
-        if st.button("☢️  INICIAR TOPOGRAMA", key="btn_iniciar_topo",
-                     use_container_width=True, disabled=not _topo_campos_completos):
+        if st.button("☢️  INICIAR TOPOGRAMA", key="btn_iniciar_topo", use_container_width=True):
             st.session_state["topograma_iniciado"] = True
         st.markdown('</div>', unsafe_allow_html=True)
 
