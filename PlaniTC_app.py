@@ -977,6 +977,18 @@ with tab1b:
             )
             st.session_state["entrada"] = entrada if entrada else ""
 
+        with col_topo_img:
+            st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado</div>', unsafe_allow_html=True)
+            imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
+                st.session_state.get("posicion", ""),
+                st.session_state.get("entrada", ""),
+                st.session_state.get("t1pt", None),
+            )
+            if imagen_posicionamiento is not None:
+                st.image(str(imagen_posicionamiento), use_container_width=True)
+            else:
+                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
+
         def _get_posicion_key(pos, ent):
             if not pos or not ent:
                 return None
