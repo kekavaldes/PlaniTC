@@ -232,6 +232,66 @@ INSTRUCCIONES_VOZ = ["NINGUNA", "INSPIRACIÓN", "ESPIRACIÓN", "NO TRAGAR", "VAL
 
 RETARDOS = ["2 sg", "3 sg", "4 sg", "5 sg", "6 sg"]
 
+
+# Carpeta con imágenes de posicionamiento para topograma
+DIR_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
+
+def normalizar_posicion_topograma(posicion: str) -> str:
+    posicion = (posicion or "").strip().lower()
+    if "lateral derecho" in posicion:
+        return "lateral_derecho"
+    if "lateral izquierdo" in posicion:
+        return "lateral_izquierdo"
+    if "prono" in posicion:
+        return "prono"
+    if "supino" in posicion:
+        return "supino"
+    return ""
+
+def normalizar_entrada_topograma(entrada: str) -> str:
+    entrada = (entrada or "").strip().lower()
+    if "cabeza" in entrada:
+        return "cabeza_primero"
+    if "pies" in entrada:
+        return "pies_primero"
+    return ""
+
+def normalizar_tubo_topograma(pos_tubo: str) -> str:
+    pos_tubo = (pos_tubo or "").strip().lower()
+    if "arriba" in pos_tubo:
+        return "arriba"
+    if "abajo" in pos_tubo:
+        return "abajo"
+    if "derecha" in pos_tubo:
+        return "derecho"
+    if "izquierda" in pos_tubo:
+        return "izquierdo"
+    return ""
+
+def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tubo: str):
+    entrada_norm = normalizar_entrada_topograma(entrada)
+    posicion_norm = normalizar_posicion_topograma(posicion)
+    tubo_norm = normalizar_tubo_topograma(pos_tubo)
+
+    if not entrada_norm or not posicion_norm or not tubo_norm:
+        return None
+
+    candidatos = [
+        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}.png",
+        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}.jpg",
+        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}.jpeg",
+        f"topograma_{entrada_norm}__{posicion_norm}__{tubo_norm}.png",
+        f"topograma_{entrada_norm}__{posicion_norm}__{tubo_norm}.jpg",
+        f"topograma_{entrada_norm}__{posicion_norm}__{tubo_norm}.jpeg",
+    ]
+
+    for nombre in candidatos:
+        ruta = DIR_IMAGENES_TOPO_POS / nombre
+        if ruta.exists():
+            return ruta
+
+    return None
+
 # Adquisición
 TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"]
 
