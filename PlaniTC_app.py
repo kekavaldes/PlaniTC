@@ -1099,26 +1099,7 @@ with tab1b:
         _posicion_prev = st.session_state.get("posicion", "")
         _entrada_prev  = st.session_state.get("entrada", "")
 
-        _pos_key_prev = _get_posicion_key(_posicion_prev, _entrada_prev)
-        _img_pos_prev = IMG_POSICIONES.get(_pos_key_prev)
-        st.markdown('<div class="section-header">🧍 Posición / entrada seleccionada</div>', unsafe_allow_html=True)
-        if _img_pos_prev:
-            st.markdown(f"""
-            <div style="text-align:center; margin-bottom:18px;">
-                <img src="data:image/jpeg;base64,{_img_pos_prev}"
-                     style="width:75%; border-radius:8px; border:1px solid #333;">
-                <div style="font-size:11px; color:#888; margin-top:4px;">
-                    {_posicion_prev} · {_entrada_prev}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div style="color:#555; text-align:center; padding:1.2rem; border:1px dashed #333;
-                        border-radius:8px; margin-bottom:18px;">
-                Selecciona la posición del paciente y la entrada para ver la imagen resultante
-            </div>
-            """, unsafe_allow_html=True)
+        # Se eliminó la vista previa de la imagen resultante según posición / entrada.
 
         def _tubo_to_proy_prev(pos_tubo, region, examen):
             if not pos_tubo:
