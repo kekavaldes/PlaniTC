@@ -7,6 +7,7 @@ Versión web: Python + Streamlit
 import streamlit as st
 import numpy as np
 import math
+from datetime import date
 
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
@@ -833,24 +834,81 @@ with tab0:
 # TAB 1: INGRESO
 # ───────────────────────────────────────────────────────────────
 with tab1:
+    # Valores por defecto del ingreso
+    if "fecha_nacimiento" not in st.session_state:
+        st.session_state["fecha_nacimiento"] = date(2000, 1, 1)
+    if "embarazo" not in st.session_state:
+        st.session_state["embarazo"] = False
+    if "requiere_creatinina" not in st.session_state:
+        st.session_state["requiere_creatinina"] = False
+    if "contraste_ev" not in st.session_state:
+        st.session_state["contraste_ev"] = False
+    if "vvp" not in st.session_state:
+        st.session_state["vvp"] = None
+    if "metodo_inyeccion" not in st.session_state:
+        st.session_state["metodo_inyeccion"] = None
+    if "cantidad_contraste" not in st.session_state:
+        st.session_state["cantidad_contraste"] = None
+
     col_ing1, col_ing2, col_ing3 = st.columns([1.1, 1.1, 0.8])
 
     with col_ing1:
         st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
         nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
-        col_e, col_p = st.columns(2)
-        with col_e:
-            edad = st.number_input("Edad (años)", min_value=0, max_value=120, value=45)
-        with col_p:
-            peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
+
+        col_fn, col_edad = st.columns([1.35, 0.65])
+        with col_fn:
+            fecha_nacimiento = st.date_input(
+                "Fecha de nacimiento",
+                min_value=date(1900, 1, 1),
+                max_value=date.today(),
+                key="fecha_nacimiento"
+            )
+        with col_edad:
+            hoy = date.today()
+            edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.metric("Edad", f"{edad} años")
+
+        peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
+
+        st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
+        st.checkbox("¿Embarazo?", key="embarazo")
+        st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
+        st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
+
+        if not st.session_state["contraste_ev"]:
+            st.session_state["vvp"] = None
+            st.session_state["metodo_inyeccion"] = None
+            st.session_state["cantidad_contraste"] = None
+        else:
+            st.selectbox(
+                "VVP",
+                [None, "24G", "22G", "20G", "18G", "CVC"],
+                key="vvp",
+                format_func=lambda x: "— Seleccionar —" if x is None else x
+            )
+            st.selectbox(
+                "Método de inyección",
+                [None, "INYECTORA AUTOMÁTICA", "INYECCIÓN MANUAL"],
+                key="metodo_inyeccion",
+                format_func=lambda x: "— Seleccionar —" if x is None else x
+            )
+            st.selectbox(
+                "Cantidad de medio de contraste",
+                [None] + [f"{i} cc" for i in range(10, 151, 10)],
+                key="cantidad_contraste",
+                format_func=lambda x: "— Seleccionar —" if x is None else x
+            )
 
     with col_ing2:
         st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
         region_anat = st.selectbox("Región anatómica", [None] + list(REGIONES.keys()), index=0,
                 format_func=lambda x: "— Seleccionar —" if x is None else x)
-        region_anat_seleccionada = region_anat  # Guardar si fue None o no
-        if region_anat is None: region_anat = "CUERPO"
+        region_anat_seleccionada = region_anat
+        if region_anat is None:
+            region_anat = "CUERPO"
         st.session_state["region_anat"] = region_anat if region_anat else "CUERPO"
 
         examenes_disp = REGIONES.get(region_anat, ["—"])
@@ -868,7 +926,6 @@ with tab1:
                 format_func=lambda x: "— Seleccionar —" if x is None else x)
             st.session_state["entrada"] = entrada if entrada else ""
 
-        # Imagen según posición + entrada
         def _get_posicion_key(pos, ent):
             if not pos or not ent:
                 return None
