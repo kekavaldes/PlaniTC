@@ -7,6 +7,20 @@ Versión web: Python + Streamlit
 import streamlit as st
 import numpy as np
 import math
+from pathlib import Path
+from datetime import date
+import base64
+import json
+from html import escape
+try:
+    from PIL import Image, ImageDraw
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+try:
+    import openpyxl
+except ImportError:
+    pass
 
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
@@ -760,19 +774,2858 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
     return html
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FUNCIONES INTEGRADAS DESDE app.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def load_widget(key):
+    st.session_state[f"_{key}"] = st.session_state[key]
+
+def store_widget(key):
+    st.session_state[key] = st.session_state[f"_{key}"]
+
+    if key == "topo_region_anatomica":
+        st.session_state["topo_region"] = "Seleccionar"
+        st.session_state["_topo_region"] = "Seleccionar"
+    if key == "topo2_region_anatomica":
+        st.session_state["topo2_region"] = "Seleccionar"
+        st.session_state["_topo2_region"] = "Seleccionar"
+
+    if key.startswith("topo_"):
+        st.session_state["topo_rx_iniciado"] = False
+    if key.startswith("topo2_"):
+        st.session_state["topo2_rx_iniciado"] = False
+
+
+def persistent_text_input(label, key):
+    load_widget(key)
+    st.text_input(label, key=f"_{key}", on_change=store_widget, args=(key,))
+
+def persistent_text_area(label, key):
+    load_widget(key)
+    st.text_area(label, key=f"_{key}", on_change=store_widget, args=(key,))
+
+def persistent_date_input(label, key, min_value=None, max_value=None):
+    load_widget(key)
+    st.date_input(
+        label,
+        key=f"_{key}",
+        min_value=min_value,
+        max_value=max_value,
+        on_change=store_widget,
+        args=(key,)
+    )
+
+def mostrar_opcion_minuscula(opcion):
+    if isinstance(opcion, str):
+        return opcion.lower()
+    return str(opcion)
+
+def persistent_selectbox(label, options, key):
+    load_widget(key)
+    st.selectbox(
+        label,
+        options,
+        key=f"_{key}",
+        format_func=mostrar_opcion_minuscula,
+        on_change=store_widget,
+        args=(key,)
+    )
+
+def persistent_multiselect(label, options, key):
+    load_widget(key)
+    st.multiselect(
+        label,
+        options,
+        key=f"_{key}",
+        format_func=mostrar_opcion_minuscula,
+        on_change=store_widget,
+        args=(key,)
+    )
+
+def persistent_number_input(label, key, **kwargs):
+    load_widget(key)
+    st.number_input(label, key=f"_{key}", on_change=store_widget, args=(key,), **kwargs)
+
+
+def sanitizar_decimal(valor):
+    valor = "" if valor is None else str(valor)
+    valor_limpio = re.sub(r"[^0-9.,]", "", valor).replace(",", ".")
+    partes = valor_limpio.split(".")
+    if len(partes) > 2:
+        valor_limpio = partes[0] + "." + "".join(partes[1:])
+    return valor_limpio
+
+
+def store_decimal_widget(key):
+    st.session_state[key] = sanitizar_decimal(st.session_state.get(f"_{key}", ""))
+    st.session_state[f"_{key}"] = st.session_state[key]
+
+
+def persistent_decimal_text_input(label, key, placeholder=""):
+    widget_key = f"_{key}"
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = sanitizar_decimal(st.session_state.get(key, ""))
+
+    st.text_input(label, key=widget_key, placeholder=placeholder, on_change=store_decimal_widget, args=(key,))
+
+    st.session_state[key] = sanitizar_decimal(st.session_state.get(widget_key, ""))
+
+def calcular_cobertura_desde_matriz(matriz_texto):
+    matriz = str(matriz_texto).strip()
+    if matriz in ["", "Seleccionar", "None"]:
+        return ""
+
+    matriz_normalizada = (
+        matriz.lower()
+        .replace("×", "x")
+        .replace(" ", "")
+        .replace(",", ".")
+    )
+
+    if "x" not in matriz_normalizada:
+        return ""
+
+    try:
+        n_texto, espesor_texto = matriz_normalizada.split("x", 1)
+        n = float(n_texto)
+        espesor = float(espesor_texto)
+        cobertura = n * espesor
+
+        if abs(cobertura - round(cobertura)) < 1e-9:
+            return str(int(round(cobertura)))
+        return f"{cobertura:.3f}".rstrip("0").rstrip(".").replace(".", ",")
+    except Exception:
+        return ""
+
+
+
+def ajustar_imagen_a_lienzo_uniforme(imagen, tamano_lienzo=(420, 420), color_fondo=(32, 32, 32)):
+    if imagen is None:
+        return None
+
+    try:
+        imagen = imagen.convert("RGB")
+        ancho_lienzo, alto_lienzo = tamano_lienzo
+        ancho_img, alto_img = imagen.size
+
+        escala = min(ancho_lienzo / ancho_img, alto_lienzo / alto_img)
+        nuevo_ancho = max(1, int(ancho_img * escala))
+        nuevo_alto = max(1, int(alto_img * escala))
+
+        imagen_redimensionada = imagen.resize((nuevo_ancho, nuevo_alto))
+        lienzo = Image.new("RGB", tamano_lienzo, color_fondo)
+
+        offset_x = (ancho_lienzo - nuevo_ancho) // 2
+        offset_y = (alto_lienzo - nuevo_alto) // 2
+        lienzo.paste(imagen_redimensionada, (offset_x, offset_y))
+        return lienzo
+    except Exception:
+        return imagen
+
+
+
+
+def imagen_a_data_uri(fuente):
+    try:
+        if fuente is None:
+            return None
+        if isinstance(fuente, Image.Image):
+            from io import BytesIO
+            buffer = BytesIO()
+            fuente.save(buffer, format="PNG")
+            return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("utf-8")
+        ruta = Path(fuente)
+        if not ruta.exists():
+            return None
+        sufijo = ruta.suffix.lower()
+        mime = "image/png" if sufijo == ".png" else "image/jpeg"
+        return f"data:{mime};base64," + base64.b64encode(ruta.read_bytes()).decode("utf-8")
+    except Exception:
+        return None
+
+
+def texto_pdf(valor):
+    if isinstance(valor, list):
+        return ", ".join(str(v) for v in valor) if valor else "-"
+    if valor is None:
+        return "-"
+    texto = str(valor).strip()
+    return texto if texto else "-"
+
+
+def crear_topograma_data_uri_para_exportacion(ruta_imagen, limite_superior, limite_inferior, color_inicio=(0, 255, 255), color_fin=(255, 180, 0)):
+    imagen = crear_topograma_con_limites(
+        ruta_imagen,
+        limite_superior,
+        limite_inferior,
+        color_inicio=color_inicio,
+        color_fin=color_fin,
+        texto_inicio="Inicio",
+        texto_fin="Fin",
+    )
+    if imagen is None:
+        return imagen_a_data_uri(ruta_imagen)
+    return imagen_a_data_uri(imagen)
+
+
+def bloque_resumen_exportacion(titulo, filas):
+    filas_html = "".join(
+        f"<div class='pdf-row'><div class='pdf-label'>{escape(str(label))}</div><div class='pdf-value'>{escape(texto_pdf(valor))}</div></div>"
+        for label, valor in filas
+    )
+    return f"<section class='pdf-section'><h3>{escape(titulo)}</h3>{filas_html}</section>"
+
+
+def bloque_imagen_exportacion(titulo, data_uri=None, storage_key=None):
+    if not data_uri and not storage_key:
+        return ""
+    attrs = f" data-storage-key='{escape(storage_key)}'" if storage_key else ""
+    src = data_uri or ""
+    return f"""
+    <section class='pdf-section pdf-image-block'{attrs}>
+        <h3>{escape(titulo)}</h3>
+        <img src='{src}' alt='{escape(titulo)}' />
+    </section>
+    """
+
+
+def render_panel_exportacion_pdf():
+    filas_preparacion = [
+        ("Nombres", st.session_state.get("prep_nombres")),
+        ("Apellidos", st.session_state.get("prep_apellidos")),
+        ("Fecha de nacimiento", st.session_state.get("prep_fecha_nac")),
+        ("Examen", st.session_state.get("prep_examen")),
+        ("Peso", f"{st.session_state.get('prep_peso')} kg"),
+        ("Embarazo", st.session_state.get("prep_embarazo")),
+        ("Creatinina", st.session_state.get("prep_creatinina")),
+        ("Medio de contraste EV", st.session_state.get("prep_medio_contraste_ev")),
+        ("Vía venosa", st.session_state.get("prep_via_venosa")),
+        ("Cantidad de contraste", st.session_state.get("prep_cantidad_contraste")),
+        ("Método de inyección", st.session_state.get("prep_metodo_inyeccion")),
+        ("Medio de contraste oral", st.session_state.get("prep_medio_contraste_oral")),
+    ]
+
+    secciones_html = [bloque_resumen_exportacion("Preparación de paciente", filas_preparacion)]
+
+    for prefijo, titulo in [("topo", "Topograma 1"), ("topo2", "Topograma 2")]:
+        if prefijo == "topo2" and not st.session_state.get("mostrar_topo2", False):
+            continue
+        filas_topo = [
+            ("Entrada paciente", st.session_state.get(f"{prefijo}_entrada_paciente")),
+            ("Posicionamiento", st.session_state.get(f"{prefijo}_posicionamiento")),
+            ("Posición del tubo", st.session_state.get(f"{prefijo}_posicion_tubo")),
+            ("Posición de brazos / extremidades", st.session_state.get(f"{prefijo}_posicion_brazos")),
+            ("Región anatómica", st.session_state.get(f"{prefijo}_region_anatomica")),
+            ("Protocolo", st.session_state.get(f"{prefijo}_region")),
+            ("Inicio topograma", st.session_state.get(f"{prefijo}_inicio")),
+            ("Término topograma", st.session_state.get(f"{prefijo}_termino")),
+            ("RX iniciado", "Sí" if st.session_state.get(f"{prefijo}_rx_iniciado") else "No"),
+        ]
+        secciones_html.append(bloque_resumen_exportacion(titulo, filas_topo))
+        if st.session_state.get(f"{prefijo}_rx_iniciado"):
+            data_uri_topo = imagen_a_data_uri(obtener_imagen_rx_topograma(prefijo))
+            if data_uri_topo:
+                secciones_html.append(bloque_imagen_exportacion(f"{titulo} - imagen RX", data_uri_topo))
+
+    snapshot_blocks = []
+    for numero in range(1, 7):
+        pref = adq_prefijo(numero)
+        if numero > 1 and not st.session_state.get(f"mostrar_{pref}", False):
+            continue
+
+        filas_adq = [
+            ("Fase de adquisición", st.session_state.get(f"{pref}_fase_adquisicion")),
+            ("Instrucción de voz", st.session_state.get(f"{pref}_instruccion_voz")),
+            ("Delay", st.session_state.get(f"{pref}_delay")),
+            ("Tipo de exploración", st.session_state.get(f"{pref}_tipo_exploracion")),
+            ("Espesor", st.session_state.get(f"{pref}_espesor")),
+            ("Matriz detectores", st.session_state.get(f"{pref}_matriz_detectores")),
+            ("Cobertura", st.session_state.get(f"{pref}_colimacion")),
+            ("Inicio de adquisición", st.session_state.get(f"{pref}_inicio_adquisicion")),
+            ("Fin de adquisición", st.session_state.get(f"{pref}_fin_adquisicion")),
+            ("Giro de tubo", st.session_state.get(f"{pref}_giro_tubo")),
+            ("Modulación de corriente", st.session_state.get(f"{pref}_modulacion_corriente")),
+            ("kV referencia", st.session_state.get(f"{pref}_kv_referencia")),
+            ("mAs referencia", st.session_state.get(f"{pref}_mas_referencia")),
+            ("kV manual", st.session_state.get(f"{pref}_kv_manual")),
+            ("mAs manual", st.session_state.get(f"{pref}_mas_manual")),
+            ("Pitch", st.session_state.get(f"{pref}_pitch")),
+            ("SFOV", st.session_state.get(f"{pref}_sfov")),
+        ]
+        secciones_html.append(bloque_resumen_exportacion(f"Adquisición {numero}", filas_adq))
+
+        topo1_uri = crear_topograma_data_uri_para_exportacion(
+            obtener_imagen_rx_topograma("topo"),
+            int(st.session_state.get("adq_topo1_limite_superior" if numero == 1 else f"{pref}_topo1_limite_superior", 15)),
+            int(st.session_state.get("adq_topo1_limite_inferior" if numero == 1 else f"{pref}_topo1_limite_inferior", 85)),
+        )
+        if topo1_uri:
+            secciones_html.append(bloque_imagen_exportacion(f"Adquisición {numero} - topograma 1", topo1_uri))
+        if st.session_state.get("mostrar_topo2", False):
+            topo2_uri = crear_topograma_data_uri_para_exportacion(
+                obtener_imagen_rx_topograma("topo2"),
+                int(st.session_state.get("adq_topo2_limite_superior" if numero == 1 else f"{pref}_topo2_limite_superior", 15)),
+                int(st.session_state.get("adq_topo2_limite_inferior" if numero == 1 else f"{pref}_topo2_limite_inferior", 85)),
+            )
+            if topo2_uri:
+                secciones_html.append(bloque_imagen_exportacion(f"Adquisición {numero} - topograma 2", topo2_uri))
+
+        if st.session_state.get(f"{pref}_delay") in ["Bolus tracking", "Bolus test"]:
+            snapshot_blocks.append(bloque_imagen_exportacion(f"Adquisición {numero} - ROI bolus", storage_key=f"sim_tc_snapshot_{pref}_bolus"))
+            snapshot_blocks.append(bloque_imagen_exportacion(f"Adquisición {numero} - corte de bolus topograma 1", storage_key=f"sim_tc_snapshot_{pref}_topo_bolus"))
+            if st.session_state.get("mostrar_topo2", False):
+                snapshot_blocks.append(bloque_imagen_exportacion(f"Adquisición {numero} - corte de bolus topograma 2", storage_key=f"sim_tc_snapshot_{pref}_topo2_bolus"))
+
+    filas_recon = [
+        ("Fase a reconstruir", st.session_state.get("recon_fase")),
+        ("Tipo de reconstrucción", st.session_state.get("recon_tipo")),
+        ("Intensidad", st.session_state.get("recon_intensidad")),
+        ("Filtro kernel", st.session_state.get("recon_kernel")),
+        ("Nivel de ventana", st.session_state.get("recon_nivel_ventana")),
+        ("Ancho de ventana", st.session_state.get("recon_ancho_ventana")),
+        ("Grosor de corte", st.session_state.get("recon_grosor")),
+        ("Incremento", st.session_state.get("recon_incremento")),
+    ]
+    secciones_html.append(bloque_resumen_exportacion("Reconstrucción", filas_recon))
+    secciones_html.append(bloque_imagen_exportacion("Reconstrucción - matriz interactiva", storage_key="sim_tc_snapshot_recon_preview"))
+
+    recon_topo1 = crear_topograma_data_uri_para_exportacion(
+        obtener_imagen_rx_topograma("topo"),
+        int(st.session_state.get("recon_topo1_limite_superior", 15)),
+        int(st.session_state.get("recon_topo1_limite_inferior", 85)),
+        color_inicio=(255, 0, 255),
+        color_fin=(0, 255, 0),
+    )
+    if recon_topo1:
+        secciones_html.append(bloque_imagen_exportacion("Reconstrucción - topograma 1", recon_topo1))
+    if st.session_state.get("mostrar_topo2", False):
+        recon_topo2 = crear_topograma_data_uri_para_exportacion(
+            obtener_imagen_rx_topograma("topo2"),
+            int(st.session_state.get("recon_topo2_limite_superior", 15)),
+            int(st.session_state.get("recon_topo2_limite_inferior", 85)),
+            color_inicio=(255, 0, 255),
+            color_fin=(0, 255, 0),
+        )
+        if recon_topo2:
+            secciones_html.append(bloque_imagen_exportacion("Reconstrucción - topograma 2", recon_topo2))
+
+    filas_reform = [
+        ("Reconstrucción a reformar", st.session_state.get("reform_reconstruccion")),
+        ("Fase", st.session_state.get("reform_fase")),
+        ("Tipo de reformación", st.session_state.get("reform_tipo")),
+        ("Plano de reformación", st.session_state.get("reform_plano")),
+        ("Grosor de corte", st.session_state.get("reform_grosor")),
+        ("Distancia de corte", st.session_state.get("reform_distancia")),
+    ]
+    if st.session_state.get("jer_no_usare", False):
+        filas_jeringa = [
+            ("Uso de jeringa inyectora", "No la usaré"),
+        ]
+    else:
+        filas_jeringa = [
+            ("Tipo de contraste", st.session_state.get("jer_tipo_contraste")),
+            ("Volumen de contraste", f"{st.session_state.get('jer_volumen_contraste')} ml"),
+            ("Flujo", f"{st.session_state.get('jer_flujo')} ml/s"),
+            ("Flush", f"{st.session_state.get('jer_flush')} ml"),
+            ("Tiempo delay", f"{st.session_state.get('jer_tiempo_delay')} s"),
+            ("Sitio de punción", st.session_state.get("jer_sitio_puncion")),
+        ]
+    secciones_html.append(bloque_resumen_exportacion("Reformación", filas_reform))
+    secciones_html.append(bloque_resumen_exportacion("Jeringa inyectora", filas_jeringa))
+
+    contenido_html = "".join(secciones_html + snapshot_blocks)
+
+    html_code = f"""
+    <div style='background:#616161;border:1px solid #7a7a7a;border-radius:12px;padding:16px;'>
+        <div style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;'>
+            <div style='color:white;font-weight:700;font-size:18px;'>Exportación PDF de la simulación</div>
+            <button id='btn-exportar-pdf' style='background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer;'>Descargar PDF</button>
+        </div>
+        <div style='color:#e8e8e8;font-size:13px;margin-bottom:14px;'>El PDF incluirá los campos completados, las imágenes visibles y las evidencias interactivas guardadas en el navegador.</div>
+        <div id='pdf-preview-root'>
+            {contenido_html}
+        </div>
+    </div>
+
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'></script>
+    <style>
+        body {{ background:#505050; margin:0; font-family: Arial, Helvetica, sans-serif; }}
+        #pdf-preview-root {{ background:#f3f3f3; color:#222; padding:18px; border-radius:10px; }}
+        .pdf-section {{ background:white; border:1px solid #d7d7d7; border-radius:10px; padding:14px; margin-bottom:14px; break-inside: avoid; }}
+        .pdf-section h3 {{ margin:0 0 12px 0; font-size:16px; color:#111; }}
+        .pdf-row {{ display:flex; gap:12px; padding:6px 0; border-bottom:1px solid #ececec; }}
+        .pdf-row:last-child {{ border-bottom:none; }}
+        .pdf-label {{ width:42%; font-weight:700; }}
+        .pdf-value {{ width:58%; }}
+        .pdf-image-block img {{ width:100%; border:1px solid #dcdcdc; border-radius:8px; display:block; }}
+    </style>
+    <script>
+        (() => {{
+            function leerStorage(key) {{
+                try {{
+                    return window.parent.localStorage.getItem(key) || localStorage.getItem(key);
+                }} catch (e) {{
+                    try {{ return localStorage.getItem(key); }} catch (err) {{ return null; }}
+                }}
+            }}
+
+            document.querySelectorAll('.pdf-image-block[data-storage-key]').forEach((block) => {{
+                const key = block.getAttribute('data-storage-key');
+                const img = block.querySelector('img');
+                const src = leerStorage(key);
+                if (src) {{
+                    img.src = src;
+                }} else {{
+                    block.remove();
+                }}
+            }});
+
+            function descargarPdfDesdeElemento(elemento, nombreArchivo) {{
+                if (!window.html2canvas || !window.jspdf) {{
+                    alert('No fue posible cargar las librerías de exportación PDF.');
+                    return;
+                }}
+                html2canvas(elemento, {{ scale: 2, useCORS: true, backgroundColor: '#f3f3f3' }}).then((canvas) => {{
+                    const {{ jsPDF }} = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pageWidth = 210;
+                    const pageHeight = 297;
+                    const margin = 10;
+                    const usableWidth = pageWidth - margin * 2;
+                    const imgWidth = usableWidth;
+                    const imgHeight = canvas.height * imgWidth / canvas.width;
+                    let heightLeft = imgHeight;
+                    let position = margin;
+                    const imgData = canvas.toDataURL('image/png');
+
+                    pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                    heightLeft -= (pageHeight - margin * 2);
+
+                    while (heightLeft > 0) {{
+                        position = margin - (imgHeight - heightLeft);
+                        pdf.addPage();
+                        pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                        heightLeft -= (pageHeight - margin * 2);
+                    }}
+
+                    pdf.save(nombreArchivo);
+                }});
+            }}
+
+            document.getElementById('btn-exportar-pdf').addEventListener('click', () => {{
+                descargarPdfDesdeElemento(document.getElementById('pdf-preview-root'), 'simulacion_tc.pdf');
+            }});
+        }})();
+    </script>
+    """
+
+    components.html(html_code, height=950, scrolling=True)
+
+
+
+def texto_completo(valor):
+    return str(valor).strip() != ""
+
+def seleccion_completa(valor):
+    return valor not in ["", None, "Seleccionar"]
+
+def lista_completa(valor):
+    return isinstance(valor, list) and len(valor) > 0
+
+
+def topograma_completo(prefijo="topo"):
+    return all([
+        seleccion_completa(st.session_state[f"{prefijo}_entrada_paciente"]),
+        seleccion_completa(st.session_state[f"{prefijo}_posicionamiento"]),
+        seleccion_completa(st.session_state[f"{prefijo}_posicion_tubo"]),
+        seleccion_completa(st.session_state[f"{prefijo}_posicion_brazos"]),
+        seleccion_completa(st.session_state[f"{prefijo}_region"]),
+        texto_completo(st.session_state[f"{prefijo}_inicio"]),
+        texto_completo(st.session_state[f"{prefijo}_termino"]),
+    ])
+
+def rx_campos_completos(prefijo="topo"):
+    return all([
+        seleccion_completa(st.session_state[f"{prefijo}_entrada_paciente"]),
+        seleccion_completa(st.session_state[f"{prefijo}_posicionamiento"]),
+        seleccion_completa(st.session_state[f"{prefijo}_posicion_tubo"]),
+        seleccion_completa(st.session_state[f"{prefijo}_region"]),
+    ])
+
+
+def obtener_protocolos_filtrados(prefijo_estado="topo"):
+    region_anatomica = st.session_state.get(f"{prefijo_estado}_region_anatomica", "Seleccionar")
+    entrada = st.session_state.get(f"{prefijo_estado}_entrada_paciente", "Seleccionar")
+
+    if region_anatomica in ["", None, "Seleccionar"]:
+        return ["Seleccionar"]
+
+    protocolos_base = MAPA_REGION_ANATOMICA_A_PROTOCOLOS.get(str(region_anatomica).lower(), ["Seleccionar"])
+
+    if entrada in ["", None, "Seleccionar"]:
+        return protocolos_base
+
+    entrada_norm = normalizar_texto_archivo(entrada)
+    protocolos_validos = ["Seleccionar"]
+
+    for protocolo in protocolos_base:
+        if protocolo == "Seleccionar":
+            continue
+        protocolo_norm = normalizar_texto_archivo(protocolo)
+        existe = any(
+            clave[0] == entrada_norm and clave[3] == protocolo_norm
+            for clave in REGLAS_RX_VALIDAS.keys()
+        )
+        if existe:
+            protocolos_validos.append(protocolo)
+
+    # Permitir protocolos agregados manualmente aunque aún no tengan reglas de imagen asociadas
+    # para que sigan apareciendo en la lista desplegable del topograma.
+    protocolos_forzados = {"muslo"}
+    for protocolo in protocolos_base:
+        if protocolo in protocolos_forzados and protocolo not in protocolos_validos:
+            protocolos_validos.append(protocolo)
+
+    return protocolos_validos
+
+
+def corregir_nombre_imagen(valor):
+    nombre = normalizar_texto_archivo(valor)
+    correcciones = {
+        "abdomen_ateral": "abdomen_lateral",
+        "abdomen_rontal": "abdomen_frontal",
+        "abdomen__frontal": "abdomen_frontal",
+        "abdomenpelvis__frontal": "abdomen_y_pelvis_frontal",
+        "abdomenpelvis_frontal": "abdomen_y_pelvis_frontal",
+        "abdomenpelvis_lateral": "abdomen_y_pelvis_lateral",
+        "abdomen_y_pelvis__frontal": "abdomen_y_pelvis_frontal",
+        "pelvis__frontal": "pelvis_frontal",
+        "pelvis_pelvis__frontal": "pelvis_frontal",
+        "torax_abdomen_pelvis_frontal": "torax_abdomen_y_pelvis_frontal",
+        "torax_abdomen_pelvis_lateral": "torax_abdomen_y_pelvis_lateral",
+        "mano_ateral": "mano_lateral",
+        "mano_rontal": "mano_frontal",
+        "muneca_frontal": "mano_muneca_frontal",
+        "muneca_lateral": "mano_muneca_lateral",
+        "mano_muneca_frontal": "mano_muneca_frontal",
+        "mano_muneca_lateral": "mano_muneca_lateral",
+        "pie_tobillo_frontal": "pie_tobillo_frontal",
+        "pie_tobillo_lateral": "pie_tobillo_lateral",
+        "columna_dorsal_frontal": "columna_frontal",
+        "columna_dorsal_lateral": "columna_lateral",
+        "columna_lumbar_frontal": "columna_frontal",
+        "columna_lumbar_lateral": "columna_lateral",
+        "fangiotac_extremidad_superior_izquierdo_frontal": "angiotac_extremidad_superior_izquierdo_frontal",
+        "angiotac_extremidad_superior_izquierdo_frontal": "angiotac_extremidad_superior_izquierda_frontal",
+        "angiotac_extremidad_superior_izquierdo_lateral": "angiotac_extremidad_superior_izquierda_lateral",
+        "angiotac_extremidad_superior_derecho_frontal": "angiotac_extremidad_superior_derecha_frontal",
+        "angiotac_extremidad_superior_derecho_lateral": "angiotac_extremidad_superior_derecha_lateral",
+        "angiotac_extremidad_inferior_frontal": "angiotac_extremidad_inferior_frontal",
+        "angiotac_extremidad_inferior_lateral": "angiotac_extremidad_inferior_lateral",
+    }
+    nombre = correcciones.get(nombre, nombre)
+    nombre = nombre.replace("__", "_").strip("_")
+    return nombre
+
+
+
+def obtener_claves_rx(prefijo_estado="topo"):
+    entrada = st.session_state.get(f"{prefijo_estado}_entrada_paciente", "Seleccionar")
+    posicionamiento = st.session_state.get(f"{prefijo_estado}_posicionamiento", "Seleccionar")
+    tubo = st.session_state.get(f"{prefijo_estado}_posicion_tubo", "Seleccionar")
+    protocolo = st.session_state.get(f"{prefijo_estado}_region", "Seleccionar")
+
+    if (
+        entrada == "Seleccionar"
+        or posicionamiento == "Seleccionar"
+        or tubo == "Seleccionar"
+        or protocolo == "Seleccionar"
+    ):
+        return []
+
+    return [(
+        normalizar_texto_archivo(entrada),
+        normalizar_texto_archivo(posicionamiento),
+        normalizar_texto_archivo(tubo),
+        normalizar_texto_archivo(protocolo),
+    )]
+
+
+def obtener_clave_rx(prefijo_estado="topo"):
+    claves = obtener_claves_rx(prefijo_estado)
+    return claves[0] if claves else None
+
+
+def obtener_nombre_imagen_rx(prefijo_estado="topo"):
+    clave = obtener_clave_rx(prefijo_estado)
+    if not clave:
+        return None
+
+    nombre = REGLAS_RX_VALIDAS.get(clave)
+    if not nombre:
+        return None
+
+    return corregir_nombre_imagen(nombre)
+
+
+def combinacion_rx_disponible(prefijo_estado="topo"):
+    return obtener_clave_rx(prefijo_estado) in REGLAS_RX_VALIDAS
+
+
+def buscar_archivo_imagen_por_nombre(nombre_base):
+    if not nombre_base:
+        return None
+
+    nombre_base = str(nombre_base).strip()
+    candidatos = []
+    candidatos_normalizados = set()
+
+    def agregar_candidato(valor):
+        valor = str(valor).strip()
+        if not valor:
+            return
+        valor = corregir_nombre_imagen(valor)
+        if valor not in candidatos_normalizados:
+            candidatos.append(valor)
+            candidatos_normalizados.add(valor)
+
+    agregar_candidato(nombre_base)
+    agregar_candidato(nombre_base.replace("_", " "))
+    agregar_candidato(nombre_base.replace(" ", "_"))
+
+    alias = {
+        "abdomen_y_pelvis_frontal": ["abdomen_y_pelvis_frontal", "abdomen_pelvis_frontal", "abdomenpelvis_frontal"],
+        "abdomen_y_pelvis_lateral": ["abdomen_y_pelvis_lateral", "abdomen_pelvis_lateral", "abdomenpelvis_lateral"],
+        "torax_abdomen_y_pelvis_frontal": ["torax_abdomen_y_pelvis_frontal", "torax_abdomen_pelvis_frontal"],
+        "torax_abdomen_y_pelvis_lateral": ["torax_abdomen_y_pelvis_lateral", "torax_abdomen_pelvis_lateral"],
+        "mano_muneca_frontal": ["mano_muneca_frontal", "muneca_frontal", "mano_frontal"],
+        "mano_muneca_lateral": ["mano_muneca_lateral", "muneca_lateral", "mano_lateral"],
+        "pie_tobillo_frontal": ["pie_tobillo_frontal", "tobillo_frontal", "pie_frontal"],
+        "pie_tobillo_lateral": ["pie_tobillo_lateral", "tobillo_lateral", "pie_lateral"],
+        "columna_frontal": ["columna_frontal", "columna_dorsal_frontal", "columna_lumbar_frontal"],
+        "columna_lateral": ["columna_lateral", "columna_dorsal_lateral", "columna_lumbar_lateral"],
+        "angiotac_extremidad_superior_derecha_frontal": ["angiotac_extremidad_superior_derecha_frontal", "angiotac_extremidad_superior_derecho_frontal"],
+        "angiotac_extremidad_superior_derecha_lateral": ["angiotac_extremidad_superior_derecha_lateral", "angiotac_extremidad_superior_derecho_lateral"],
+        "angiotac_extremidad_superior_izquierda_frontal": ["angiotac_extremidad_superior_izquierda_frontal", "angiotac_extremidad_superior_izquierdo_frontal", "fangiotac_extremidad_superior_izquierdo_frontal"],
+        "angiotac_extremidad_superior_izquierda_lateral": ["angiotac_extremidad_superior_izquierda_lateral", "angiotac_extremidad_superior_izquierdo_lateral"],
+    }
+    for candidato in list(candidatos):
+        for extra in alias.get(candidato, []):
+            agregar_candidato(extra)
+
+    extensiones_validas = {".png", ".jpg", ".jpeg", ".webp"}
+    archivos = [p for p in BASE_DIR.iterdir() if p.is_file() and p.suffix.lower() in extensiones_validas]
+
+    mapa_archivos = {}
+    for archivo in archivos:
+        stem_normalizado = corregir_nombre_imagen(archivo.stem)
+        mapa_archivos.setdefault(stem_normalizado, archivo)
+
+    for candidato in candidatos:
+        if candidato in mapa_archivos:
+            return mapa_archivos[candidato]
+
+    extensiones = ["", ".png", ".jpg", ".jpeg", ".webp"]
+    for candidato in candidatos:
+        for ext in extensiones:
+            ruta = BASE_DIR / f"{candidato}{ext}"
+            if ruta.exists():
+                return ruta
+
+    return None
+
+
+def valor_numerico_desde_texto(valor):
+    try:
+        texto = str(valor).strip().replace(",", ".")
+        return float(texto)
+    except Exception:
+        return None
+
+
+def render_panel_exportacion_pdf():
+    filas_preparacion = [
+        ("Nombres", st.session_state.get("prep_nombres")),
+        ("Apellidos", st.session_state.get("prep_apellidos")),
+        ("Fecha de nacimiento", st.session_state.get("prep_fecha_nac")),
+        ("Examen", st.session_state.get("prep_examen")),
+        ("Peso", f"{st.session_state.get('prep_peso')} kg"),
+        ("Embarazo", st.session_state.get("prep_embarazo")),
+        ("Creatinina", st.session_state.get("prep_creatinina")),
+        ("Medio de contraste EV", st.session_state.get("prep_medio_contraste_ev")),
+        ("Vía venosa", st.session_state.get("prep_via_venosa")),
+        ("Cantidad de contraste", st.session_state.get("prep_cantidad_contraste")),
+        ("Método de inyección", st.session_state.get("prep_metodo_inyeccion")),
+        ("Medio de contraste oral", st.session_state.get("prep_medio_contraste_oral")),
+    ]
+
+    secciones_html = [bloque_resumen_exportacion("Preparación de paciente", filas_preparacion)]
+
+    for prefijo, titulo in [("topo", "Topograma 1"), ("topo2", "Topograma 2")]:
+        if prefijo == "topo2" and not st.session_state.get("mostrar_topo2", False):
+            continue
+        filas_topo = [
+            ("Entrada paciente", st.session_state.get(f"{prefijo}_entrada_paciente")),
+            ("Posicionamiento", st.session_state.get(f"{prefijo}_posicionamiento")),
+            ("Posición del tubo", st.session_state.get(f"{prefijo}_posicion_tubo")),
+            ("Posición de brazos / extremidades", st.session_state.get(f"{prefijo}_posicion_brazos")),
+            ("Región anatómica", st.session_state.get(f"{prefijo}_region_anatomica")),
+            ("Protocolo", st.session_state.get(f"{prefijo}_region")),
+            ("Inicio topograma", st.session_state.get(f"{prefijo}_inicio")),
+            ("Término topograma", st.session_state.get(f"{prefijo}_termino")),
+            ("RX iniciado", "Sí" if st.session_state.get(f"{prefijo}_rx_iniciado") else "No"),
+        ]
+        secciones_html.append(bloque_resumen_exportacion(titulo, filas_topo))
+        if st.session_state.get(f"{prefijo}_rx_iniciado"):
+            data_uri_topo = imagen_a_data_uri(obtener_imagen_rx_topograma(prefijo))
+            if data_uri_topo:
+                secciones_html.append(bloque_imagen_exportacion(f"{titulo} - imagen RX", data_uri_topo))
+
+    snapshot_blocks = []
+    for numero in range(1, 7):
+        pref = adq_prefijo(numero)
+        if numero > 1 and not st.session_state.get(f"mostrar_{pref}", False):
+            continue
+
+        filas_adq = [
+            ("Fase de adquisición", st.session_state.get(f"{pref}_fase_adquisicion")),
+            ("Instrucción de voz", st.session_state.get(f"{pref}_instruccion_voz")),
+            ("Delay", st.session_state.get(f"{pref}_delay")),
+            ("Tipo de exploración", st.session_state.get(f"{pref}_tipo_exploracion")),
+            ("Espesor", st.session_state.get(f"{pref}_espesor")),
+            ("Matriz detectores", st.session_state.get(f"{pref}_matriz_detectores")),
+            ("Cobertura", st.session_state.get(f"{pref}_colimacion")),
+            ("Inicio de adquisición", st.session_state.get(f"{pref}_inicio_adquisicion")),
+            ("Fin de adquisición", st.session_state.get(f"{pref}_fin_adquisicion")),
+            ("Giro de tubo", st.session_state.get(f"{pref}_giro_tubo")),
+            ("Modulación de corriente", st.session_state.get(f"{pref}_modulacion_corriente")),
+            ("kV referencia", st.session_state.get(f"{pref}_kv_referencia")),
+            ("mAs referencia", st.session_state.get(f"{pref}_mas_referencia")),
+            ("kV manual", st.session_state.get(f"{pref}_kv_manual")),
+            ("mAs manual", st.session_state.get(f"{pref}_mas_manual")),
+            ("Pitch", st.session_state.get(f"{pref}_pitch")),
+            ("SFOV", st.session_state.get(f"{pref}_sfov")),
+        ]
+        secciones_html.append(bloque_resumen_exportacion(f"Adquisición {numero}", filas_adq))
+
+        topo1_uri = crear_topograma_data_uri_para_exportacion(
+            obtener_imagen_rx_topograma("topo"),
+            int(st.session_state.get("adq_topo1_limite_superior" if numero == 1 else f"{pref}_topo1_limite_superior", 15)),
+            int(st.session_state.get("adq_topo1_limite_inferior" if numero == 1 else f"{pref}_topo1_limite_inferior", 85)),
+        )
+        if topo1_uri:
+            secciones_html.append(bloque_imagen_exportacion(f"Adquisición {numero} - topograma 1", topo1_uri))
+        if st.session_state.get("mostrar_topo2", False):
+            topo2_uri = crear_topograma_data_uri_para_exportacion(
+                obtener_imagen_rx_topograma("topo2"),
+                int(st.session_state.get("adq_topo2_limite_superior" if numero == 1 else f"{pref}_topo2_limite_superior", 15)),
+                int(st.session_state.get("adq_topo2_limite_inferior" if numero == 1 else f"{pref}_topo2_limite_inferior", 85)),
+            )
+            if topo2_uri:
+                secciones_html.append(bloque_imagen_exportacion(f"Adquisición {numero} - topograma 2", topo2_uri))
+
+        if st.session_state.get(f"{pref}_delay") in ["Bolus tracking", "Bolus test"]:
+            snapshot_blocks.append(bloque_imagen_exportacion(f"Adquisición {numero} - ROI bolus", storage_key=f"sim_tc_snapshot_{pref}_bolus"))
+            snapshot_blocks.append(bloque_imagen_exportacion(f"Adquisición {numero} - corte de bolus topograma 1", storage_key=f"sim_tc_snapshot_{pref}_topo_bolus"))
+            if st.session_state.get("mostrar_topo2", False):
+                snapshot_blocks.append(bloque_imagen_exportacion(f"Adquisición {numero} - corte de bolus topograma 2", storage_key=f"sim_tc_snapshot_{pref}_topo2_bolus"))
+
+    filas_recon = [
+        ("Fase a reconstruir", st.session_state.get("recon_fase")),
+        ("Tipo de reconstrucción", st.session_state.get("recon_tipo")),
+        ("Intensidad", st.session_state.get("recon_intensidad")),
+        ("Filtro kernel", st.session_state.get("recon_kernel")),
+        ("Nivel de ventana", st.session_state.get("recon_nivel_ventana")),
+        ("Ancho de ventana", st.session_state.get("recon_ancho_ventana")),
+        ("Grosor de corte", st.session_state.get("recon_grosor")),
+        ("Incremento", st.session_state.get("recon_incremento")),
+    ]
+    secciones_html.append(bloque_resumen_exportacion("Reconstrucción", filas_recon))
+    secciones_html.append(bloque_imagen_exportacion("Reconstrucción - matriz interactiva", storage_key="sim_tc_snapshot_recon_preview"))
+
+    recon_topo1 = crear_topograma_data_uri_para_exportacion(
+        obtener_imagen_rx_topograma("topo"),
+        int(st.session_state.get("recon_topo1_limite_superior", 15)),
+        int(st.session_state.get("recon_topo1_limite_inferior", 85)),
+        color_inicio=(255, 0, 255),
+        color_fin=(0, 255, 0),
+    )
+    if recon_topo1:
+        secciones_html.append(bloque_imagen_exportacion("Reconstrucción - topograma 1", recon_topo1))
+    if st.session_state.get("mostrar_topo2", False):
+        recon_topo2 = crear_topograma_data_uri_para_exportacion(
+            obtener_imagen_rx_topograma("topo2"),
+            int(st.session_state.get("recon_topo2_limite_superior", 15)),
+            int(st.session_state.get("recon_topo2_limite_inferior", 85)),
+            color_inicio=(255, 0, 255),
+            color_fin=(0, 255, 0),
+        )
+        if recon_topo2:
+            secciones_html.append(bloque_imagen_exportacion("Reconstrucción - topograma 2", recon_topo2))
+
+    filas_reform = [
+        ("Reconstrucción a reformar", st.session_state.get("reform_reconstruccion")),
+        ("Fase", st.session_state.get("reform_fase")),
+        ("Tipo de reformación", st.session_state.get("reform_tipo")),
+        ("Plano de reformación", st.session_state.get("reform_plano")),
+        ("Grosor de corte", st.session_state.get("reform_grosor")),
+        ("Distancia de corte", st.session_state.get("reform_distancia")),
+    ]
+    if st.session_state.get("jer_no_usare", False):
+        filas_jeringa = [
+            ("Uso de jeringa inyectora", "No la usaré"),
+        ]
+    else:
+        filas_jeringa = [
+            ("Tipo de contraste", st.session_state.get("jer_tipo_contraste")),
+            ("Volumen de contraste", f"{st.session_state.get('jer_volumen_contraste')} ml"),
+            ("Flujo", f"{st.session_state.get('jer_flujo')} ml/s"),
+            ("Flush", f"{st.session_state.get('jer_flush')} ml"),
+            ("Tiempo delay", f"{st.session_state.get('jer_tiempo_delay')} s"),
+            ("Sitio de punción", st.session_state.get("jer_sitio_puncion")),
+        ]
+    secciones_html.append(bloque_resumen_exportacion("Reformación", filas_reform))
+    secciones_html.append(bloque_resumen_exportacion("Jeringa inyectora", filas_jeringa))
+
+    contenido_html = "".join(secciones_html + snapshot_blocks)
+
+    html_code = f"""
+    <div style='background:#616161;border:1px solid #7a7a7a;border-radius:12px;padding:16px;'>
+        <div style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;'>
+            <div style='color:white;font-weight:700;font-size:18px;'>Exportación PDF de la simulación</div>
+            <button id='btn-exportar-pdf' style='background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer;'>Descargar PDF</button>
+        </div>
+        <div style='color:#e8e8e8;font-size:13px;margin-bottom:14px;'>El PDF incluirá los campos completados, las imágenes visibles y las evidencias interactivas guardadas en el navegador.</div>
+        <div id='pdf-preview-root'>
+            {contenido_html}
+        </div>
+    </div>
+
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'></script>
+    <style>
+        body {{ background:#505050; margin:0; font-family: Arial, Helvetica, sans-serif; }}
+        #pdf-preview-root {{ background:#f3f3f3; color:#222; padding:18px; border-radius:10px; }}
+        .pdf-section {{ background:white; border:1px solid #d7d7d7; border-radius:10px; padding:14px; margin-bottom:14px; break-inside: avoid; }}
+        .pdf-section h3 {{ margin:0 0 12px 0; font-size:16px; color:#111; }}
+        .pdf-row {{ display:flex; gap:12px; padding:6px 0; border-bottom:1px solid #ececec; }}
+        .pdf-row:last-child {{ border-bottom:none; }}
+        .pdf-label {{ width:42%; font-weight:700; }}
+        .pdf-value {{ width:58%; }}
+        .pdf-image-block img {{ width:100%; border:1px solid #dcdcdc; border-radius:8px; display:block; }}
+    </style>
+    <script>
+        (() => {{
+            function leerStorage(key) {{
+                try {{
+                    return window.parent.localStorage.getItem(key) || localStorage.getItem(key);
+                }} catch (e) {{
+                    try {{ return localStorage.getItem(key); }} catch (err) {{ return null; }}
+                }}
+            }}
+
+            document.querySelectorAll('.pdf-image-block[data-storage-key]').forEach((block) => {{
+                const key = block.getAttribute('data-storage-key');
+                const img = block.querySelector('img');
+                const src = leerStorage(key);
+                if (src) {{
+                    img.src = src;
+                }} else {{
+                    block.remove();
+                }}
+            }});
+
+            function descargarPdfDesdeElemento(elemento, nombreArchivo) {{
+                if (!window.html2canvas || !window.jspdf) {{
+                    alert('No fue posible cargar las librerías de exportación PDF.');
+                    return;
+                }}
+                html2canvas(elemento, {{ scale: 2, useCORS: true, backgroundColor: '#f3f3f3' }}).then((canvas) => {{
+                    const {{ jsPDF }} = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pageWidth = 210;
+                    const pageHeight = 297;
+                    const margin = 10;
+                    const usableWidth = pageWidth - margin * 2;
+                    const imgWidth = usableWidth;
+                    const imgHeight = canvas.height * imgWidth / canvas.width;
+                    let heightLeft = imgHeight;
+                    let position = margin;
+                    const imgData = canvas.toDataURL('image/png');
+
+                    pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                    heightLeft -= (pageHeight - margin * 2);
+
+                    while (heightLeft > 0) {{
+                        position = margin - (imgHeight - heightLeft);
+                        pdf.addPage();
+                        pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                        heightLeft -= (pageHeight - margin * 2);
+                    }}
+
+                    pdf.save(nombreArchivo);
+                }});
+            }}
+
+            document.getElementById('btn-exportar-pdf').addEventListener('click', () => {{
+                descargarPdfDesdeElemento(document.getElementById('pdf-preview-root'), 'simulacion_tc.pdf');
+            }});
+        }})();
+    </script>
+    """
+
+    components.html(html_code, height=950, scrolling=True)
+
+
+
+def render_roi_interactiva_html(uploaded_file, key_suffix="roi"):
+    if uploaded_file is None:
+        return
+
+    try:
+        image_bytes = uploaded_file.getvalue()
+        mime_type = getattr(uploaded_file, "type", None) or "image/png"
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        data_uri = f"data:{mime_type};base64,{image_b64}"
+
+        html_code = f"""
+        <div style="background:#4a4a4a;border:1px solid #7a7a7a;border-radius:12px;padding:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                <div style="color:white;font-weight:700;">ROI INTERACTIVA</div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <button id="add-roi-{key_suffix}" style="background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;">Agregar ROI</button>
+                    <button id="clear-roi-{key_suffix}" style="background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;">Quitar ROI</button>
+                    <label style="color:white;font-size:14px;">Tamaño ROI</label>
+                    <input id="radius-{key_suffix}" type="range" min="2" max="160" value="20" step="1" />
+                </div>
+            </div>
+            <div style="color:#d8d8d8;font-size:13px;margin-bottom:10px;">Arrastra el círculo rojo con el mouse para mover la ROI libremente.</div>
+            <canvas id="canvas-{key_suffix}" style="max-width:100%;width:100%;border-radius:10px;background:#222;cursor:grab;touch-action:none;display:block;"></canvas>
+        </div>
+
+        <script>
+        (() => {{
+            const canvas = document.getElementById('canvas-{key_suffix}');
+            const ctx = canvas.getContext('2d');
+            const addBtn = document.getElementById('add-roi-{key_suffix}');
+            const clearBtn = document.getElementById('clear-roi-{key_suffix}');
+            const radiusInput = document.getElementById('radius-{key_suffix}');
+            const img = new Image();
+            const storageKey = 'sim_tc_snapshot_{key_suffix}';
+
+            let hasROI = false;
+            let dragging = false;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            let cssWidth = 0;
+            let cssHeight = 0;
+            let roi = {{ x: 0, y: 0, r: 20 }};
+
+            function getCssSize() {{
+                const maxWidth = 360;
+                const width = Math.min((canvas.parentElement?.clientWidth || maxWidth), maxWidth);
+                const height = width * (img.height / img.width);
+                return {{ width, height }};
+            }}
+
+            function resizeCanvas() {{
+                if (!img.width) return;
+                const dpr = window.devicePixelRatio || 1;
+                const size = getCssSize();
+                cssWidth = size.width;
+                cssHeight = size.height;
+
+                canvas.style.width = cssWidth + 'px';
+                canvas.style.height = cssHeight + 'px';
+                canvas.width = Math.round(cssWidth * dpr);
+                canvas.height = Math.round(cssHeight * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                draw();
+            }}
+
+            function draw() {{
+                if (!img.width) return;
+                ctx.clearRect(0, 0, cssWidth, cssHeight);
+                ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
+                if (hasROI) {{
+                    ctx.beginPath();
+                    ctx.arc(roi.x, roi.y, roi.r, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }}
+            }}
+
+            function getPointerPos(event) {{
+                const rect = canvas.getBoundingClientRect();
+                const touch = event.touches && event.touches[0]
+                    ? event.touches[0]
+                    : (event.changedTouches && event.changedTouches[0] ? event.changedTouches[0] : null);
+
+                const clientX = touch ? touch.clientX : (typeof event.clientX === 'number' ? event.clientX : rect.left);
+                const clientY = touch ? touch.clientY : (typeof event.clientY === 'number' ? event.clientY : rect.top);
+
+                return {{
+                    x: clientX - rect.left,
+                    y: clientY - rect.top
+                }};
+            }}
+
+            function clampROI() {{
+                roi.x = Math.max(roi.r, Math.min(cssWidth - roi.r, roi.x));
+                roi.y = Math.max(roi.r, Math.min(cssHeight - roi.r, roi.y));
+            }}
+
+            function pointHitsROI(pos) {{
+                const dx = pos.x - roi.x;
+                const dy = pos.y - roi.y;
+                return Math.sqrt(dx * dx + dy * dy) <= roi.r + 10;
+            }}
+
+            addBtn.addEventListener('click', (event) => {{
+                event.preventDefault();
+                hasROI = true;
+                roi.r = parseInt(radiusInput.value, 10);
+                roi.x = cssWidth / 2;
+                roi.y = cssHeight / 2;
+                clampROI();
+                draw();
+            }});
+
+            clearBtn.addEventListener('click', (event) => {{
+                event.preventDefault();
+                hasROI = false;
+                dragging = false;
+                canvas.style.cursor = 'grab';
+                draw();
+            }});
+
+            radiusInput.addEventListener('input', () => {{
+                roi.r = parseInt(radiusInput.value, 10);
+                clampROI();
+                draw();
+            }});
+
+            function startDragging(event) {{
+                if (!hasROI) return;
+                const pos = getPointerPos(event);
+                if (pointHitsROI(pos)) {{
+                    dragging = true;
+                    dragOffsetX = pos.x - roi.x;
+                    dragOffsetY = pos.y - roi.y;
+                    canvas.style.cursor = 'grabbing';
+                    event.preventDefault();
+                }}
+            }}
+
+            function moveDragging(event) {{
+                if (!dragging || !hasROI) return;
+                const pos = getPointerPos(event);
+                roi.x = pos.x - dragOffsetX;
+                roi.y = pos.y - dragOffsetY;
+                clampROI();
+                draw();
+                event.preventDefault();
+            }}
+
+            function stopDragging() {{
+                dragging = false;
+                canvas.style.cursor = hasROI ? 'grab' : 'default';
+            }}
+
+            canvas.addEventListener('mousedown', startDragging);
+            window.addEventListener('mousemove', moveDragging);
+            window.addEventListener('mouseup', stopDragging);
+
+            canvas.addEventListener('touchstart', startDragging, {{ passive: false }});
+            window.addEventListener('touchmove', moveDragging, {{ passive: false }});
+            window.addEventListener('touchend', stopDragging);
+            window.addEventListener('touchcancel', stopDragging);
+
+            canvas.addEventListener('click', (event) => {{
+                if (!hasROI || dragging) return;
+                const pos = getPointerPos(event);
+                roi.x = pos.x;
+                roi.y = pos.y;
+                clampROI();
+                draw();
+            }});
+
+            img.onload = () => {{
+                resizeCanvas();
+                roi.x = cssWidth / 2;
+                roi.y = cssHeight / 2;
+                draw();
+                window.addEventListener('resize', resizeCanvas);
+            }};
+
+            img.src = '{data_uri}';
+        }})();
+        </script>
+        """
+
+        components.html(html_code, height=700)
+    except Exception as e:
+        st.warning(f"No fue posible cargar la ROI interactiva: {{e}}")
+
+
+def render_linea_corte_bolus_interactiva_html(imagen_fuente, key_suffix="bolus_line"):
+    try:
+        if isinstance(imagen_fuente, Image.Image):
+            from io import BytesIO
+            buffer = BytesIO()
+            imagen_fuente.save(buffer, format="PNG")
+            image_bytes = buffer.getvalue()
+            mime = "image/png"
+        else:
+            ruta = Path(imagen_fuente)
+            image_bytes = ruta.read_bytes()
+            sufijo = ruta.suffix.lower()
+            mime = "image/png" if sufijo == ".png" else "image/jpeg"
+
+        encoded = base64.b64encode(image_bytes).decode("utf-8")
+        data_uri = f"data:{mime};base64,{encoded}"
+
+        html_code = f"""
+        <div style="background:#3f3f3f;padding:14px 14px 10px 14px;border-radius:12px;border:1px solid #727272;">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+                <button id="add-line-{key_suffix}" style="padding:8px 14px;border:none;border-radius:8px;background:#c8cdd4;color:#111;font-weight:700;cursor:pointer;">Agregar corte de bolus</button>
+                <button id="clear-line-{key_suffix}" style="padding:8px 14px;border:none;border-radius:8px;background:#8e949c;color:white;font-weight:700;cursor:pointer;">Borrar corte</button>
+            </div>
+            <div style="color:#d8d8d8;font-size:13px;margin-bottom:10px;">Arrastra la línea roja verticalmente para ubicar el corte de bolus.</div>
+            <canvas id="canvas-line-{key_suffix}" style="max-width:100%;width:100%;border-radius:10px;background:#222;cursor:ns-resize;"></canvas>
+        </div>
+
+        <script>
+        (() => {{
+            const canvas = document.getElementById('canvas-line-{key_suffix}');
+            const ctx = canvas.getContext('2d');
+            const addBtn = document.getElementById('add-line-{key_suffix}');
+            const clearBtn = document.getElementById('clear-line-{key_suffix}');
+            const img = new Image();
+            const storageKey = 'sim_tc_snapshot_{key_suffix}';
+
+            let hasLine = false;
+            let dragging = false;
+            let scale = 1;
+            let lineY = 200;
+
+            function resizeCanvas() {{
+                const maxWidth = 760;
+                const containerWidth = Math.min(canvas.parentElement.clientWidth, maxWidth);
+                scale = containerWidth / img.width;
+                canvas.width = containerWidth;
+                canvas.height = img.height * scale;
+                draw();
+            }}
+
+            function drawLabel(yPx) {{
+                const text = 'Corte de bolus';
+                ctx.font = 'bold 16px Arial';
+                const textWidth = ctx.measureText(text).width;
+                const boxX = Math.max(10, canvas.width - textWidth - 24);
+                const boxY = Math.max(8, yPx - 30);
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.88)';
+                ctx.fillRect(boxX, boxY, textWidth + 14, 24);
+                ctx.fillStyle = 'white';
+                ctx.fillText(text, boxX + 7, boxY + 17);
+            }}
+
+            function draw() {{
+                if (!img.width) return;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                if (hasLine) {{
+                    const yPx = lineY * scale;
+                    ctx.beginPath();
+                    ctx.moveTo(0, yPx);
+                    ctx.lineTo(canvas.width, yPx);
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    drawLabel(yPx);
+                }}
+            }}
+
+            function getPointerY(event) {{
+                const rect = canvas.getBoundingClientRect();
+                const touch = event.touches && event.touches[0]
+                    ? event.touches[0]
+                    : event.changedTouches && event.changedTouches[0]
+                        ? event.changedTouches[0]
+                        : null;
+                const clientY = touch ? touch.clientY : (typeof event.clientY === 'number' ? event.clientY : rect.top);
+                return (clientY - rect.top) / scale;
+            }}
+
+            function clampLine(y) {{
+                return Math.max(0, Math.min(img.height, y));
+            }}
+
+            function startDragging(event) {{
+                if (!hasLine) return;
+                const y = getPointerY(event);
+                if (Math.abs(y - lineY) <= 28) {{
+                    dragging = true;
+                    event.preventDefault();
+                }}
+            }}
+
+            function moveDragging(event) {{
+                if (!dragging || !hasLine) return;
+                const y = getPointerY(event);
+                lineY = clampLine(y);
+                draw();
+                event.preventDefault();
+            }}
+
+            function stopDragging() {{
+                dragging = false;
+            }}
+
+            addBtn.addEventListener('click', () => {{
+                hasLine = true;
+                lineY = img.height / 2;
+                draw();
+            }});
+
+            clearBtn.addEventListener('click', () => {{
+                hasLine = false;
+                dragging = false;
+                draw();
+            }});
+
+            canvas.addEventListener('mousedown', startDragging);
+            window.addEventListener('mousemove', moveDragging);
+            window.addEventListener('mouseup', stopDragging);
+
+            canvas.addEventListener('touchstart', startDragging, {{ passive: false }});
+            window.addEventListener('touchmove', moveDragging, {{ passive: false }});
+            window.addEventListener('touchend', stopDragging);
+            window.addEventListener('touchcancel', stopDragging);
+
+            canvas.addEventListener('click', (event) => {{
+                if (!hasLine || dragging) return;
+                lineY = clampLine(getPointerY(event));
+                draw();
+            }});
+
+            img.onload = () => {{
+                lineY = img.height / 2;
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+            }};
+
+            img.src = '{data_uri}';
+        }})();
+        </script>
+        """
+
+        components.html(html_code, height=560)
+    except Exception as e:
+        st.warning(f"No fue posible cargar la línea interactiva del corte de bolus: {e}")
+
+def render_matriz_reconstruccion_interactiva_html(imagen_fuente, key_suffix="recon_matrix"):
+    try:
+        image_bytes = None
+        mime = "image/png"
+
+        if isinstance(imagen_fuente, dict):
+            image_bytes = imagen_fuente.get("bytes")
+            mime = imagen_fuente.get("mime", "image/png") or "image/png"
+        elif isinstance(imagen_fuente, Image.Image):
+            buffer = BytesIO()
+            imagen_fuente.save(buffer, format="PNG")
+            image_bytes = buffer.getvalue()
+            mime = "image/png"
+        elif hasattr(imagen_fuente, "getvalue"):
+            image_bytes = imagen_fuente.getvalue()
+            mime = getattr(imagen_fuente, "type", "image/png") or "image/png"
+        else:
+            ruta = imagen_fuente if isinstance(imagen_fuente, Path) else Path(imagen_fuente)
+            if not ruta.exists():
+                st.info("No se encontró la imagen de reconstrucción.")
+                return
+            image_bytes = ruta.read_bytes()
+            sufijo = ruta.suffix.lower()
+            mime = "image/png" if sufijo == ".png" else "image/jpeg"
+
+        if not image_bytes:
+            st.info("No se encontró la imagen de reconstrucción.")
+            return
+
+        encoded = base64.b64encode(image_bytes).decode("utf-8")
+        data_uri = f"data:{mime};base64,{encoded}"
+
+        html_code = f"""
+        <div style="background:#4a4a4a;border:1px solid #7a7a7a;border-radius:12px;padding:14px;max-width:560px;margin:0 auto;overflow:visible;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                <div style="color:white;font-weight:700;">MATRIZ DE RECONSTRUCCIÓN</div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <button id="add-matriz-{key_suffix}" style="background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;">Agregar matriz</button>
+                    <button id="clear-matriz-{key_suffix}" style="background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;">Quitar matriz</button>
+                    <label style="color:white;font-size:14px;">Tamaño matriz</label>
+                    <input id="size-{key_suffix}" type="range" min="2" max="520" value="40" step="1" style="width:130px;"/>
+                </div>
+            </div>
+            <div style="color:#d8d8d8;font-size:13px;margin-bottom:10px;">Arrastra el cuadrado rojo para mover la matriz de reconstrucción libremente dentro de la imagen.</div>
+            <div style="display:flex;justify-content:center;overflow:visible;">
+                <canvas id="canvas-{key_suffix}" style="max-width:100%;width:100%;border-radius:10px;background:#222;cursor:grab;touch-action:none;display:block;overflow:visible;"></canvas>
+            </div>
+        </div>
+
+        <script>
+        (() => {{
+            const canvas = document.getElementById('canvas-{key_suffix}');
+            const ctx = canvas.getContext('2d');
+            const addBtn = document.getElementById('add-matriz-{key_suffix}');
+            const clearBtn = document.getElementById('clear-matriz-{key_suffix}');
+            const sizeInput = document.getElementById('size-{key_suffix}');
+            const img = new Image();
+            const storageKey = 'sim_tc_snapshot_{key_suffix}';
+
+            let hasBox = false;
+            let dragging = false;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            let cssWidth = 0;
+            let cssHeight = 0;
+            let box = {{ x: 0, y: 0, size: 70 }};
+
+            function getCssSize() {{
+                const maxWidth = 360;
+                const width = Math.min((canvas.parentElement?.clientWidth || maxWidth), maxWidth);
+                const height = width * (img.height / img.width);
+                return {{ width, height }};
+            }}
+
+            function syncSliderMax() {{
+                const maxSquare = Math.max(18, Math.floor(Math.min(cssWidth, cssHeight)));
+                sizeInput.max = String(maxSquare);
+                if (parseInt(sizeInput.value, 10) > maxSquare) {{
+                    sizeInput.value = String(maxSquare);
+                }}
+                if (hasBox) {{
+                    box.size = parseInt(sizeInput.value, 10);
+                    clampBox();
+                }}
+            }}
+
+            function resizeCanvas() {{
+                if (!img.width) return;
+                const dpr = window.devicePixelRatio || 1;
+                const size = getCssSize();
+                cssWidth = size.width;
+                cssHeight = size.height;
+
+                canvas.style.width = cssWidth + 'px';
+                canvas.style.height = cssHeight + 'px';
+                canvas.width = Math.round(cssWidth * dpr);
+                canvas.height = Math.round(cssHeight * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                syncSliderMax();
+                draw();
+            }}
+
+            function draw() {{
+                if (!img.width) return;
+                ctx.clearRect(0, 0, cssWidth, cssHeight);
+                ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
+                if (hasBox) {{
+                    const half = box.size / 2;
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 1.2;
+                    ctx.strokeRect(box.x - half, box.y - half, box.size, box.size);
+                }}
+            }}
+
+            function getPointerPos(event) {{
+                const rect = canvas.getBoundingClientRect();
+                const touch = event.touches && event.touches[0]
+                    ? event.touches[0]
+                    : (event.changedTouches && event.changedTouches[0] ? event.changedTouches[0] : null);
+                const clientX = touch ? touch.clientX : (typeof event.clientX === 'number' ? event.clientX : rect.left);
+                const clientY = touch ? touch.clientY : (typeof event.clientY === 'number' ? event.clientY : rect.top);
+                return {{ x: clientX - rect.left, y: clientY - rect.top }};
+            }}
+
+            function clampBox() {{
+                const half = box.size / 2;
+                box.x = Math.max(half, Math.min(cssWidth - half, box.x));
+                box.y = Math.max(half, Math.min(cssHeight - half, box.y));
+            }}
+
+            function pointHitsBox(pos) {{
+                const half = box.size / 2;
+                return pos.x >= (box.x - half - 10) && pos.x <= (box.x + half + 10) && pos.y >= (box.y - half - 10) && pos.y <= (box.y + half + 10);
+            }}
+
+            addBtn.addEventListener('click', (event) => {{
+                event.preventDefault();
+                hasBox = true;
+                box.size = parseInt(sizeInput.value, 10);
+                box.x = cssWidth / 2;
+                box.y = cssHeight / 2;
+                clampBox();
+                draw();
+            }});
+
+            clearBtn.addEventListener('click', (event) => {{
+                event.preventDefault();
+                hasBox = false;
+                dragging = false;
+                canvas.style.cursor = 'grab';
+                draw();
+            }});
+
+            sizeInput.addEventListener('input', () => {{
+                box.size = parseInt(sizeInput.value, 10);
+                clampBox();
+                draw();
+            }});
+
+            function startDragging(event) {{
+                if (!hasBox) return;
+                const pos = getPointerPos(event);
+                if (pointHitsBox(pos)) {{
+                    dragging = true;
+                    dragOffsetX = pos.x - box.x;
+                    dragOffsetY = pos.y - box.y;
+                    canvas.style.cursor = 'grabbing';
+                    event.preventDefault();
+                }}
+            }}
+
+            function moveDragging(event) {{
+                if (!dragging || !hasBox) return;
+                const pos = getPointerPos(event);
+                box.x = pos.x - dragOffsetX;
+                box.y = pos.y - dragOffsetY;
+                clampBox();
+                draw();
+                event.preventDefault();
+            }}
+
+            function stopDragging() {{
+                dragging = false;
+                canvas.style.cursor = hasBox ? 'grab' : 'default';
+            }}
+
+            canvas.addEventListener('mousedown', startDragging);
+            window.addEventListener('mousemove', moveDragging);
+            window.addEventListener('mouseup', stopDragging);
+
+            canvas.addEventListener('touchstart', startDragging, {{ passive: false }});
+            window.addEventListener('touchmove', moveDragging, {{ passive: false }});
+            window.addEventListener('touchend', stopDragging);
+            window.addEventListener('touchcancel', stopDragging);
+
+            canvas.addEventListener('click', (event) => {{
+                if (!hasBox || dragging) return;
+                const pos = getPointerPos(event);
+                box.x = pos.x;
+                box.y = pos.y;
+                clampBox();
+                draw();
+            }});
+
+            img.onload = () => {{
+                resizeCanvas();
+                box.x = cssWidth / 2;
+                box.y = cssHeight / 2;
+                draw();
+                window.addEventListener('resize', resizeCanvas);
+            }};
+
+            img.src = '{data_uri}';
+        }})();
+        </script>
+        """
+
+        components.html(html_code, height=520)
+    except Exception as e:
+        st.warning(f"No fue posible cargar la matriz de reconstrucción interactiva: {e}")
+
+
+def obtener_nombre_imagen_reconstruccion():
+    protocolo = st.session_state.get("topo_region", "Seleccionar")
+    fase = st.session_state.get("recon_fase", "Seleccionar")
+    kernel = st.session_state.get("recon_kernel", "Seleccionar")
+    nivel = valor_numerico_desde_texto(st.session_state.get("recon_nivel_ventana", ""))
+    ancho = valor_numerico_desde_texto(st.session_state.get("recon_ancho_ventana", ""))
+
+    if not all([
+        seleccion_completa(protocolo),
+        seleccion_completa(fase),
+        seleccion_completa(kernel),
+        nivel is not None,
+        ancho is not None,
+    ]):
+        return None
+
+    protocolo_norm = corregir_nombre_imagen(protocolo)
+    fase_norm = corregir_nombre_imagen(fase)
+    kernel_norm = corregir_nombre_imagen(kernel)
+
+    reglas = [
+        {
+            "protocolo": "cerebro",
+            "fase": "sin_contraste",
+            "kernels": {"standar_30f", "suave_20f"},
+            "nivel_min": 40,
+            "nivel_max": 60,
+            "ancho_min": 100,
+            "ancho_max": 140,
+            "imagen": "cerebro_sin_contraste_blanda",
+        },
+        {
+            "protocolo": "cerebro",
+            "fase": "sin_contraste",
+            "kernels": {"definidon_70f", "ultradefinido_80f", "definido_70f", "ultradefinido"},
+            "nivel_min": 500,
+            "nivel_max": 800,
+            "ancho_min": 1500,
+            "ancho_max": 2500,
+            "imagen": "cerebro_sin_contraste_oseo",
+        },
+    ]
+
+    for regla in reglas:
+        if (
+            protocolo_norm == regla["protocolo"]
+            and fase_norm == regla["fase"]
+            and kernel_norm in regla["kernels"]
+            and regla["nivel_min"] <= nivel <= regla["nivel_max"]
+            and regla["ancho_min"] <= ancho <= regla["ancho_max"]
+        ):
+            return regla["imagen"]
+
+    return None
+
+
+def obtener_archivo_imagen_reconstruccion():
+    nombre = obtener_nombre_imagen_reconstruccion()
+    if not nombre:
+        return None
+    return buscar_archivo_imagen_por_nombre(nombre)
+
+
+def limpiar_imagen_reconstruccion_subida():
+    st.session_state["recon_imagen_subida_bytes"] = None
+    st.session_state["recon_imagen_subida_nombre"] = ""
+    st.session_state["recon_imagen_subida_mime"] = ""
+
+
+def registrar_imagen_reconstruccion_subida(archivo):
+    if archivo is None:
+        return
+    try:
+        st.session_state["recon_imagen_subida_bytes"] = archivo.getvalue()
+        st.session_state["recon_imagen_subida_nombre"] = getattr(archivo, "name", "imagen_reconstruccion")
+        st.session_state["recon_imagen_subida_mime"] = getattr(archivo, "type", "image/png") or "image/png"
+    except Exception:
+        pass
+
+
+def obtener_fuente_imagen_reconstruccion():
+    bytes_subidos = st.session_state.get("recon_imagen_subida_bytes")
+    if bytes_subidos:
+        return {
+            "bytes": bytes_subidos,
+            "mime": st.session_state.get("recon_imagen_subida_mime", "image/png") or "image/png",
+            "name": st.session_state.get("recon_imagen_subida_nombre", "imagen_reconstruccion"),
+        }
+    return obtener_archivo_imagen_reconstruccion()
+
+
+def registrar_imagen_rangos_subida(archivo, numero=1):
+    if archivo is None:
+        return
+    prefijo = f"reform_rangos_img{numero}"
+    try:
+        st.session_state[f"{prefijo}_bytes"] = archivo.getvalue()
+        st.session_state[f"{prefijo}_nombre"] = getattr(archivo, "name", f"rangos_{numero}")
+        st.session_state[f"{prefijo}_mime"] = getattr(archivo, "type", "image/png") or "image/png"
+    except Exception:
+        pass
+
+
+def limpiar_imagen_rangos_subida(numero=1):
+    prefijo = f"reform_rangos_img{numero}"
+    st.session_state[f"{prefijo}_bytes"] = None
+    st.session_state[f"{prefijo}_nombre"] = ""
+    st.session_state[f"{prefijo}_mime"] = ""
+
+
+def obtener_fuente_imagen_rangos(numero=1):
+    prefijo = f"reform_rangos_img{numero}"
+    bytes_subidos = st.session_state.get(f"{prefijo}_bytes")
+    if bytes_subidos:
+        return {
+            "bytes": bytes_subidos,
+            "mime": st.session_state.get(f"{prefijo}_mime", "image/png") or "image/png",
+            "name": st.session_state.get(f"{prefijo}_nombre", f"rangos_{numero}"),
+        }
+    return None
+
+
+
+def render_rangos_paralelos_interactivos_html(image_source, key_suffix="rangos"):
+    if image_source is None:
+        st.info("Sube una imagen para trabajar los rangos paralelos.")
+        return
+
+    try:
+        if isinstance(image_source, dict) and image_source.get("bytes"):
+            mime_type = image_source.get("mime", "image/png") or "image/png"
+            image_b64 = base64.b64encode(image_source["bytes"]).decode("utf-8")
+            data_uri = f"data:{mime_type};base64,{image_b64}"
+        else:
+            data_uri = imagen_a_data_uri(image_source)
+
+        if not data_uri:
+            st.warning("No fue posible cargar la imagen para los rangos.")
+            return
+
+        html_code = f"""
+        <div style="background:#4a4a4a;border:1px solid #7a7a7a;border-radius:12px;padding:14px;">
+            <div style="color:white;font-weight:700;font-size:16px;margin-bottom:10px;">RANGOS</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:10px;">
+                <div>
+                    <label style="color:white;font-size:13px;display:block;margin-bottom:4px;">Cantidad de cortes</label>
+                    <input id="count-{key_suffix}" type="range" min="1" max="200" value="20" step="1" style="width:180px;" />
+                    <div id="count-value-{key_suffix}" style="color:#d8d8d8;font-size:12px;">1 a 20</div>
+                </div>
+                <div>
+                    <label style="color:white;font-size:13px;display:block;margin-bottom:4px;">Separación</label>
+                    <input id="spacing-{key_suffix}" type="range" min="4" max="60" value="14" step="1" style="width:160px;" />
+                    <div id="spacing-value-{key_suffix}" style="color:#d8d8d8;font-size:12px;">14 px</div>
+                </div>
+                <div>
+                    <label style="color:white;font-size:13px;display:block;margin-bottom:4px;">Ángulo</label>
+                    <input id="angle-{key_suffix}" type="range" min="0" max="360" value="0" step="1" style="width:160px;" />
+                    <div id="angle-value-{key_suffix}" style="color:#d8d8d8;font-size:12px;">0°</div>
+                </div>
+            </div>
+            <div style="color:#d8d8d8;font-size:13px;margin-bottom:10px;">Puedes orientar los rangos en cualquier plano usando el ángulo y aumentar o disminuir la cantidad de cortes entre 1 y 200. La primera línea corresponde al corte 1 y se muestra también el último corte según la cantidad seleccionada.</div>
+            <canvas id="canvas-{key_suffix}" style="max-width:100%;width:100%;border-radius:10px;background:#222;display:block;"></canvas>
+        </div>
+
+        <script>
+        (() => {{
+            const canvas = document.getElementById('canvas-{key_suffix}');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            const countInput = document.getElementById('count-{key_suffix}');
+            const spacingInput = document.getElementById('spacing-{key_suffix}');
+            const angleInput = document.getElementById('angle-{key_suffix}');
+            const countValue = document.getElementById('count-value-{key_suffix}');
+            const spacingValue = document.getElementById('spacing-value-{key_suffix}');
+            const angleValue = document.getElementById('angle-value-{key_suffix}');
+            let cssWidth = 0;
+            let cssHeight = 0;
+
+            function getCssSize() {{
+                const maxWidth = 760;
+                const width = Math.min(canvas.parentElement.clientWidth || 760, maxWidth);
+                const height = width * (img.height / img.width);
+                return {{ width, height }};
+            }}
+
+            function resizeCanvas() {{
+                if (!img.width) return;
+                const dpr = window.devicePixelRatio || 1;
+                const size = getCssSize();
+                cssWidth = size.width;
+                cssHeight = size.height;
+                canvas.style.width = cssWidth + 'px';
+                canvas.style.height = cssHeight + 'px';
+                canvas.width = Math.round(cssWidth * dpr);
+                canvas.height = Math.round(cssHeight * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                draw();
+            }}
+
+            function updateLabels() {{
+                const count = parseInt(countInput.value, 10);
+                countValue.textContent = '1 a ' + count;
+                spacingValue.textContent = spacingInput.value + ' px';
+                angleValue.textContent = angleInput.value + '°';
+            }}
+
+            function drawCutLabels(startX, startY, endX, endY, label, isFirst, isLast) {{
+                const text = String(label);
+                ctx.save();
+                ctx.font = 'bold 12px Arial';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+                ctx.lineWidth = 3;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                const dx = endX - startX;
+                const dy = endY - startY;
+                const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                const ux = dx / len;
+                const uy = dy / len;
+                const margin = 18;
+
+                const points = [];
+                if (isFirst) points.push({{ x: startX + ux * margin, y: startY + uy * margin }});
+                if (isLast) points.push({{ x: endX - ux * margin, y: endY - uy * margin }});
+
+                points.forEach((p) => {{
+                    ctx.strokeText(text, p.x, p.y);
+                    ctx.fillText(text, p.x, p.y);
+                }});
+                ctx.restore();
+            }}
+
+            function drawParallelLines() {{
+                const count = parseInt(countInput.value, 10);
+                const spacing = parseFloat(spacingInput.value);
+                const angleDeg = parseFloat(angleInput.value) % 360;
+                const angle = angleDeg * Math.PI / 180;
+                const dirX = Math.cos(angle);
+                const dirY = Math.sin(angle);
+                const normalX = -dirY;
+                const normalY = dirX;
+                const centerX = cssWidth / 2;
+                const centerY = cssHeight / 2;
+                const halfSpan = Math.sqrt(cssWidth * cssWidth + cssHeight * cssHeight);
+                const offsetCenter = (count - 1) / 2;
+
+                ctx.strokeStyle = 'rgba(255, 80, 80, 0.92)';
+                ctx.lineWidth = 1.2;
+
+                for (let i = 0; i < count; i++) {{
+                    const offset = (i - offsetCenter) * spacing;
+                    const baseX = centerX + normalX * offset;
+                    const baseY = centerY + normalY * offset;
+                    const x1 = baseX - dirX * halfSpan;
+                    const y1 = baseY - dirY * halfSpan;
+                    const x2 = baseX + dirX * halfSpan;
+                    const y2 = baseY + dirY * halfSpan;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+
+                    const label = i + 1;
+                    drawCutLabels(x1, y1, x2, y2, label, i === 0, i === count - 1);
+                }}
+            }}
+
+            function draw() {{
+                if (!img.width) return;
+                ctx.clearRect(0, 0, cssWidth, cssHeight);
+                ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
+                drawParallelLines();
+            }}
+
+            countInput.addEventListener('input', () => {{ updateLabels(); draw(); }});
+            spacingInput.addEventListener('input', () => {{ updateLabels(); draw(); }});
+            angleInput.addEventListener('input', () => {{ updateLabels(); draw(); }});
+
+            img.onload = () => {{
+                updateLabels();
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+            }};
+
+            img.src = '{data_uri}';
+        }})();
+        </script>
+        """
+        components.html(html_code, height=620)
+    except Exception as e:
+        st.warning(f"No fue posible cargar los rangos paralelos: {e}")
+
+
+
+def render_reformacion_obtenida_interactiva_html(image_source, key_suffix="reform_obtenida"):
+    if image_source is None:
+        st.info("Sube una imagen en Reformación obtenida para agregar flechas y escribir la anatomía.")
+        return
+
+    try:
+        if isinstance(image_source, dict) and image_source.get("bytes"):
+            mime_type = image_source.get("mime", "image/png") or "image/png"
+            image_b64 = base64.b64encode(image_source["bytes"]).decode("utf-8")
+            data_uri = f"data:{mime_type};base64,{image_b64}"
+        else:
+            data_uri = imagen_a_data_uri(image_source)
+
+        if not data_uri:
+            st.warning("No fue posible cargar la imagen de reformación obtenida.")
+            return
+
+        html_code = f"""
+        <div style="background:#4a4a4a;border:1px solid #7a7a7a;border-radius:12px;padding:14px;">
+            <div style="color:white;font-weight:700;font-size:16px;margin-bottom:10px;">REFORMACIÓN OBTENIDA</div>
+            <div style="color:#d8d8d8;font-size:13px;margin-bottom:12px;">Activa hasta 5 flechas, mueve cada punta sobre la anatomía y escribe el nombre en su espacio correspondiente.</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+                <button id="add-arrow-{key_suffix}" style="background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;">Agregar flecha</button>
+                <button id="remove-arrow-{key_suffix}" style="background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;">Quitar última flecha</button>
+            </div>
+            <div style="display:grid;grid-template-columns:minmax(0, 2.2fr) minmax(220px, 0.55fr);gap:16px;align-items:start;">
+                <div>
+                    <canvas id="canvas-{key_suffix}" style="max-width:100%;width:100%;border-radius:10px;background:#222;display:block;cursor:default;"></canvas>
+                </div>
+                <div id="labels-panel-{key_suffix}" style="display:flex;flex-direction:column;gap:10px;"></div>
+            </div>
+        </div>
+
+        <script>
+        (() => {{
+            const MAX_ARROWS = 5;
+            const canvas = document.getElementById('canvas-{key_suffix}');
+            const ctx = canvas.getContext('2d');
+            const addBtn = document.getElementById('add-arrow-{key_suffix}');
+            const removeBtn = document.getElementById('remove-arrow-{key_suffix}');
+            const labelsPanel = document.getElementById('labels-panel-{key_suffix}');
+            const img = new Image();
+            let cssWidth = 0;
+            let cssHeight = 0;
+            let dragging = null;
+            let arrows = [];
+
+            function createArrow(index) {{
+                const startX = cssWidth * 0.78;
+                const startY = cssHeight * (0.18 + index * 0.14);
+                const tipX = cssWidth * 0.45;
+                const tipY = cssHeight * (0.22 + index * 0.12);
+                return {{
+                    id: index + 1,
+                    startX,
+                    startY,
+                    tipX,
+                    tipY,
+                    text: ''
+                }};
+            }}
+
+            function getCssSize() {{
+                const maxWidth = 1280;
+                const width = Math.min(canvas.parentElement.clientWidth || maxWidth, maxWidth);
+                const height = width * (img.height / img.width);
+                return {{ width, height }};
+            }}
+
+            function resizeCanvas() {{
+                if (!img.width) return;
+                const oldWidth = cssWidth || 1;
+                const oldHeight = cssHeight || 1;
+                const dpr = window.devicePixelRatio || 1;
+                const size = getCssSize();
+                cssWidth = size.width;
+                cssHeight = size.height;
+                canvas.style.width = cssWidth + 'px';
+                canvas.style.height = cssHeight + 'px';
+                canvas.width = Math.round(cssWidth * dpr);
+                canvas.height = Math.round(cssHeight * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                arrows = arrows.map((arrow, idx) => {{
+                    if (!oldWidth || !oldHeight) return createArrow(idx);
+                    return {{
+                        ...arrow,
+                        startX: arrow.startX * cssWidth / oldWidth,
+                        startY: arrow.startY * cssHeight / oldHeight,
+                        tipX: arrow.tipX * cssWidth / oldWidth,
+                        tipY: arrow.tipY * cssHeight / oldHeight,
+                    }};
+                }});
+
+                draw();
+                renderInputs();
+            }}
+
+            function clampPoint(x, y) {{
+                return {{
+                    x: Math.max(0, Math.min(cssWidth, x)),
+                    y: Math.max(0, Math.min(cssHeight, y)),
+                }};
+            }}
+
+            function getPointerPos(event) {{
+                const rect = canvas.getBoundingClientRect();
+                const touch = event.touches && event.touches[0]
+                    ? event.touches[0]
+                    : (event.changedTouches && event.changedTouches[0] ? event.changedTouches[0] : null);
+                const clientX = touch ? touch.clientX : (typeof event.clientX === 'number' ? event.clientX : rect.left);
+                const clientY = touch ? touch.clientY : (typeof event.clientY === 'number' ? event.clientY : rect.top);
+                return {{ x: clientX - rect.left, y: clientY - rect.top }};
+            }}
+
+            function distance(aX, aY, bX, bY) {{
+                const dx = aX - bX;
+                const dy = aY - bY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }}
+
+            function hitTest(pos) {{
+                for (let i = arrows.length - 1; i >= 0; i--) {{
+                    const arrow = arrows[i];
+                    if (distance(pos.x, pos.y, arrow.tipX, arrow.tipY) <= 14) return {{ index: i, point: 'tip' }};
+                    if (distance(pos.x, pos.y, arrow.startX, arrow.startY) <= 14) return {{ index: i, point: 'start' }};
+                }}
+                return null;
+            }}
+
+            function drawArrowHead(fromX, fromY, toX, toY) {{
+                const angle = Math.atan2(toY - fromY, toX - fromX);
+                const headLength = 12;
+                ctx.beginPath();
+                ctx.moveTo(toX, toY);
+                ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
+                ctx.moveTo(toX, toY);
+                ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
+                ctx.stroke();
+            }}
+
+            function drawHandle(x, y, fill) {{
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = fill;
+                ctx.fill();
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }}
+
+            function draw() {{
+                if (!img.width) return;
+                ctx.clearRect(0, 0, cssWidth, cssHeight);
+                ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
+                ctx.lineWidth = 2.2;
+                ctx.strokeStyle = '#ffd54a';
+                ctx.fillStyle = '#ffd54a';
+                ctx.font = 'bold 13px Arial';
+
+                arrows.forEach((arrow) => {{
+                    ctx.beginPath();
+                    ctx.moveTo(arrow.startX, arrow.startY);
+                    ctx.lineTo(arrow.tipX, arrow.tipY);
+                    ctx.stroke();
+                    drawArrowHead(arrow.startX, arrow.startY, arrow.tipX, arrow.tipY);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText(String(arrow.id), arrow.startX + 14, arrow.startY - 10);
+                    ctx.fillText(String(arrow.id), arrow.startX + 14, arrow.startY - 10);
+                    ctx.strokeStyle = '#ffd54a';
+                    ctx.fillStyle = '#ffd54a';
+                    ctx.lineWidth = 2.2;
+                }});
+            }}
+
+            function renderInputs() {{
+                labelsPanel.innerHTML = '';
+                if (!arrows.length) {{
+                    labelsPanel.innerHTML = '<div style="color:#d8d8d8;font-size:13px;background:#3f3f3f;border:1px dashed #7a7a7a;border-radius:10px;padding:14px;">Agrega una flecha para escribir la anatomía correspondiente.</div>';
+                    return;
+                }}
+                arrows.forEach((arrow, index) => {{
+                    const wrap = document.createElement('div');
+                    wrap.style.background = '#3f3f3f';
+                    wrap.style.border = '1px solid #676767';
+                    wrap.style.borderRadius = '10px';
+                    wrap.style.padding = '10px';
+                    wrap.innerHTML = `
+                        <div style="color:white;font-weight:700;font-size:13px;margin-bottom:6px;">Flecha ${{arrow.id}}</div>
+                        <input type="text" value="${{(arrow.text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}}" placeholder="Escribe aquí la anatomía" style="width:100%;background:#b8bec7;color:#1f1f1f;border:none;border-radius:8px;padding:10px 12px;font-size:14px;box-sizing:border-box;" />
+                    `;
+                    const input = wrap.querySelector('input');
+                    input.addEventListener('input', (e) => {{
+                        arrows[index].text = e.target.value;
+                    }});
+                    labelsPanel.appendChild(wrap);
+                }});
+            }}
+
+            function addArrow() {{
+                if (arrows.length >= MAX_ARROWS) return;
+                arrows.push(createArrow(arrows.length));
+                renderInputs();
+                draw();
+            }}
+
+            function removeArrow() {{
+                if (!arrows.length) return;
+                arrows.pop();
+                renderInputs();
+                draw();
+            }}
+
+            function startDragging(event) {{
+                const pos = getPointerPos(event);
+                const hit = hitTest(pos);
+                if (!hit) return;
+                dragging = hit;
+                event.preventDefault();
+            }}
+
+            function moveDragging(event) {{
+                if (!dragging) return;
+                const pos = getPointerPos(event);
+                const point = clampPoint(pos.x, pos.y);
+                if (dragging.point === 'start') {{
+                    arrows[dragging.index].startX = point.x;
+                    arrows[dragging.index].startY = point.y;
+                }} else {{
+                    arrows[dragging.index].tipX = point.x;
+                    arrows[dragging.index].tipY = point.y;
+                }}
+                draw();
+                event.preventDefault();
+            }}
+
+            function stopDragging() {{
+                dragging = null;
+            }}
+
+            addBtn.addEventListener('click', (event) => {{
+                event.preventDefault();
+                addArrow();
+            }});
+            removeBtn.addEventListener('click', (event) => {{
+                event.preventDefault();
+                removeArrow();
+            }});
+
+            canvas.addEventListener('mousedown', startDragging);
+            window.addEventListener('mousemove', moveDragging);
+            window.addEventListener('mouseup', stopDragging);
+            canvas.addEventListener('touchstart', startDragging, {{ passive: false }});
+            window.addEventListener('touchmove', moveDragging, {{ passive: false }});
+            window.addEventListener('touchend', stopDragging);
+
+            img.onload = () => {{
+                resizeCanvas();
+                renderInputs();
+                draw();
+                window.addEventListener('resize', resizeCanvas);
+            }};
+
+            img.src = '{data_uri}';
+        }})();
+        </script>
+        """
+        components.html(html_code, height=820)
+    except Exception as e:
+        st.warning(f"No fue posible cargar la reformación obtenida: {e}")
+
+
+
+def render_bloque_topograma(prefijo, titulo_visible, numero_boton):
+    completo = topograma_completo(prefijo)
+    rx_campos = rx_campos_completos(prefijo)
+    rx_disponible = combinacion_rx_disponible(prefijo)
+
+    st.markdown('<div class="bloque-seccion">', unsafe_allow_html=True)
+    st.markdown(f'<div class="titulo-bloque">{titulo_visible}</div>', unsafe_allow_html=True)
+
+    layout_izq, layout_der = st.columns([1.15, 0.65], vertical_alignment="top")
+
+    with layout_izq:
+        st.markdown(
+            """
+            <div style="
+                border:1px solid #7a7a7a;
+                border-radius:14px;
+                overflow:hidden;
+                background-color:#565656;
+                margin-bottom:0.25rem;
+            ">
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown('<div style="padding:0.25rem 0.45rem 0.05rem 0.45rem; font-weight:700; color:white;">Configuración del topograma</div>', unsafe_allow_html=True)
+
+        st.markdown('<div style="padding:0 0.55rem 0.3rem 0.55rem;">', unsafe_allow_html=True)
+        persistent_selectbox("Entrada paciente", ["Seleccionar", "CABEZA PRIMERO", "PIES PRIMERO"], f"{prefijo}_entrada_paciente")
+        persistent_selectbox("Posición del tubo", ["Seleccionar", "Arriba", "Abajo", "Derecha", "Izquierda"], f"{prefijo}_posicion_tubo")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div style="border-top:1px solid #8a8a8a; padding:0.3rem 0.55rem 0.3rem 0.55rem;">', unsafe_allow_html=True)
+        persistent_selectbox("Posicionamiento", ["Seleccionar", "SUPINO", "PRONO", "LATERAL DERECHO", "LATERAL IZQUIERDO"], f"{prefijo}_posicionamiento")
+        persistent_selectbox(
+            "Posición de brazos / extremidades",
+            ["Seleccionar", "BRAZOS ARRIBA", "BRAZOS ABAJO", "ELEVA BRAZO DERECHO", "ELEVA BRAZO IZQUIERDO",
+             "FLEXIÓN EXTREMIDAD INFERIOR DERECHA", "FLEXIÓN EXTREMIDAD INFERIOR IZQUIERDA"],
+            f"{prefijo}_posicion_brazos"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div style="border-top:1px solid #8a8a8a; padding:0.3rem 0.55rem 0.45rem 0.55rem;">', unsafe_allow_html=True)
+        persistent_selectbox("Región anatómica", REGIONES_ANATOMICAS_TOPO, f"{prefijo}_region_anatomica")
+        protocolos_filtrados = obtener_protocolos_filtrados(prefijo)
+        persistent_selectbox("Protocolo", protocolos_filtrados, f"{prefijo}_region")
+
+        mini1, mini2 = st.columns(2)
+        with mini1:
+            persistent_text_input("Inicio topograma", f"{prefijo}_inicio")
+        with mini2:
+            persistent_text_input("Término topograma", f"{prefijo}_termino")
+        st.markdown('</div></div>', unsafe_allow_html=True)
+
+    with layout_der:
+        imagen_equipo = obtener_imagen_topograma_por_prefijo(prefijo)
+        c1, c2, c3 = st.columns([0.22, 0.56, 0.22])
+        with c2:
+            if imagen_equipo is not None and imagen_equipo.exists():
+                mostrar_imagen_actualizada(imagen_equipo, use_container_width=True)
+            else:
+                st.info(f"No se encontró la imagen de posicionamiento del {titulo_visible.lower()}.")
+
+        st.markdown("<div style='height:3px;'></div>", unsafe_allow_html=True)
+
+        c4, c5, c6 = st.columns([0.22, 0.56, 0.22])
+        with c5:
+            if st.session_state.get(f"{prefijo}_rx_iniciado", False):
+                imagen_rx = obtener_imagen_rx_topograma(prefijo)
+                if imagen_rx is not None and imagen_rx.exists():
+                    mostrar_imagen_actualizada(imagen_rx, use_container_width=True)
+                else:
+                    st.markdown(
+                        """
+                        <div style="
+                            min-height:120px;
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            border:1px solid #7a7a7a;
+                            border-radius:14px;
+                            background-color:#4a4a4a;
+                            color:white;
+                            font-weight:600;
+                            text-align:center;
+                            padding:0.35rem;
+                        ">
+                            No se encontró el archivo de imagen para esta combinación
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.markdown(
+                    """
+                    <div style="
+                        min-height:120px;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        border:1px solid #7a7a7a;
+                        border-radius:14px;
+                        background-color:#4a4a4a;
+                        color:white;
+                        font-weight:600;
+                        text-align:center;
+                        padding:0.35rem;
+                    ">
+                        La imagen del topograma aparecerá al presionar<br><b>Iniciar RX</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+    if rx_campos and not rx_disponible:
+        st.warning("La combinación seleccionada no tiene imagen asociada, por eso Iniciar RX permanece desactivado.")
+
+    btn1, btn2, btn3 = st.columns([1.5, 1.9, 1.5])
+    with btn2:
+        if st.button(
+            f"Iniciar RX topograma {numero_boton}",
+            key=f"btn_rx_{prefijo}",
+            use_container_width=True,
+            disabled=not (rx_campos and rx_disponible)
+        ):
+            st.session_state[f"{prefijo}_rx_iniciado"] = True
+            st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    return completo, rx_disponible
+
+MAX_ADQUISICIONES_EXTRA = 5
+
+ADQ_DEFAULTS_BASE = {
+    "fase_adquisicion": "Seleccionar",
+    "instruccion_voz": "Seleccionar",
+    "delay": "Seleccionar",
+    "tipo_exploracion": "Seleccionar",
+    "espesor": "Seleccionar",
+    "matriz_detectores": "Seleccionar",
+    "colimacion": "",
+    "inicio_adquisicion": "",
+    "fin_adquisicion": "",
+    "giro_tubo": "Seleccionar",
+    "modulacion_corriente": "Seleccionar",
+    "kv_referencia": "Seleccionar",
+    "mas_referencia": "Seleccionar",
+    "kv_manual": 120,
+    "mas_manual": 100,
+    "pitch": "Seleccionar",
+    "sfov": "Seleccionar",
+    "topo1_limite_superior": 15,
+    "topo1_limite_inferior": 85,
+    "topo2_limite_superior": 15,
+    "topo2_limite_inferior": 85,
+}
+
+
+def render_topogramas_adquisicion(numero=1):
+    pref = adq_prefijo(numero)
+    mostrar_topo2 = st.session_state.get("mostrar_topo2", False)
+    imagen_topo_1 = obtener_imagen_rx_topograma("topo")
+    imagen_topo_2 = obtener_imagen_rx_topograma("topo2") if mostrar_topo2 else None
+
+    if numero == 1:
+        key_sup_1 = "adq_topo1_limite_superior"
+        key_inf_1 = "adq_topo1_limite_inferior"
+        key_sup_2 = "adq_topo2_limite_superior"
+        key_inf_2 = "adq_topo2_limite_inferior"
+    else:
+        key_sup_1 = f"{pref}_topo1_limite_superior"
+        key_inf_1 = f"{pref}_topo1_limite_inferior"
+        key_sup_2 = f"{pref}_topo2_limite_superior"
+        key_inf_2 = f"{pref}_topo2_limite_inferior"
+
+    st.markdown('<div class="titulo-bloque">Topogramas seleccionados y límites de barrido</div>', unsafe_allow_html=True)
+    st.caption("Ajusta de forma interactiva el límite superior e inferior en cada topograma.")
+
+    if mostrar_topo2:
+        topo_col1, topo_col2 = st.columns(2)
+        bloques_topo = [
+            (topo_col1, "topo", "Topograma 1", imagen_topo_1, key_sup_1, key_inf_1),
+            (topo_col2, "topo2", "Topograma 2", imagen_topo_2, key_sup_2, key_inf_2),
+        ]
+    else:
+        margen1, topo_col1, margen2 = st.columns([1.2, 1.6, 1.2])
+        bloques_topo = [
+            (topo_col1, "topo", "Topograma 1", imagen_topo_1, key_sup_1, key_inf_1),
+        ]
+
+    delay_bolus_activo = st.session_state.get(f"{pref}_delay") in ["Bolus tracking", "Bolus test"]
+
+    for columna_topo, prefijo_topo, titulo_topo, imagen_topo, key_sup, key_inf in bloques_topo:
+        with columna_topo:
+            st.markdown(
+                f"""
+                <div style="font-weight:700; color:white; margin-bottom:0.35rem; text-align:center;">{titulo_topo}</div>
+                """,
+                unsafe_allow_html=True
+            )
+            if imagen_topo is not None and imagen_topo.exists():
+                limite_superior = st.slider(
+                    "Inicio",
+                    min_value=0,
+                    max_value=100,
+                    value=int(st.session_state.get(key_sup, 15)),
+                    key=key_sup,
+                )
+                limite_inferior = st.slider(
+                    "Fin",
+                    min_value=0,
+                    max_value=100,
+                    value=int(st.session_state.get(key_inf, 85)),
+                    key=key_inf,
+                )
+
+                if limite_superior >= limite_inferior:
+                    st.warning("El límite superior debe quedar por encima del inferior.")
+                imagen_con_limites = crear_topograma_con_limites(imagen_topo, limite_superior, limite_inferior)
+                if imagen_con_limites is not None:
+                    if delay_bolus_activo:
+                        render_linea_corte_bolus_interactiva_html(imagen_con_limites, key_suffix=f"{pref}_{prefijo_topo}_bolus")
+                    else:
+                        st.image(imagen_con_limites, width=260)
+                else:
+                    try:
+                        imagen_base = ajustar_imagen_a_lienzo_uniforme(Image.open(imagen_topo).convert("RGB"))
+                        if delay_bolus_activo:
+                            render_linea_corte_bolus_interactiva_html(imagen_base, key_suffix=f"{pref}_{prefijo_topo}_bolus")
+                        else:
+                            st.image(imagen_base, width=260)
+                    except Exception:
+                        if delay_bolus_activo and imagen_topo is not None and imagen_topo.exists():
+                            render_linea_corte_bolus_interactiva_html(imagen_topo, key_suffix=f"{pref}_{prefijo_topo}_bolus")
+                        else:
+                            mostrar_imagen_actualizada(imagen_topo, width=260)
+            else:
+                st.markdown(
+                    """
+                    <div style="
+                        min-height:160px;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        border:1px solid #7a7a7a;
+                        border-radius:14px;
+                        background-color:#4a4a4a;
+                        color:white;
+                        font-weight:600;
+                        text-align:center;
+                        padding:0.45rem;
+                    ">
+                        No se encontró la imagen del topograma seleccionado
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            st.caption(
+                f"{st.session_state.get(f'{prefijo_topo}_region', 'Seleccionar')} · "
+                f"{st.session_state.get(f'{prefijo_topo}_posicionamiento', 'Seleccionar')} · "
+                f"tubo {str(st.session_state.get(f'{prefijo_topo}_posicion_tubo', 'Seleccionar')).lower()}"
+            )
+
+
+
+def render_topogramas_reconstruccion():
+    mostrar_topo2 = st.session_state.get("mostrar_topo2", False)
+    imagen_topo_1 = obtener_imagen_rx_topograma("topo")
+    imagen_topo_2 = obtener_imagen_rx_topograma("topo2") if mostrar_topo2 else None
+
+    st.markdown('<div class="titulo-bloque">Topograma seleccionado para reconstrucción</div>', unsafe_allow_html=True)
+    st.caption("Ajusta de forma interactiva el inicio y el fin de la reconstrucción en el topograma.")
+
+    if mostrar_topo2:
+        topo_col1, topo_col2 = st.columns(2)
+        bloques_topo = [
+            (topo_col1, "topo", "Topograma 1", imagen_topo_1, "recon_topo1_limite_superior", "recon_topo1_limite_inferior"),
+            (topo_col2, "topo2", "Topograma 2", imagen_topo_2, "recon_topo2_limite_superior", "recon_topo2_limite_inferior"),
+        ]
+    else:
+        margen1, topo_col1, margen2 = st.columns([1.2, 1.6, 1.2])
+        bloques_topo = [
+            (topo_col1, "topo", "Topograma 1", imagen_topo_1, "recon_topo1_limite_superior", "recon_topo1_limite_inferior"),
+        ]
+
+    for columna_topo, prefijo_topo, titulo_topo, imagen_topo, key_sup, key_inf in bloques_topo:
+        with columna_topo:
+            st.markdown(
+                f"""
+                <div style="font-weight:700; color:white; margin-bottom:0.35rem; text-align:center;">{titulo_topo}</div>
+                """,
+                unsafe_allow_html=True
+            )
+            if imagen_topo is not None and imagen_topo.exists():
+                limite_superior = st.slider(
+                    "Inicio reconstrucción",
+                    min_value=0,
+                    max_value=100,
+                    value=int(st.session_state.get(key_sup, 15)),
+                    key=key_sup,
+                )
+                limite_inferior = st.slider(
+                    "Fin reconstrucción",
+                    min_value=0,
+                    max_value=100,
+                    value=int(st.session_state.get(key_inf, 85)),
+                    key=key_inf,
+                )
+
+                if limite_superior >= limite_inferior:
+                    st.warning("El límite superior debe quedar por encima del inferior.")
+                imagen_con_limites = crear_topograma_con_limites(
+                    imagen_topo,
+                    limite_superior,
+                    limite_inferior,
+                    color_inicio=(255, 0, 255),
+                    color_fin=(0, 255, 0),
+                    texto_inicio="Inicio",
+                    texto_fin="Fin",
+                )
+                if imagen_con_limites is not None:
+                    st.image(imagen_con_limites, width=260)
+                else:
+                    try:
+                        imagen_base = ajustar_imagen_a_lienzo_uniforme(Image.open(imagen_topo).convert("RGB"))
+                        st.image(imagen_base, width=260)
+                    except Exception:
+                        mostrar_imagen_actualizada(imagen_topo, width=260)
+            else:
+                st.markdown(
+                    """
+                    <div style="
+                        min-height:160px;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        border:1px solid #7a7a7a;
+                        border-radius:14px;
+                        background-color:#4a4a4a;
+                        color:white;
+                        font-weight:600;
+                        text-align:center;
+                        padding:0.45rem;
+                    ">
+                        No se encontró la imagen del topograma seleccionado
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            st.caption(
+                f"{st.session_state.get(f'{prefijo_topo}_region', 'Seleccionar')} · "
+                f"{st.session_state.get(f'{prefijo_topo}_posicionamiento', 'Seleccionar')} · "
+                f"tubo {str(st.session_state.get(f'{prefijo_topo}_posicion_tubo', 'Seleccionar')).lower()}"
+            )
+
+
+PROTOCOLO_LONGITUD_REFERENCIA_CM = {
+    "cerebro": 25.0,
+    "cavidades perinasales": 15.0,
+    "maxilofacial": 20.0,
+    "orbitas": 10.0,
+    "oidos": 8.0,
+    "cuello": 30.0,
+    "columna cervical": 25.0,
+    "torax": 45.0,
+    "abdomen": 40.0,
+    "pelvis": 35.0,
+    "abdomen y pelvis": 70.0,
+    "torax abdomen y pelvis": 100.0,
+    "pielotac": 60.0,
+    "columna dorsal": 60.0,
+    "columna lumbar": 40.0,
+    "hombro": 20.0,
+    "brazo": 45.0,
+    "codo": 15.0,
+    "antebrazo": 30.0,
+    "muneca": 10.0,
+    "mano": 15.0,
+    "cadera": 35.0,
+    "rodilla": 20.0,
+    "muslo": 50.0,
+    "pierna": 30.0,
+    "tobillo": 15.0,
+    "pie": 10.0,
+    "angiotac cerebro": 25.0,
+    "angiotac cuello": 30.0,
+    "angiotac cerebro cuello": 55.0,
+    "angiotac torax": 45.0,
+    "angiotac abdomen": 40.0,
+    "angiotac abdomen y pelvis": 70.0,
+    "angiotac torax abdomen y pelvis": 100.0,
+    "angiotac extremidad superior derecha": 70.0,
+    "angiotac extremidad superior izquierda": 70.0,
+    "angiotac extremidad inferior": 120.0,
+}
+
+
+def normalizar_texto_calculo(valor):
+    return (
+        str(valor)
+        .strip()
+        .lower()
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+        .replace("ñ", "n")
+    )
+
+def obtener_protocolo_referencia_adquisicion():
+    protocolo_1 = st.session_state.get("topo_region", "Seleccionar")
+    if seleccion_completa(protocolo_1):
+        return protocolo_1
+    protocolo_2 = st.session_state.get("topo2_region", "Seleccionar")
+    if seleccion_completa(protocolo_2):
+        return protocolo_2
+    return "Seleccionar"
+
+def obtener_longitud_referencia_cm(protocolo):
+    if not seleccion_completa(protocolo):
+        return None
+    protocolo_norm = normalizar_texto_calculo(protocolo)
+    if protocolo_norm in PROTOCOLO_LONGITUD_REFERENCIA_CM:
+        return PROTOCOLO_LONGITUD_REFERENCIA_CM[protocolo_norm]
+    for clave, valor in PROTOCOLO_LONGITUD_REFERENCIA_CM.items():
+        if clave in protocolo_norm:
+            return valor
+    return None
+
+def obtener_limites_adquisicion(numero=1):
+    pref = adq_prefijo(numero)
+    if numero == 1:
+        limites = [
+            (st.session_state.get("adq_topo1_limite_superior", 15), st.session_state.get("adq_topo1_limite_inferior", 85))
+        ]
+        if st.session_state.get("mostrar_topo2", False):
+            limites.append(
+                (st.session_state.get("adq_topo2_limite_superior", 15), st.session_state.get("adq_topo2_limite_inferior", 85))
+            )
+        return limites
+    limites = [
+        (st.session_state.get(f"{pref}_topo1_limite_superior", 15), st.session_state.get(f"{pref}_topo1_limite_inferior", 85))
+    ]
+    if st.session_state.get("mostrar_topo2", False):
+        limites.append(
+            (st.session_state.get(f"{pref}_topo2_limite_superior", 15), st.session_state.get(f"{pref}_topo2_limite_inferior", 85))
+        )
+    return limites
+
+def calcular_largo_adquisicion_cm(numero=1):
+    protocolo = obtener_protocolo_referencia_adquisicion()
+    longitud_referencia_cm = obtener_longitud_referencia_cm(protocolo)
+    if longitud_referencia_cm is None:
+        return None, protocolo, None, None
+
+    coberturas = []
+    for limite_superior, limite_inferior in obtener_limites_adquisicion(numero):
+        try:
+            sup = float(limite_superior)
+            inf = float(limite_inferior)
+        except Exception:
+            continue
+        if inf > sup:
+            coberturas.append((inf - sup) / 100.0)
+
+    if not coberturas:
+        return None, protocolo, longitud_referencia_cm, None
+
+    cobertura_promedio = sum(coberturas) / len(coberturas)
+    largo_cm = longitud_referencia_cm * cobertura_promedio
+    return round(largo_cm, 2), protocolo, longitud_referencia_cm, cobertura_promedio
+
+def extraer_primer_numero(texto):
+    if texto is None:
+        return None
+    texto = str(texto).strip().lower().replace(",", ".")
+    coincidencia = re.search(r"\d+(?:\.\d+)?", texto)
+    if not coincidencia:
+        return None
+    try:
+        return float(coincidencia.group(0))
+    except Exception:
+        return None
+
+def obtener_colimacion_total_mm(numero=1):
+    pref = adq_prefijo(numero)
+    valor_colimacion = st.session_state.get(f"{pref}_colimacion", "")
+    valor_matriz = st.session_state.get(f"{pref}_matriz_detectores", "Seleccionar")
+
+    texto_col = str(valor_colimacion).strip().lower().replace(",", ".")
+    if "x" in texto_col:
+        partes = re.split(r"\s*x\s*", texto_col)
+        if len(partes) == 2:
+            try:
+                return round(float(partes[0]) * float(partes[1]), 3)
+            except Exception:
+                pass
+
+    numero_col = extraer_primer_numero(valor_colimacion)
+    if numero_col is not None:
+        return numero_col
+
+    texto_mat = str(valor_matriz).strip().lower().replace(",", ".")
+    if "x" in texto_mat:
+        partes = re.split(r"\s*x\s*", texto_mat)
+        if len(partes) == 2:
+            try:
+                return round(float(partes[0]) * float(partes[1]), 3)
+            except Exception:
+                return None
+    return None
+
+def calcular_tiempo_exploracion_seg(numero=1):
+    pref = adq_prefijo(numero)
+    tipo_exploracion = st.session_state.get(f"{pref}_tipo_exploracion", "Seleccionar")
+    if tipo_exploracion != "Helicoidal":
+        return None, "no_helicoidal", None
+
+    largo_cm, protocolo, longitud_referencia_cm, cobertura_promedio = calcular_largo_adquisicion_cm(numero)
+    pitch = extraer_primer_numero(st.session_state.get(f"{pref}_pitch"))
+    giro = extraer_primer_numero(st.session_state.get(f"{pref}_giro_tubo"))
+    colimacion_total_mm = obtener_colimacion_total_mm(numero)
+
+    if largo_cm is None or pitch is None or giro is None or colimacion_total_mm in [None, 0]:
+        return None, "incompleto", colimacion_total_mm
+
+    largo_mm = largo_cm * 10.0
+    tiempo_seg = (largo_mm * giro) / (pitch * colimacion_total_mm)
+    return round(tiempo_seg, 2), "ok", colimacion_total_mm
+
+def render_calculos_exploracion(numero=1):
+    largo_cm, protocolo, longitud_referencia_cm, cobertura_promedio = calcular_largo_adquisicion_cm(numero)
+    tiempo_seg, estado_tiempo, colimacion_total_mm = calcular_tiempo_exploracion_seg(numero)
+
+    st.markdown("<div style='height:0.3rem;'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="titulo-bloque">Cálculo automático</div>', unsafe_allow_html=True)
+
+    valor_largo = f"{largo_cm:.2f} cm" if largo_cm is not None else "No disponible"
+    protocolo_txt = protocolo if seleccion_completa(protocolo) else "No definido"
+    cobertura_txt = f"{cobertura_promedio * 100:.1f}%" if cobertura_promedio is not None else "No disponible"
+
+    if estado_tiempo == "no_helicoidal":
+        st.info(f"**LARGO DE ADQUISICIÓN**\n\n{valor_largo}")
+        st.caption(
+            f"Protocolo de referencia: {protocolo_txt} · Cobertura promedio entre Inicio y Fin: {cobertura_txt}"
+        )
+        return
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.info(f"**LARGO DE ADQUISICIÓN**\n\n{valor_largo}")
+    with c2:
+        if estado_tiempo == "ok":
+            valor_tiempo = f"{tiempo_seg:.2f} s"
+        else:
+            valor_tiempo = "Completa pitch / giro / colimación"
+        st.info(f"**TIEMPO DE EXPLORACIÓN**\n\n{valor_tiempo}")
+
+    colimacion_txt = f"{colimacion_total_mm:.3f} mm" if colimacion_total_mm is not None else "No disponible"
+    st.caption(
+        f"Protocolo de referencia: {protocolo_txt} · Cobertura promedio entre Inicio y Fin: {cobertura_txt} · "
+        f"Cobertura total usada para el cálculo: {colimacion_txt}"
+    )
+
+
+def render_bloque_adquisicion(numero=1):
+    pref = adq_prefijo(numero)
+    st.markdown('<div class="bloque-seccion">', unsafe_allow_html=True)
+    titulo = "Adquisición 1" if numero == 1 else f"Adquisición {numero}"
+    st.markdown(f'<div class="titulo-bloque">{titulo}</div>', unsafe_allow_html=True)
+    render_topogramas_adquisicion(numero)
+    st.markdown("<div style='height:0.45rem;'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="titulo-bloque">Parámetros de adquisición</div>', unsafe_allow_html=True)
+
+    opciones_delay = [
+        "Seleccionar", "Bolus tracking", "Bolus test", "0 sg", "5 sg", "10 sg", "15 sg", "20 sg",
+        "25 sg", "30 sg", "35 sg", "40 sg", "45 sg", "50 sg", "55 sg", "1 min", "2 min", "3 min",
+        "4 min", "5 min", "6 min", "7 min", "8 min", "9 min", "10 min", "11 min", "12 min",
+        "13 min", "14 min", "15 min", "16 min", "17 min", "18 min", "19 min", "20 min"
+    ]
+    opciones_pitch = ["Seleccionar", "0,1", "0,2", "0,3", "0,4", "0,5", "0,6", "0,7", "0,8", "0,9", "1", "1,1", "1,2", "1,3", "1,4", "1,5"]
+    opciones_kv_referencia = ["Seleccionar", "70", "80", "100", "110", "120", "130", "140"]
+    opciones_mas_referencia = ["Seleccionar", "50", "100", "150", "200", "250", "300", "350", "400", "450", "500", "550", "600"]
+
+    tipo_exploracion = st.session_state.get(f"{pref}_tipo_exploracion", "Seleccionar")
+    if tipo_exploracion == "Helicoidal":
+        opciones_matriz = ["Seleccionar", "64 x 0,625", "32 x 1,25", "16 x 0,625"]
+    elif tipo_exploracion == "Secuencial":
+        opciones_matriz = ["Seleccionar", "2 x 0,625", "1 x 1,25", "32 x 1,25", "64 x 0,625"]
+    else:
+        opciones_matriz = ["Seleccionar"]
+
+    if st.session_state.get(f"{pref}_matriz_detectores") not in opciones_matriz:
+        st.session_state[f"{pref}_matriz_detectores"] = "Seleccionar"
+        if f"_{pref}_matriz_detectores" in st.session_state:
+            st.session_state[f"_{pref}_matriz_detectores"] = "Seleccionar"
+
+    st.session_state[f"{pref}_colimacion"] = calcular_cobertura_desde_matriz(
+        st.session_state.get(f"{pref}_matriz_detectores", "Seleccionar")
+    )
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        persistent_selectbox(
+            "Fase de adquisición",
+            ["Seleccionar", "Sin contraste", "Angiográfica", "Arterial", "Venosa o portal", "Tardía"],
+            f"{pref}_fase_adquisicion"
+        )
+        persistent_selectbox(
+            "Instrucción de voz",
+            ["Seleccionar", "Ninguna", "Inspiración", "Espiración", "No trague", "No respire"],
+            f"{pref}_instruccion_voz"
+        )
+        persistent_selectbox("Delay", opciones_delay, f"{pref}_delay")
+        persistent_selectbox(
+            "Tipo de exploración",
+            ["Seleccionar", "Helicoidal", "Secuencial"],
+            f"{pref}_tipo_exploracion"
+        )
+        persistent_selectbox("Matriz de detectores", opciones_matriz, f"{pref}_matriz_detectores")
+        st.session_state[f"{pref}_colimacion"] = calcular_cobertura_desde_matriz(
+            st.session_state.get(f"{pref}_matriz_detectores", "Seleccionar")
+        )
+
+    with col2:
+        persistent_selectbox(
+            "Giro del tubo",
+            ["Seleccionar", "0,33 sg", "0,5 sg", "1 sg", "1,5 sg"],
+            f"{pref}_giro_tubo"
+        )
+
+        if tipo_exploracion == "Helicoidal":
+            persistent_selectbox("Pitch", opciones_pitch, f"{pref}_pitch")
+        else:
+            st.session_state[f"{pref}_pitch"] = "Seleccionar"
+            if f"_{pref}_pitch" in st.session_state:
+                st.session_state[f"_{pref}_pitch"] = "Seleccionar"
+            st.markdown("<div style='height: 5.2rem;'></div>", unsafe_allow_html=True)
+
+        persistent_selectbox(
+            "Modulación de corriente",
+            ["Seleccionar", "Si", "No"],
+            f"{pref}_modulacion_corriente"
+        )
+
+        modulacion = st.session_state.get(f"{pref}_modulacion_corriente", "Seleccionar")
+        if modulacion == "Si":
+            persistent_selectbox("kV referencia", opciones_kv_referencia, f"{pref}_kv_referencia")
+            persistent_selectbox("mAs referencia", opciones_mas_referencia, f"{pref}_mas_referencia")
+            st.session_state[f"{pref}_kv_manual"] = 120
+            st.session_state[f"{pref}_mas_manual"] = 100
+            for key, value in [(f"_{pref}_kv_manual", 120), (f"_{pref}_mas_manual", 100)]:
+                if key in st.session_state:
+                    st.session_state[key] = value
+        elif modulacion == "No":
+            persistent_number_input("kV", f"{pref}_kv_manual", min_value=1, max_value=200, step=1)
+            persistent_number_input("mAs", f"{pref}_mas_manual", min_value=1, max_value=1000, step=1)
+            st.session_state[f"{pref}_kv_referencia"] = "Seleccionar"
+            st.session_state[f"{pref}_mas_referencia"] = "Seleccionar"
+            for key in [f"_{pref}_kv_referencia", f"_{pref}_mas_referencia"]:
+                if key in st.session_state:
+                    st.session_state[key] = "Seleccionar"
+        else:
+            st.markdown("<div style='height: 5.2rem;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height: 5.2rem;'></div>", unsafe_allow_html=True)
+            st.session_state[f"{pref}_kv_referencia"] = "Seleccionar"
+            st.session_state[f"{pref}_mas_referencia"] = "Seleccionar"
+            for key in [f"_{pref}_kv_referencia", f"_{pref}_mas_referencia"]:
+                if key in st.session_state:
+                    st.session_state[key] = "Seleccionar"
+
+    with col3:
+        persistent_selectbox(
+            "Espesor (mm)",
+            ["Seleccionar", "0,625", "1,25", "2,5", "5"],
+            f"{pref}_espesor"
+        )
+        persistent_selectbox(
+            "SFOV",
+            ["Seleccionar", "Small 200", "Head 350", "Large 500"],
+            f"{pref}_sfov"
+        )
+        st.session_state[f"display_{pref}_colimacion"] = st.session_state.get(f"{pref}_colimacion", "")
+        st.text_input("Cobertura (mm)", key=f"display_{pref}_colimacion", disabled=True)
+        persistent_text_input("Inicio de adquisición", f"{pref}_inicio_adquisicion")
+        persistent_text_input("Fin de adquisición", f"{pref}_fin_adquisicion")
+
+    if st.session_state.get(f"{pref}_delay") in ["Bolus tracking", "Bolus test"]:
+        st.markdown("<div style='height:0.4rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div class='titulo-bloque'>ROI PARA BOLUS TEST / BOLUS TRACKING</div>", unsafe_allow_html=True)
+        archivo_roi = st.file_uploader(
+            "SUBIR IMAGEN PARA ROI",
+            type=["png", "jpg", "jpeg"],
+            key=f"{pref}_roi_imagen_bolus"
+        )
+        if archivo_roi is not None:
+            render_roi_interactiva_html(archivo_roi, key_suffix=f"{pref}_bolus")
+
+    render_calculos_exploracion(numero)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    modulacion = st.session_state.get(f"{pref}_modulacion_corriente", "Seleccionar")
+    if modulacion == "Si":
+        modulacion_ok = all([
+            seleccion_completa(st.session_state[f"{pref}_kv_referencia"]),
+            seleccion_completa(st.session_state[f"{pref}_mas_referencia"]),
+        ])
+    elif modulacion == "No":
+        modulacion_ok = all([
+            st.session_state[f"{pref}_kv_manual"] is not None,
+            st.session_state[f"{pref}_mas_manual"] is not None,
+        ])
+    else:
+        modulacion_ok = False
+
+    pitch_ok = True if tipo_exploracion != "Helicoidal" else seleccion_completa(st.session_state[f"{pref}_pitch"])
+
+    adquisicion_completa = all([
+        seleccion_completa(st.session_state[f"{pref}_fase_adquisicion"]),
+        seleccion_completa(st.session_state[f"{pref}_instruccion_voz"]),
+        seleccion_completa(st.session_state[f"{pref}_delay"]),
+        seleccion_completa(st.session_state[f"{pref}_tipo_exploracion"]),
+        seleccion_completa(st.session_state[f"{pref}_espesor"]),
+        seleccion_completa(st.session_state[f"{pref}_matriz_detectores"]),
+        texto_completo(st.session_state[f"{pref}_colimacion"]),
+        texto_completo(st.session_state[f"{pref}_inicio_adquisicion"]),
+        texto_completo(st.session_state[f"{pref}_fin_adquisicion"]),
+        seleccion_completa(st.session_state[f"{pref}_giro_tubo"]),
+        seleccion_completa(st.session_state[f"{pref}_sfov"]),
+        seleccion_completa(st.session_state[f"{pref}_modulacion_corriente"]),
+        modulacion_ok,
+        pitch_ok,
+    ])
+
+    return adquisicion_completa
+
+
+def render_resumen_adquisicion(numero=1, mostrar_topo2=False):
+    pref = adq_prefijo(numero)
+    titulo = "Adquisición 1" if numero == 1 else f"Adquisición {numero}"
+    st.write(f"**{titulo}**")
+    st.write(f"**Fase de adquisición:** {st.session_state[f'{pref}_fase_adquisicion']}")
+    st.write(f"**Instrucción de voz:** {st.session_state[f'{pref}_instruccion_voz']}")
+    st.write(f"**Delay:** {st.session_state[f'{pref}_delay']}")
+    st.write(f"**Tipo de exploración:** {st.session_state[f'{pref}_tipo_exploracion']}")
+    st.write(f"**Espesor (mm):** {st.session_state[f'{pref}_espesor']}")
+    st.write(f"**Matriz de detectores:** {st.session_state[f'{pref}_matriz_detectores']}")
+    st.write(f"**Cobertura (mm):** {st.session_state[f'{pref}_colimacion']}")
+    st.write(f"**Inicio de adquisición:** {st.session_state[f'{pref}_inicio_adquisicion']}")
+    st.write(f"**Fin de adquisición:** {st.session_state[f'{pref}_fin_adquisicion']}")
+    st.write(f"**Giro del tubo:** {st.session_state[f'{pref}_giro_tubo']}")
+    st.write(f"**SFOV:** {st.session_state[f'{pref}_sfov']}")
+    if st.session_state.get(f'{pref}_tipo_exploracion') == 'Helicoidal':
+        st.write(f"**Pitch:** {st.session_state[f'{pref}_pitch']}")
+    st.write(f"**Modulación de corriente:** {st.session_state[f'{pref}_modulacion_corriente']}")
+    modulacion = st.session_state.get(f"{pref}_modulacion_corriente", "Seleccionar")
+    if modulacion == "Si":
+        st.write(f"**kV referencia:** {st.session_state[f'{pref}_kv_referencia']}")
+        st.write(f"**mAs referencia:** {st.session_state[f'{pref}_mas_referencia']}")
+    elif modulacion == "No":
+        st.write(f"**kV:** {st.session_state[f'{pref}_kv_manual']}")
+        st.write(f"**mAs:** {st.session_state[f'{pref}_mas_manual']}")
+
+    largo_cm, protocolo, longitud_referencia_cm, cobertura_promedio = calcular_largo_adquisicion_cm(numero)
+    tiempo_seg, estado_tiempo, colimacion_total_mm = calcular_tiempo_exploracion_seg(numero)
+    if largo_cm is not None:
+        st.write(f"**Largo de adquisición:** {largo_cm:.2f} cm")
+    else:
+        st.write("**Largo de adquisición:** No disponible")
+    if estado_tiempo == "ok":
+        st.write(f"**Tiempo de exploración:** {tiempo_seg:.2f} s")
+    elif estado_tiempo == "no_helicoidal":
+        st.write("**Tiempo de exploración:** No aplica en secuencial")
+    else:
+        st.write("**Tiempo de exploración:** Completa pitch / giro / colimación")
+    if numero == 1:
+        st.write(f"**Topograma 1:** inicio {st.session_state['adq_topo1_limite_superior']}% · fin {st.session_state['adq_topo1_limite_inferior']}%")
+        if mostrar_topo2:
+            st.write(f"**Topograma 2:** inicio {st.session_state['adq_topo2_limite_superior']}% · fin {st.session_state['adq_topo2_limite_inferior']}%")
+    st.markdown("<br>", unsafe_allow_html=True)
+
+inicializar_adquisiciones_extra()
+
+# -------------------------
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # INTERFAZ PRINCIPAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Tabs principales
-tab0, tab1, tab1b, tab2, tab3, tab4, tab5 = st.tabs([
+tab0, tab_prep, tab1, tab1b, tab2, tab3, tab4, tab5, tab_reform, tab_export = st.tabs([
     "🏠 Inicio",
+    "📋 Preparación",
     "👤 Ingreso",
     "📡 Topograma",
     "⚡ Adquisición",
     "🔄 Reconstrucción",
     "💉 Jeringa Inyectora",
     "🖼️ Imagen Simulada",
+    "🔁 Reformación",
+    "📄 Exportar PDF",
 ])
 
 # ───────────────────────────────────────────────────────────────
@@ -828,6 +3681,42 @@ with tab0:
     st.components.v1.html(_portada_html, height=820, scrolling=False)
 
 
+
+# ───────────────────────────────────────────────────────────────
+# TAB PREPARACIÓN
+# ───────────────────────────────────────────────────────────────
+with tab_prep:
+    st.markdown('<div class="section-header">📋 Preparación del Paciente</div>', unsafe_allow_html=True)
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        st.markdown('<div class="section-header">🧑 Datos de identificación</div>', unsafe_allow_html=True)
+        for k, v in [('prep_nombres',''), ('prep_apellidos',''), ('prep_examen','')]:
+            if k not in st.session_state: st.session_state[k] = v
+        if 'prep_peso' not in st.session_state: st.session_state['prep_peso'] = 70
+        if 'prep_fecha_nac' not in st.session_state: st.session_state['prep_fecha_nac'] = date(2000,1,1)
+        st.text_input("Nombres", key="prep_nombres")
+        st.text_input("Apellidos", key="prep_apellidos")
+        st.date_input("Fecha de nacimiento", key="prep_fecha_nac", min_value=date(1900,1,1), max_value=date.today())
+        st.text_input("Examen solicitado", key="prep_examen")
+        st.number_input("Peso (kg)", min_value=0, max_value=300, key="prep_peso")
+    with col_p2:
+        st.markdown('<div class="section-header">🩺 Evaluación clínica</div>', unsafe_allow_html=True)
+        for key, label, opts in [
+            ('prep_embarazo', 'Embarazo', ['Seleccionar','No aplica','Descartado','No descartado']),
+            ('prep_creatinina', 'Creatinina', ['Seleccionar','Normal','Alterada','No disponible']),
+            ('prep_medio_contraste_ev', 'Medio contraste EV', ['Seleccionar','Sí','No']),
+            ('prep_via_venosa', 'Vía venosa', ['Seleccionar','Permeable','No permeable','No instalada']),
+            ('prep_cantidad_contraste', 'Cantidad contraste (mL)', ['Seleccionar','50','75','100','125','150']),
+            ('prep_metodo_inyeccion', 'Método inyección', ['Seleccionar','Manual','Bomba inyectora']),
+            ('prep_medio_contraste_oral', 'Medio contraste oral', ['Seleccionar','Sí','No','No aplica']),
+        ]:
+            if key not in st.session_state: st.session_state[key] = opts[0]
+            st.selectbox(label, opts, key=key)
+    campos_ok = all(st.session_state.get(k,'').strip() for k in ['prep_nombres','prep_apellidos','prep_examen'])
+    if campos_ok:
+        st.markdown('<div class="alert-info">✅ Preparación completa. Continúa a <b>👤 Ingreso</b>.</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="alert-warn">⚠️ Completa todos los campos antes de continuar.</div>', unsafe_allow_html=True)
 
 # ───────────────────────────────────────────────────────────────
 # TAB 1: INGRESO
@@ -1151,13 +4040,13 @@ with tab2:
         tipo_exp = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION)
         st.session_state["tipo_exp"] = tipo_exp
 
+        voz_adq = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, key="voz_adq")
+
         if tipo_exp == "HELICOIDAL":
             doble_muestreo = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"])
         else:
             doble_muestreo = "NO"
         st.session_state["doble_muestreo"] = doble_muestreo
-
-        voz_adq = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, key="voz_adq")
 
         st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
         mod_corriente = st.selectbox("Modulación", MODULACION_CORRIENTE)
@@ -1257,6 +4146,37 @@ with tab2:
     elif isinstance(ctdi, float):
         st.markdown('<div class="alert-info">✅ Dosis dentro de rangos aceptables para este protocolo.</div>', unsafe_allow_html=True)
 
+    st.markdown("---")
+    with st.expander("📐 Rangos de exploración interactivos"):
+        archivo_rangos = st.file_uploader("Subir imagen para rangos", type=["jpg","jpeg","png"], key="rangos_upload")
+        if archivo_rangos and PIL_AVAILABLE:
+            try:
+                st.components.v1.html(render_rangos_paralelos_interactivos_html(archivo_rangos, "adq_rangos"), height=620, scrolling=False)
+            except Exception:
+                st.image(archivo_rangos)
+        else:
+            st.info("Sube un topograma para marcar el rango de exploración interactivamente.")
+
+    with st.expander("🎯 ROI interactiva"):
+        archivo_roi = st.file_uploader("Subir imagen para ROI", type=["jpg","jpeg","png"], key="roi_upload")
+        if archivo_roi and PIL_AVAILABLE:
+            try:
+                st.components.v1.html(render_roi_interactiva_html(archivo_roi, "adq_roi"), height=620, scrolling=False)
+            except Exception:
+                st.image(archivo_roi)
+        else:
+            st.info("Sube una imagen para definir la ROI interactivamente.")
+
+    with st.expander("💉 Bolus tracking / línea de corte"):
+        archivo_bolus = st.file_uploader("Subir imagen para bolus", type=["jpg","jpeg","png"], key="bolus_upload")
+        if archivo_bolus and PIL_AVAILABLE:
+            try:
+                st.components.v1.html(render_linea_corte_bolus_interactiva_html(archivo_bolus, "adq_bolus"), height=620, scrolling=False)
+            except Exception:
+                st.image(archivo_bolus)
+        else:
+            st.info("Sube una imagen para definir la línea de corte del bolus tracking.")
+
 # ───────────────────────────────────────────────────────────────
 # TAB 3: RECONSTRUCCIÓN
 # ───────────────────────────────────────────────────────────────
@@ -1318,6 +4238,16 @@ with tab3:
             inicio_recons = st.selectbox("Inicio reconstrucción", refs_ini_r, key="ini_rec")
         with col_fr:
             fin_recons = st.selectbox("Fin reconstrucción", refs_fin_r, key="fin_rec")
+
+    with st.expander("🖼️ Matriz de reconstrucción interactiva"):
+        archivo_recon = st.file_uploader("Subir imagen CT", type=["jpg","jpeg","png"], key="recon_upload")
+        if archivo_recon and PIL_AVAILABLE:
+            try:
+                st.components.v1.html(render_matriz_reconstruccion_interactiva_html(archivo_recon, "recon_main"), height=620, scrolling=False)
+            except Exception:
+                st.image(archivo_recon)
+        else:
+            st.info("Sube una imagen de corte CT para ajustar la matriz interactivamente.")
 
     st.markdown("---")
     st.markdown('<div class="param-summary">', unsafe_allow_html=True)
@@ -1399,6 +4329,99 @@ with tab4:
                 f'Fase {i+1} — {f["solucion"]} | {f["volumen"]} mL | {f["caudal"]} mL/sg | {f["duracion"]} sg'
                 f'</div>', unsafe_allow_html=True
             )
+
+# ───────────────────────────────────────────────────────────────
+# TAB REFORMACIÓN
+# ───────────────────────────────────────────────────────────────
+with tab_reform:
+    st.markdown('<div class="section-header">🔁 Reformación</div>', unsafe_allow_html=True)
+    col_rf1, col_rf2 = st.columns(2)
+    with col_rf1:
+        for key, label, opts in [
+            ('reform_tipo','Tipo de reformación',['Seleccionar','MPR','MIP','MinIP','VR','SSD']),
+            ('reform_plano','Plano',['Seleccionar','Axial','Coronal','Sagital','Oblicuo']),
+            ('reform_grosor','Grosor de slab (mm)',['Seleccionar','1','3','5','10','20']),
+        ]:
+            if key not in st.session_state: st.session_state[key] = opts[0]
+            st.selectbox(label, opts, key=key)
+    with col_rf2:
+        for key, label, opts in [
+            ('reform_kernel','Kernel',['Seleccionar','Suave','Estándar','Hueso','Pulmón']),
+            ('reform_ww','Ventana WW',['Seleccionar','80','350','400','1500','2000']),
+            ('reform_wl','Nivel WL',['Seleccionar','-600','-100','35','40','400']),
+        ]:
+            if key not in st.session_state: st.session_state[key] = opts[0]
+            st.selectbox(label, opts, key=key)
+    st.markdown("---")
+    archivo_reform = st.file_uploader("Subir imagen de reformación", type=["jpg","jpeg","png"], key="reform_upload")
+    if archivo_reform and PIL_AVAILABLE:
+        try:
+            st.components.v1.html(render_reformacion_obtenida_interactiva_html(archivo_reform, "reform_main"), height=620, scrolling=False)
+        except Exception:
+            st.image(archivo_reform)
+    else:
+        st.info("Sube una imagen de reformación para visualizarla interactivamente.")
+
+# ───────────────────────────────────────────────────────────────
+# TAB EXPORTAR PDF
+# ───────────────────────────────────────────────────────────────
+with tab_export:
+    st.markdown('<div class="section-header">📄 Exportar protocolo</div>', unsafe_allow_html=True)
+
+    def get_val(key, default="—"):
+        v = st.session_state.get(key, default)
+        return str(v) if v and str(v) not in ['Seleccionar','None',''] else "—"
+
+    rows_prep = [
+        ("Paciente", get_val('prep_nombres') + " " + get_val('prep_apellidos')),
+        ("Examen", get_val('prep_examen')),
+        ("Peso", get_val('prep_peso') + " kg"),
+        ("Contraste EV", get_val('prep_medio_contraste_ev')),
+        ("Vía venosa", get_val('prep_via_venosa')),
+    ]
+    rows_adq = [
+        ("Región", get_val('region_anat')),
+        ("Examen", get_val('examen')),
+        ("Tipo exploración", get_val('tipo_exp')),
+        ("kVp", get_val('kvp') + " kV"),
+        ("mAs", get_val('mas_val')),
+        ("Detectores", get_val('conf_det')),
+        ("Pitch", get_val('pitch')),
+        ("CTDIvol", get_val('ctdi') + " mGy"),
+    ]
+    rows_recon = [
+        ("Fase", get_val('fase_recons')),
+        ("Kernel", get_val('kernel_sel')),
+        ("Grosor", get_val('grosor_recons')),
+        ("WW / WL", get_val('ww_val') + " / " + get_val('wl_val')),
+    ]
+    rows_reform = [
+        ("Tipo", get_val('reform_tipo')),
+        ("Plano", get_val('reform_plano')),
+        ("Grosor slab", get_val('reform_grosor') + " mm"),
+        ("WW / WL", get_val('reform_ww') + " / " + get_val('reform_wl')),
+    ]
+
+    def html_table(rows):
+        html = "<table style='width:100%;border-collapse:collapse;margin-bottom:1rem;'>"
+        for k, v in rows:
+            html += f"<tr><td style='padding:5px 8px;border:1px solid #444;font-weight:600;width:45%;background:#1a1a1a;color:#aaa;'>{k}</td>"
+            html += f"<td style='padding:5px 8px;border:1px solid #444;color:#fff;'>{v}</td></tr>"
+        html += "</table>"
+        return html
+
+    resumen = (
+        "<style>body{font-family:sans-serif;background:#111;color:#fff;margin:20px;}"
+        "h2{color:#64B5F6;border-bottom:2px solid #64B5F6;padding-bottom:4px;}"
+        "h3{color:#90CAF9;margin-top:1rem;}</style>"
+        "<h2>PlaniTC — Resumen del protocolo</h2>"
+        "<h3>Preparación</h3>" + html_table(rows_prep) +
+        "<h3>Adquisición</h3>" + html_table(rows_adq) +
+        "<h3>Reconstrucción</h3>" + html_table(rows_recon) +
+        "<h3>Reformación</h3>" + html_table(rows_reform)
+    )
+    st.components.v1.html(resumen, height=750, scrolling=True)
+    st.markdown("**Para guardar como PDF:** usa **Ctrl+P** (o Cmd+P en Mac) y selecciona _Guardar como PDF_.")
 
 # ───────────────────────────────────────────────────────────────
 # TAB 5: IMAGEN SIMULADA
