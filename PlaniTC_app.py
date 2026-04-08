@@ -8,6 +8,9 @@ import streamlit as st
 import numpy as np
 import math
 from datetime import date
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parent
 
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
