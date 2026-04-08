@@ -7,6 +7,7 @@ Versión web: Python + Streamlit
 import streamlit as st
 import numpy as np
 import math
+import zipfile
 from datetime import date
 from pathlib import Path
 
@@ -238,6 +239,30 @@ RETARDOS = ["2 sg", "3 sg", "4 sg", "5 sg", "6 sg"]
 
 # Carpeta con imágenes de posicionamiento para topograma
 DIR_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
+ZIP_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA.zip"
+CACHE_IMAGENES_TOPO_POS = BASE_DIR / "_cache_imagenes_topograma"
+
+
+def preparar_carpeta_imagenes_topograma():
+    """Usa la carpeta si existe; si no, intenta extraer el ZIP en una caché local."""
+    try:
+        if DIR_IMAGENES_TOPO_POS.exists() and any(p.is_file() for p in DIR_IMAGENES_TOPO_POS.rglob('*')):
+            return DIR_IMAGENES_TOPO_POS
+
+        if ZIP_IMAGENES_TOPO_POS.exists():
+            CACHE_IMAGENES_TOPO_POS.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(ZIP_IMAGENES_TOPO_POS, 'r') as zf:
+                zf.extractall(CACHE_IMAGENES_TOPO_POS)
+
+            # si el zip trae una carpeta interna con el mismo nombre, preferirla
+            interna = CACHE_IMAGENES_TOPO_POS / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
+            if interna.exists():
+                return interna
+            return CACHE_IMAGENES_TOPO_POS
+    except Exception:
+        return DIR_IMAGENES_TOPO_POS
+
+    return DIR_IMAGENES_TOPO_POS
 
 
 def normalizar_posicion_topograma(posicion: str) -> str:
@@ -277,19 +302,34 @@ def normalizar_tubo_topograma(pos_tubo: str) -> str:
 
 def normalizar_nombre_archivo_topograma(nombre: str) -> str:
     nombre = (nombre or "").lower().strip()
-    nombre = nombre.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
-    nombre = nombre.replace("°", "")
-    nombre = nombre.replace("decubito ", "")
-    nombre = nombre.replace("lateral derecho", "lateral_derecho")
-    nombre = nombre.replace("lateral izquierdo", "lateral_izquierdo")
-    nombre = nombre.replace("derecha", "derecho")
-    nombre = nombre.replace("izquierda", "izquierdo")
-    nombre = nombre.replace("cabeza primero", "cabeza_primero")
-    nombre = nombre.replace("pies primero", "pies_primero")
+    reemplazos = {
+        "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u", "ñ": "n",
+        "°": "", "º": "", "┬░": "", "decubito ": "",
+        "lateral derecho": "lateral_derecho",
+        "lateral izquierdo": "lateral_izquierdo",
+        "derecha": "derecho",
+        "izquierda": "izquierdo",
+        "cabeza primero": "cabeza_primero",
+        "pies primero": "pies_primero",
+    }
+    for a,b in reemplazos.items():
+        nombre = nombre.replace(a,b)
+
+    import re
     nombre = nombre.replace("__", "_")
     nombre = nombre.replace(" ", "_")
-    while "__" in nombre:
-        nombre = nombre.replace("__", "_")
+    nombre = re.sub(r'[^a-z0-9_]+', '_', nombre)
+    nombre = re.sub(r'_+', '_', nombre).strip('_')
+
+    # muchas imágenes vienen con arriba_0 o abajo_180; para comparar basta la dirección
+    tokens = [t for t in nombre.split('_') if t]
+    filtrados = []
+    for t in tokens:
+        if t.isdigit():
+            continue
+        filtrados.append(t)
+    nombre = '_'.join(filtrados)
+    nombre = nombre.replace('arriba_0', 'arriba').replace('abajo_180', 'abajo')
     return nombre
 
 
@@ -301,25 +341,24 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
     if not entrada_norm or not posicion_norm or not tubo_norm:
         return None
 
-    objetivo = f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}"
-    objetivo_norm = normalizar_nombre_archivo_topograma(objetivo)
+    objetivo_norm = normalizar_nombre_archivo_topograma(f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}")
 
-    posibles_dirs = [DIR_IMAGENES_TOPO_POS, BASE_DIR]
+    base_busqueda = preparar_carpeta_imagenes_topograma()
     extensiones = {".png", ".jpg", ".jpeg", ".webp"}
 
-    for base_busqueda in posibles_dirs:
-        if not base_busqueda.exists():
+    if not base_busqueda.exists():
+        return None
+
+    for ruta in base_busqueda.rglob('*'):
+        if not ruta.is_file():
             continue
-        for ruta in base_busqueda.rglob("*"):
-            if not ruta.is_file():
-                continue
-            if ruta.suffix.lower() not in extensiones:
-                continue
-            if "__macosx" in str(ruta).lower():
-                continue
-            stem_norm = normalizar_nombre_archivo_topograma(ruta.stem)
-            if stem_norm == objetivo_norm:
-                return ruta
+        if ruta.suffix.lower() not in extensiones:
+            continue
+        if '__macosx' in str(ruta).lower() or ruta.name.startswith('._') or ruta.name == '.DS_Store':
+            continue
+        stem_norm = normalizar_nombre_archivo_topograma(ruta.stem)
+        if stem_norm == objetivo_norm:
+            return ruta
 
     return None
 
