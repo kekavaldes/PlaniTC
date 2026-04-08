@@ -243,27 +243,48 @@ ZIP_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA.zip"
 CACHE_IMAGENES_TOPO_POS = BASE_DIR / "_cache_imagenes_topograma"
 
 
-def preparar_carpeta_imagenes_topograma():
-    """Usa la carpeta si existe; si no, intenta extraer el ZIP en una caché local."""
+def preparar_fuentes_imagenes_topograma():
+    """
+    Busca imágenes del topograma en tres lugares:
+    1) archivos sueltos en la raíz del repositorio
+    2) carpeta IMAGENES POSICIONAMIENTO TOPOGRAMA
+    3) ZIP IMAGENES POSICIONAMIENTO TOPOGRAMA.zip extraído en caché
+    """
+    fuentes = []
+
     try:
-        if DIR_IMAGENES_TOPO_POS.exists() and any(p.is_file() for p in DIR_IMAGENES_TOPO_POS.rglob('*')):
-            return DIR_IMAGENES_TOPO_POS
+        if BASE_DIR.exists():
+            fuentes.append(BASE_DIR)
+
+        if DIR_IMAGENES_TOPO_POS.exists():
+            fuentes.append(DIR_IMAGENES_TOPO_POS)
 
         if ZIP_IMAGENES_TOPO_POS.exists():
             CACHE_IMAGENES_TOPO_POS.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(ZIP_IMAGENES_TOPO_POS, 'r') as zf:
+            import zipfile
+            with zipfile.ZipFile(ZIP_IMAGENES_TOPO_POS, "r") as zf:
                 zf.extractall(CACHE_IMAGENES_TOPO_POS)
 
-            # si el zip trae una carpeta interna con el mismo nombre, preferirla
             interna = CACHE_IMAGENES_TOPO_POS / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
             if interna.exists():
-                return interna
-            return CACHE_IMAGENES_TOPO_POS
+                fuentes.append(interna)
+            else:
+                fuentes.append(CACHE_IMAGENES_TOPO_POS)
     except Exception:
-        return DIR_IMAGENES_TOPO_POS
+        pass
 
-    return DIR_IMAGENES_TOPO_POS
+    fuentes_limpias = []
+    vistos = set()
+    for fuente in fuentes:
+        try:
+            clave = str(fuente.resolve())
+        except Exception:
+            clave = str(fuente)
+        if clave not in vistos:
+            vistos.add(clave)
+            fuentes_limpias.append(fuente)
 
+    return fuentes_limpias
 
 def normalizar_posicion_topograma(posicion: str) -> str:
     posicion = (posicion or "").strip().lower()
@@ -341,26 +362,32 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
     if not entrada_norm or not posicion_norm or not tubo_norm:
         return None
 
-    objetivo_norm = normalizar_nombre_archivo_topograma(f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}")
-
-    base_busqueda = preparar_carpeta_imagenes_topograma()
+    objetivo_norm = normalizar_nombre_archivo_topograma(
+        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}"
+    )
     extensiones = {".png", ".jpg", ".jpeg", ".webp"}
 
-    if not base_busqueda.exists():
-        return None
+    for fuente in preparar_fuentes_imagenes_topograma():
+        if not fuente.exists():
+            continue
 
-    for ruta in base_busqueda.rglob('*'):
-        if not ruta.is_file():
-            continue
-        if ruta.suffix.lower() not in extensiones:
-            continue
-        if '__macosx' in str(ruta).lower() or ruta.name.startswith('._') or ruta.name == '.DS_Store':
-            continue
-        stem_norm = normalizar_nombre_archivo_topograma(ruta.stem)
-        if stem_norm == objetivo_norm:
-            return ruta
+        for ruta in fuente.rglob("*"):
+            if not ruta.is_file():
+                continue
+            if ruta.suffix.lower() not in extensiones:
+                continue
+            nombre_lower = ruta.name.lower()
+            if "__macosx" in nombre_lower or ruta.name.startswith("._") or ruta.name == ".DS_Store":
+                continue
+            if not nombre_lower.startswith("topograma"):
+                continue
+
+            stem_norm = normalizar_nombre_archivo_topograma(ruta.stem)
+            if stem_norm == objetivo_norm:
+                return ruta
 
     return None
+
 
 # Adquisición
 TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"]
