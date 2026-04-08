@@ -239,6 +239,7 @@ RETARDOS = ["2 sg", "3 sg", "4 sg", "5 sg", "6 sg"]
 # Carpeta con imágenes de posicionamiento para topograma
 DIR_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
 
+
 def normalizar_posicion_topograma(posicion: str) -> str:
     posicion = (posicion or "").strip().lower()
     if "lateral derecho" in posicion:
@@ -251,6 +252,7 @@ def normalizar_posicion_topograma(posicion: str) -> str:
         return "supino"
     return ""
 
+
 def normalizar_entrada_topograma(entrada: str) -> str:
     entrada = (entrada or "").strip().lower()
     if "cabeza" in entrada:
@@ -258,6 +260,7 @@ def normalizar_entrada_topograma(entrada: str) -> str:
     if "pies" in entrada:
         return "pies_primero"
     return ""
+
 
 def normalizar_tubo_topograma(pos_tubo: str) -> str:
     pos_tubo = (pos_tubo or "").strip().lower()
@@ -271,6 +274,25 @@ def normalizar_tubo_topograma(pos_tubo: str) -> str:
         return "izquierdo"
     return ""
 
+
+def normalizar_nombre_archivo_topograma(nombre: str) -> str:
+    nombre = (nombre or "").lower().strip()
+    nombre = nombre.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+    nombre = nombre.replace("°", "")
+    nombre = nombre.replace("decubito ", "")
+    nombre = nombre.replace("lateral derecho", "lateral_derecho")
+    nombre = nombre.replace("lateral izquierdo", "lateral_izquierdo")
+    nombre = nombre.replace("derecha", "derecho")
+    nombre = nombre.replace("izquierda", "izquierdo")
+    nombre = nombre.replace("cabeza primero", "cabeza_primero")
+    nombre = nombre.replace("pies primero", "pies_primero")
+    nombre = nombre.replace("__", "_")
+    nombre = nombre.replace(" ", "_")
+    while "__" in nombre:
+        nombre = nombre.replace("__", "_")
+    return nombre
+
+
 def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tubo: str):
     entrada_norm = normalizar_entrada_topograma(entrada)
     posicion_norm = normalizar_posicion_topograma(posicion)
@@ -279,19 +301,25 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
     if not entrada_norm or not posicion_norm or not tubo_norm:
         return None
 
-    candidatos = [
-        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}.png",
-        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}.jpg",
-        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}.jpeg",
-        f"topograma_{entrada_norm}__{posicion_norm}__{tubo_norm}.png",
-        f"topograma_{entrada_norm}__{posicion_norm}__{tubo_norm}.jpg",
-        f"topograma_{entrada_norm}__{posicion_norm}__{tubo_norm}.jpeg",
-    ]
+    objetivo = f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}"
+    objetivo_norm = normalizar_nombre_archivo_topograma(objetivo)
 
-    for nombre in candidatos:
-        ruta = DIR_IMAGENES_TOPO_POS / nombre
-        if ruta.exists():
-            return ruta
+    posibles_dirs = [DIR_IMAGENES_TOPO_POS, BASE_DIR]
+    extensiones = {".png", ".jpg", ".jpeg", ".webp"}
+
+    for base_busqueda in posibles_dirs:
+        if not base_busqueda.exists():
+            continue
+        for ruta in base_busqueda.rglob("*"):
+            if not ruta.is_file():
+                continue
+            if ruta.suffix.lower() not in extensiones:
+                continue
+            if "__macosx" in str(ruta).lower():
+                continue
+            stem_norm = normalizar_nombre_archivo_topograma(ruta.stem)
+            if stem_norm == objetivo_norm:
+                return ruta
 
     return None
 
