@@ -916,40 +916,7 @@ with tab1:
                     format_func=lambda x: "— Seleccionar —" if x is None else x)
         st.session_state["examen"] = examen if examen else ""
 
-        col_pos, col_ent = st.columns(2)
-        with col_pos:
-            posicion = st.selectbox("Posición paciente", [None] + POSICIONES_PACIENTE, index=0,
-                format_func=lambda x: "— Seleccionar —" if x is None else x)
-            st.session_state["posicion"] = posicion if posicion else ""
-        with col_ent:
-            entrada = st.selectbox("Entrada", [None] + ENTRADAS_PACIENTE, index=0,
-                format_func=lambda x: "— Seleccionar —" if x is None else x)
-            st.session_state["entrada"] = entrada if entrada else ""
-
-        def _get_posicion_key(pos, ent):
-            if not pos or not ent:
-                return None
-            pos = pos.upper()
-            ent = ent.upper()
-            if "PRONO" in pos:
-                return "prono_cabeza" if "CABEZA" in ent else "prono_pies"
-            elif "LATERAL" in pos:
-                return "lateral_cabeza" if "CABEZA" in ent else "lateral_pies"
-            else:
-                return "supino_cabeza" if "CABEZA" in ent else "supino_pies"
-
-        _pos_key = _get_posicion_key(posicion, entrada)
-        _img_pos = IMG_POSICIONES.get(_pos_key)
-        if _img_pos:
-            st.markdown(f"""
-            <div style="text-align:center; margin-top:10px;">
-                <img src="data:image/jpeg;base64,{_img_pos}"
-                     style="width:75%; border-radius:8px; border:1px solid #333;">
-                <div style="font-size:11px; color:#888; margin-top:4px;">
-                    {posicion} · {entrada}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        # La posición del paciente y la entrada se configuran en la pestaña Topograma.
 
     with col_ing3:
         st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
@@ -986,9 +953,43 @@ with tab1:
 # TAB 1b: TOPOGRAMA
 # ───────────────────────────────────────────────────────────────
 with tab1b:
-    col_tp1, col_tp2 = st.columns([1, 1])
+    col_topo_cfg, col_topo_img = st.columns([1, 1])
 
-    with col_tp1:
+    with col_topo_cfg:
+        st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente</div>', unsafe_allow_html=True)
+        col_pos_topo, col_ent_topo = st.columns(2)
+        with col_pos_topo:
+            posicion = st.selectbox(
+                "Posición paciente",
+                [None] + POSICIONES_PACIENTE,
+                index=0,
+                format_func=lambda x: "— Seleccionar —" if x is None else x,
+                key="posicion_topo"
+            )
+            st.session_state["posicion"] = posicion if posicion else ""
+        with col_ent_topo:
+            entrada = st.selectbox(
+                "Entrada",
+                [None] + ENTRADAS_PACIENTE,
+                index=0,
+                format_func=lambda x: "— Seleccionar —" if x is None else x,
+                key="entrada_topo"
+            )
+            st.session_state["entrada"] = entrada if entrada else ""
+
+        def _get_posicion_key(pos, ent):
+            if not pos or not ent:
+                return None
+            pos = pos.upper()
+            ent = ent.upper()
+            if "PRONO" in pos:
+                return "prono_cabeza" if "CABEZA" in ent else "prono_pies"
+            elif "LATERAL" in pos:
+                return "lateral_cabeza" if "CABEZA" in ent else "lateral_pies"
+            else:
+                return "supino_cabeza" if "CABEZA" in ent else "supino_pies"
+
+        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
         col_t1a, col_t1b = st.columns(2)
         with col_t1a:
@@ -1091,10 +1092,33 @@ with tab1b:
                 st.session_state["topograma_iniciado"] = False
                 st.rerun()
 
-    with col_tp2:
+    with col_topo_img:
         _region_prev   = st.session_state.get("region_anat", "CUERPO")
         _examen_prev   = st.session_state.get("examen", "")
         _pos_tubo_prev = st.session_state.get("t1pt", "ARRIBA 0°")
+        _posicion_prev = st.session_state.get("posicion", "")
+        _entrada_prev  = st.session_state.get("entrada", "")
+
+        _pos_key_prev = _get_posicion_key(_posicion_prev, _entrada_prev)
+        _img_pos_prev = IMG_POSICIONES.get(_pos_key_prev)
+        st.markdown('<div class="section-header">🧍 Posición / entrada seleccionada</div>', unsafe_allow_html=True)
+        if _img_pos_prev:
+            st.markdown(f"""
+            <div style="text-align:center; margin-bottom:18px;">
+                <img src="data:image/jpeg;base64,{_img_pos_prev}"
+                     style="width:75%; border-radius:8px; border:1px solid #333;">
+                <div style="font-size:11px; color:#888; margin-top:4px;">
+                    {_posicion_prev} · {_entrada_prev}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style="color:#555; text-align:center; padding:1.2rem; border:1px dashed #333;
+                        border-radius:8px; margin-bottom:18px;">
+                Selecciona la posición del paciente y la entrada para ver la imagen resultante
+            </div>
+            """, unsafe_allow_html=True)
 
         def _tubo_to_proy_prev(pos_tubo, region, examen):
             if not pos_tubo:
