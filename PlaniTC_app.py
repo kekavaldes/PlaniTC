@@ -15,37 +15,7 @@ BASE_DIR = Path(__file__).parent
 
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
-    if st.session_state.get("autenticado", False):
-        return
-
-    st.markdown("""
-    <div style="max-width:420px; margin: 4rem auto; text-align:center;">
-        <div style="font-size:2.5rem; margin-bottom:0.5rem;">🔬</div>
-        <div style="font-size:1.8rem; font-weight:700; color:#FFFFFF; margin-bottom:0.2rem;">
-            PlaniTC
-        </div>
-        <div style="font-size:0.9rem; color:#888; margin-bottom:2rem;">
-            Simulador Educativo de Tomografía Computada
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        password = st.text_input("Código de acceso", type="password",
-                                  placeholder="Ingresa tu código")
-        if st.button("Ingresar →", use_container_width=True):
-            if password == st.secrets["PASSWORD"]:
-                st.session_state.autenticado = True
-                st.rerun()
-            else:
-                st.error("Código incorrecto. Verifica con tu docente.")
-        st.markdown("""
-        <div style="text-align:center; margin-top:2rem; font-size:0.78rem; color:#555;">
-            TM Angélica Valdés · TM Evelyn Oyarzún
-        </div>
-        """, unsafe_allow_html=True)
-    st.stop()
+    return
 
 check_password()
 
@@ -100,10 +70,27 @@ st.markdown("""
     /* Inputs oscuros */
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input,
-    .stTextArea > div > div > textarea {
+    .stTextArea > div > div > textarea,
+    .stDateInput input {
         background-color: #1A1A1A !important;
         color: #FFFFFF !important;
         border: 1px solid #444444 !important;
+    }
+    .stDateInput > div > div,
+    .stNumberInput > div > div {
+        background-color: #1A1A1A !important;
+        border: 1px solid #444444 !important;
+        border-radius: 0.5rem !important;
+    }
+    .stDateInput button,
+    .stNumberInput button {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+        border: 1px solid #444444 !important;
+    }
+    .stDateInput svg,
+    .stNumberInput svg {
+        fill: #FFFFFF !important;
     }
     /* Selectbox contenedor visible */
     .stSelectbox > div > div {
@@ -1025,10 +1012,24 @@ with tab1:
             hoy = date.today()
             edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
             st.markdown("<br>", unsafe_allow_html=True)
-            st.metric("Edad", f"{edad} años")
+            st.text_input("Edad", value=f"{edad} años", disabled=True)
 
         peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
+
+    with col_ing2:
+        st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
+        region_anat = st.selectbox("Región anatómica", [None] + list(REGIONES.keys()), index=0,
+                format_func=lambda x: "— Seleccionar —" if x is None else x)
+        region_anat_seleccionada = region_anat
+        if region_anat is None:
+            region_anat = "CUERPO"
+        st.session_state["region_anat"] = region_anat if region_anat else "CUERPO"
+
+        examenes_disp = REGIONES.get(region_anat, ["—"])
+        examen = st.selectbox("Examen", [None] + examenes_disp, index=0,
+                    format_func=lambda x: "— Seleccionar —" if x is None else x)
+        st.session_state["examen"] = examen if examen else ""
 
         st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
         st.checkbox("¿Embarazo?", key="embarazo")
@@ -1058,20 +1059,6 @@ with tab1:
                 key="cantidad_contraste",
                 format_func=lambda x: "— Seleccionar —" if x is None else x
             )
-
-    with col_ing2:
-        st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
-        region_anat = st.selectbox("Región anatómica", [None] + list(REGIONES.keys()), index=0,
-                format_func=lambda x: "— Seleccionar —" if x is None else x)
-        region_anat_seleccionada = region_anat
-        if region_anat is None:
-            region_anat = "CUERPO"
-        st.session_state["region_anat"] = region_anat if region_anat else "CUERPO"
-
-        examenes_disp = REGIONES.get(region_anat, ["—"])
-        examen = st.selectbox("Examen", [None] + examenes_disp, index=0,
-                    format_func=lambda x: "— Seleccionar —" if x is None else x)
-        st.session_state["examen"] = examen if examen else ""
 
         # La posición del paciente y la entrada se configuran en la pestaña Topograma.
 
