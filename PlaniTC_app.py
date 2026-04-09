@@ -1234,29 +1234,6 @@ with tab1b:
                 key="posicion_topo"
             )
             st.session_state["posicion"] = posicion if posicion else ""
-            col1, col2 = st.columns(2)
-
-with col1:
-    posicion_tubo = st.selectbox(
-        "Posición del tubo",
-        ["Seleccionar", "ARRIBA 0°", "ABAJO 180°", "DERECHA 90°", "IZQUIERDA 90°"],
-        key="pos_tubo_extra"
-    )
-
-with col2:
-    posicion_extremidades = st.selectbox(
-        "Posición extremidades",
-        [
-            "Seleccionar",
-            "brazos arriba",
-            "brazos abajo",
-            "eleva brazo derecho",
-            "eleva brazo izquierdo",
-            "flexión extremidad inferior derecha",
-            "flexión extremidad inferior izquierda"
-        ],
-        key="pos_extremidades"
-    )
             topo1_pos  = st.selectbox(
                 "Posición tubo",
                 [None] + POS_TUBO,
