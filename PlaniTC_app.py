@@ -1335,14 +1335,51 @@ with tab1b:
             with col_t2b:
                 topo2_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
                                  format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2ma")
-            col_t2c, col_t2d = st.columns(2)
-            with col_t2c:
-                topo2_pos  = st.selectbox("Posición tubo", [None] + POS_TUBO, index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t2pt")
-            with col_t2d:
-                topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2l")
+            topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
+                             format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2l")
+            col_t2e, col_t2f = st.columns(2)
+            with col_t2e:
+                topo2_posicion = st.selectbox(
+                    "Posición paciente",
+                    [None] + POSICIONES_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_posicion_paciente"
+                )
+            with col_t2f:
+                topo2_entrada = st.selectbox(
+                    "Entrada",
+                    [None] + ENTRADAS_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_entrada"
+                )
+            col_t2g, col_t2h = st.columns(2)
+            with col_t2g:
+                topo2_pos_tubo_extra = st.selectbox(
+                    "Posición tubo",
+                    [None] + POS_TUBO,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_pos_tubo_extra"
+                )
+            with col_t2h:
+                topo2_extremidades = st.selectbox(
+                    "Posición extremidades",
+                    [
+                        "Seleccionar",
+                        "brazos arriba",
+                        "brazos abajo",
+                        "eleva brazo derecho",
+                        "eleva brazo izquierdo",
+                        "flexión extremidad inferior derecha",
+                        "flexión extremidad inferior izquierda"
+                    ],
+                    key="t2_pos_extremidades"
+                )
             topo2_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
                              format_func=lambda x: "Seleccionar" if x is None else x,
                 placeholder="Seleccionar", key="t2dir")
