@@ -1234,30 +1234,6 @@ with tab1b:
                 key="posicion_topo"
             )
             st.session_state["posicion"] = posicion if posicion else ""
-            col1, col2 = st.columns(2)
-            with col1:
-                topo1_pos = st.selectbox(
-                    "Posición tubo",
-                    [None] + POS_TUBO,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t1pt"
-                )
-            with col2:
-                posicion_extremidades = st.selectbox(
-                    "Posición extremidades",
-                    [
-                        "Seleccionar",
-                        "brazos arriba",
-                        "brazos abajo",
-                        "eleva brazo derecho",
-                        "eleva brazo izquierdo",
-                        "flexión extremidad inferior derecha",
-                        "flexión extremidad inferior izquierda"
-                    ],
-                    key="pos_extremidades"
-                )
         with col_ent_topo:
             entrada = st.selectbox(
                 "Entrada",
@@ -1268,6 +1244,31 @@ with tab1b:
                 key="entrada_topo"
             )
             st.session_state["entrada"] = entrada if entrada else ""
+
+        col_tubo, col_extremidades = st.columns(2)
+        with col_tubo:
+            topo1_pos = st.selectbox(
+                "Posición tubo",
+                [None] + POS_TUBO,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="t1pt"
+            )
+        with col_extremidades:
+            posicion_extremidades = st.selectbox(
+                "Posición extremidades",
+                [
+                    "Seleccionar",
+                    "brazos arriba",
+                    "brazos abajo",
+                    "eleva brazo derecho",
+                    "eleva brazo izquierdo",
+                    "flexión extremidad inferior derecha",
+                    "flexión extremidad inferior izquierda"
+                ],
+                key="pos_extremidades"
+            )
 
         with col_topo_img:
             st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado</div>', unsafe_allow_html=True)
