@@ -1418,10 +1418,6 @@ with tab1b:
                 align-items: center; justify-content: center;
                 text-align: center; gap: 16px;">
                 <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
-                <div style="color: #555; font-size: 0.95rem;">
-                    Configure los parámetros del topograma<br>
-                    y presione <strong style="color:#FFD700;">INICIAR TOPOGRAMA</strong>
-                </div>
                 <div style="color:#333; font-size:0.8rem;">
                     Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
                 </div>
