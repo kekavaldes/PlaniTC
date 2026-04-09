@@ -1236,10 +1236,13 @@ with tab1b:
             st.session_state["posicion"] = posicion if posicion else ""
             col1, col2 = st.columns(2)
             with col1:
-                posicion_tubo = st.selectbox(
-                    "Posición del tubo",
-                    ["Seleccionar", "ARRIBA 0°", "ABAJO 180°", "DERECHA 90°", "IZQUIERDA 90°"],
-                    key="pos_tubo_extra"
+                topo1_pos = st.selectbox(
+                    "Posición tubo",
+                    [None] + POS_TUBO,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t1pt"
                 )
             with col2:
                 posicion_extremidades = st.selectbox(
@@ -1255,14 +1258,6 @@ with tab1b:
                     ],
                     key="pos_extremidades"
                 )
-            topo1_pos  = st.selectbox(
-                "Posición tubo",
-                [None] + POS_TUBO,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="t1pt"
-            )
         with col_ent_topo:
             entrada = st.selectbox(
                 "Entrada",
