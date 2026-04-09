@@ -8,14 +8,44 @@ import streamlit as st
 import numpy as np
 import math
 import zipfile
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
-    return
+    if st.session_state.get("autenticado", False):
+        return
+
+    st.markdown("""
+    <div style="max-width:420px; margin: 4rem auto; text-align:center;">
+        <div style="font-size:2.5rem; margin-bottom:0.5rem;">🔬</div>
+        <div style="font-size:1.8rem; font-weight:700; color:#FFFFFF; margin-bottom:0.2rem;">
+            PlaniTC
+        </div>
+        <div style="font-size:0.9rem; color:#888; margin-bottom:2rem;">
+            Simulador Educativo de Tomografía Computada
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        password = st.text_input("Código de acceso", type="password",
+                                  placeholder="Ingresa tu código")
+        if st.button("Ingresar →", use_container_width=True):
+            if password == st.secrets["PASSWORD"]:
+                st.session_state.autenticado = True
+                st.rerun()
+            else:
+                st.error("Código incorrecto. Verifica con tu docente.")
+        st.markdown("""
+        <div style="text-align:center; margin-top:2rem; font-size:0.78rem; color:#555;">
+            TM Angélica Valdés · TM Evelyn Oyarzún
+        </div>
+        """, unsafe_allow_html=True)
+    st.stop()
 
 check_password()
 
@@ -972,26 +1002,16 @@ def calc_clearance_cockcroft_gault(edad, peso_kg, creatinina_mg_dl, sexo):
 
 
 def render_clearance_result(clearance):
-    """Muestra clearance estimado con semáforo clínico."""
+    """Muestra clearance en verde o rojo según valor de referencia."""
     if clearance is None:
         st.info("Selecciona sexo e ingresa creatinina para calcular el clearance estimado.")
         return
 
-    if clearance >= 60:
-        fondo = "#143d22"
-        borde = "#2ecc71"
-        texto = "#d8ffe5"
-        estado = "Adecuado"
-    elif clearance >= 30:
-        fondo = "#4a3d12"
-        borde = "#f1c40f"
-        texto = "#fff6cc"
-        estado = "Disminución moderada"
-    else:
-        fondo = "#4a1616"
-        borde = "#ff5c5c"
-        texto = "#ffe0e0"
-        estado = "Disminución severa"
+    es_normal = clearance >= 60
+    fondo = "#143d22" if es_normal else "#4a1616"
+    borde = "#2ecc71" if es_normal else "#ff5c5c"
+    texto = "#d8ffe5" if es_normal else "#ffe0e0"
+    estado = "Adecuado" if es_normal else "Disminuido"
 
     st.markdown(
         f"""
@@ -1103,12 +1123,11 @@ with tab1:
                 "Fecha de nacimiento",
                 min_value=date(1900, 1, 1),
                 max_value=date.today(),
-                format="DD/MM/YYYY",
                 key="fecha_nacimiento"
             )
-        edad = calcular_edad(fecha_nacimiento, date.today())
+        edad = calcular_edad(fecha_nacimiento)
         with col_edad:
-            st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True)
+            st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True, key="edad_calculada")
 
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
@@ -1117,8 +1136,7 @@ with tab1:
             "Región anatómica",
             [None] + list(REGIONES.keys()),
             index=0,
-            format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar"
+            format_func=lambda x: "Seleccionar" if x is None else x
         )
         region_anat_seleccionada = region_anat
         region_anat_real = region_anat if region_anat else "CUERPO"
@@ -1134,8 +1152,7 @@ with tab1:
             "Examen",
             [None] + examenes_disp,
             index=0,
-            format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar"
+            format_func=lambda x: "Seleccionar" if x is None else x
         )
         st.session_state["examen"] = examen if examen else ""
 
@@ -1168,8 +1185,7 @@ with tab1:
             [None, "SI", "NO", "PROBABLE"],
             index=0,
             key="embarazo",
-            format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar"
+            format_func=lambda x: "Seleccionar" if x is None else x
         )
         requiere_creatinina = st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
 
@@ -1229,26 +1245,40 @@ with tab1b:
                 "Posición paciente",
                 [None] + POSICIONES_PACIENTE,
                 index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
+                format_func=lambda x: "— Seleccionar —" if x is None else x,
                 key="posicion_topo"
             )
             st.session_state["posicion"] = posicion if posicion else ""
-            topo1_pos  = st.selectbox(
-                "Posición tubo",
-                [None] + POS_TUBO,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="t1pt"
-            )
+
+col1, col2 = st.columns(2)
+
+with col1:
+    posicion_tubo = st.selectbox(
+        "Posición del tubo",
+        ["Seleccionar", "ARRIBA 0°", "ABAJO 180°", "DERECHA 90°", "IZQUIERDA 90°"],
+        key="pos_tubo_extra"
+    )
+
+with col2:
+    posicion_extremidades = st.selectbox(
+        "Posición extremidades",
+        [
+            "Seleccionar",
+            "brazos arriba",
+            "brazos abajo",
+            "eleva brazo derecho",
+            "eleva brazo izquierdo",
+            "flexión extremidad inferior derecha",
+            "flexión extremidad inferior izquierda"
+        ],
+        key="pos_extremidades"
+    )
         with col_ent_topo:
             entrada = st.selectbox(
                 "Entrada",
                 [None] + ENTRADAS_PACIENTE,
                 index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
+                format_func=lambda x: "— Seleccionar —" if x is None else x,
                 key="entrada_topo"
             )
             st.session_state["entrada"] = entrada if entrada else ""
@@ -1279,33 +1309,24 @@ with tab1b:
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
-        refs_inicio_topo = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
         col_t1a, col_t1b = st.columns(2)
         with col_t1a:
-            topo1_kv   = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else str(x), placeholder="Seleccionar", key="t1kv")
+            topo1_kv   = st.selectbox("kV", [None, 80, 100, 120], index=0,
+                             format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t1kv")
         with col_t1b:
             topo1_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1ma")
+                             format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t1ma")
         col_t1c, col_t1d = st.columns(2)
         with col_t1c:
-            centro_inicio_topo = st.selectbox(
-                "Centraje inicio de topograma",
-                refs_inicio_topo,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="t1_centraje_inicio"
-            )
+            topo1_pos  = st.selectbox("Posición tubo", [None] + POS_TUBO, index=0,
+                             format_func=lambda x: "— Seleccionar —" if x is None else x, key="t1pt")
         with col_t1d:
             topo1_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1l")
+                             format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t1l")
         topo1_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                         format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t1dir")
+                         format_func=lambda x: "— Seleccionar —" if x is None else x, key="t1dir")
         topo1_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                         format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t1vz")
+                         format_func=lambda x: "— Seleccionar —" if x is None else x, key="t1vz")
 
         aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=False)
 
@@ -1313,25 +1334,22 @@ with tab1b:
             st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
             col_t2a, col_t2b = st.columns(2)
             with col_t2a:
-                topo2_kv   = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2kv")
+                topo2_kv   = st.selectbox("kV", [None, 80, 100, 120], index=0,
+                                 format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t2kv")
             with col_t2b:
                 topo2_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2ma")
+                                 format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t2ma")
             col_t2c, col_t2d = st.columns(2)
             with col_t2c:
                 topo2_pos  = st.selectbox("Posición tubo", [None] + POS_TUBO, index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t2pt")
+                                 format_func=lambda x: "— Seleccionar —" if x is None else x, key="t2pt")
             with col_t2d:
                 topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2l")
+                                 format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t2l")
             topo2_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t2dir")
+                             format_func=lambda x: "— Seleccionar —" if x is None else x, key="t2dir")
             topo2_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t2vz")
+                             format_func=lambda x: "— Seleccionar —" if x is None else x, key="t2vz")
 
         st.markdown("---")
 
