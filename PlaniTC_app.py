@@ -8,7 +8,6 @@ import streamlit as st
 import numpy as np
 import math
 import zipfile
-import pandas as pd
 from datetime import date, datetime
 from pathlib import Path
 
@@ -240,43 +239,38 @@ RETARDOS = ["2 sg", "3 sg", "4 sg", "5 sg", "6 sg"]
 
 
 # Carpeta con imágenes de posicionamiento para topograma
-DIR_IMAGENES_TOPO_POS  = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
-DIR_IMAGENES_TOPO_POS2 = BASE_DIR / "IMAGENES TOPOGRAMA"
-ZIP_IMAGENES_TOPO_POS  = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA.zip"
-ZIP_IMAGENES_TOPO_POS2 = BASE_DIR / "IMAGENES_TOPOGRAMA.zip"
+DIR_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
+ZIP_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA.zip"
 CACHE_IMAGENES_TOPO_POS = BASE_DIR / "_cache_imagenes_topograma"
 
 
 def preparar_fuentes_imagenes_topograma():
     """
-    Busca imágenes del topograma en:
-    1) carpeta IMAGENES TOPOGRAMA (nombre nuevo)
-    2) carpeta IMAGENES POSICIONAMIENTO TOPOGRAMA (nombre anterior)
-    3) ZIP IMAGENES_TOPOGRAMA.zip extraído en caché
-    4) ZIP IMAGENES POSICIONAMIENTO TOPOGRAMA.zip extraído en caché
-    5) raíz del repositorio
+    Busca imágenes del topograma en tres lugares:
+    1) archivos sueltos en la raíz del repositorio
+    2) carpeta IMAGENES POSICIONAMIENTO TOPOGRAMA
+    3) ZIP IMAGENES POSICIONAMIENTO TOPOGRAMA.zip extraído en caché
     """
     fuentes = []
 
     try:
-        for carpeta in (DIR_IMAGENES_TOPO_POS2, DIR_IMAGENES_TOPO_POS):
-            if carpeta.exists():
-                fuentes.append(carpeta)
-
-        for zip_path, subcarpeta in (
-            (ZIP_IMAGENES_TOPO_POS2, "IMAGENES TOPOGRAMA"),
-            (ZIP_IMAGENES_TOPO_POS,  "IMAGENES POSICIONAMIENTO TOPOGRAMA"),
-        ):
-            if zip_path.exists():
-                CACHE_IMAGENES_TOPO_POS.mkdir(parents=True, exist_ok=True)
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    zf.extractall(CACHE_IMAGENES_TOPO_POS)
-                interna = CACHE_IMAGENES_TOPO_POS / subcarpeta
-                fuentes.append(interna if interna.exists() else CACHE_IMAGENES_TOPO_POS)
-
         if BASE_DIR.exists():
             fuentes.append(BASE_DIR)
 
+        if DIR_IMAGENES_TOPO_POS.exists():
+            fuentes.append(DIR_IMAGENES_TOPO_POS)
+
+        if ZIP_IMAGENES_TOPO_POS.exists():
+            CACHE_IMAGENES_TOPO_POS.mkdir(parents=True, exist_ok=True)
+            import zipfile
+            with zipfile.ZipFile(ZIP_IMAGENES_TOPO_POS, "r") as zf:
+                zf.extractall(CACHE_IMAGENES_TOPO_POS)
+
+            interna = CACHE_IMAGENES_TOPO_POS / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
+            if interna.exists():
+                fuentes.append(interna)
+            else:
+                fuentes.append(CACHE_IMAGENES_TOPO_POS)
     except Exception:
         pass
 
@@ -293,107 +287,107 @@ def preparar_fuentes_imagenes_topograma():
 
     return fuentes_limpias
 
-def _build_imagen_lookup():
-    """
-    Construye el diccionario de lookup leyendo el Excel de combinaciones.
-    Clave: (entrada, pos_tubo, examen) en minúsculas sin espacios extra.
-    Valor: nombre exacto del archivo de imagen (sin extensión).
-    Busca el Excel en la misma carpeta que la app o en las fuentes de imágenes.
-    """
-    import unicodedata
-    posibles_xlsx = [
-        BASE_DIR / "imagenes_topograma.xlsx",
-        BASE_DIR / "IMAGENES TOPOGRAMA" / "imagenes_topograma.xlsx",
-        BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA" / "imagenes_topograma.xlsx",
-    ]
-    df = None
-    for ruta in posibles_xlsx:
-        if ruta.exists():
-            try:
-                df = pd.read_excel(str(ruta))
-                break
-            except Exception:
-                pass
-    if df is None:
-        return {}
-
-    df = df.dropna(subset=['entrada del paciente', 'Posición tubo', 'examen', 'nombre exacto de la imagen'])
-    lookup = {}
-    for _, row in df.iterrows():
-        entrada = unicodedata.normalize('NFC', str(row['entrada del paciente']).strip().lower())
-        tubo    = unicodedata.normalize('NFC', str(row['Posición tubo']).strip().lower())
-        examen  = unicodedata.normalize('NFC', str(row['examen']).strip().lower())
-        imagen  = unicodedata.normalize('NFC', str(row['nombre exacto de la imagen']).strip())
-        lookup[(entrada, tubo, examen)] = imagen
-    return lookup
-
-@st.cache_data(show_spinner=False)
-def _get_imagen_lookup():
-    return _build_imagen_lookup()
+def normalizar_posicion_topograma(posicion: str) -> str:
+    posicion = (posicion or "").strip().lower()
+    if "lateral derecho" in posicion:
+        return "lateral_derecho"
+    if "lateral izquierdo" in posicion:
+        return "lateral_izquierdo"
+    if "prono" in posicion:
+        return "prono"
+    if "supino" in posicion:
+        return "supino"
+    return ""
 
 
-def _buscar_archivo_imagen(nombre_imagen: str):
-    """Busca el archivo PNG correspondiente al nombre dado, normalizando unicode."""
-    import unicodedata
+def normalizar_entrada_topograma(entrada: str) -> str:
+    entrada = (entrada or "").strip().lower()
+    if "cabeza" in entrada:
+        return "cabeza_primero"
+    if "pies" in entrada:
+        return "pies_primero"
+    return ""
+
+
+def normalizar_tubo_topograma(pos_tubo: str) -> str:
+    pos_tubo = (pos_tubo or "").strip().lower()
+    if "arriba" in pos_tubo:
+        return "arriba"
+    if "abajo" in pos_tubo:
+        return "abajo"
+    if "derecha" in pos_tubo:
+        return "derecho"
+    if "izquierda" in pos_tubo:
+        return "izquierdo"
+    return ""
+
+
+def normalizar_nombre_archivo_topograma(nombre: str) -> str:
+    nombre = (nombre or "").lower().strip()
+    reemplazos = {
+        "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u", "ñ": "n",
+        "°": "", "º": "", "┬░": "", "decubito ": "",
+        "lateral derecho": "lateral_derecho",
+        "lateral izquierdo": "lateral_izquierdo",
+        "derecha": "derecho",
+        "izquierda": "izquierdo",
+        "cabeza primero": "cabeza_primero",
+        "pies primero": "pies_primero",
+    }
+    for a,b in reemplazos.items():
+        nombre = nombre.replace(a,b)
+
+    import re
+    nombre = nombre.replace("__", "_")
+    nombre = nombre.replace(" ", "_")
+    nombre = re.sub(r'[^a-z0-9_]+', '_', nombre)
+    nombre = re.sub(r'_+', '_', nombre).strip('_')
+
+    # muchas imágenes vienen con arriba_0 o abajo_180; para comparar basta la dirección
+    tokens = [t for t in nombre.split('_') if t]
+    filtrados = []
+    for t in tokens:
+        if t.isdigit():
+            continue
+        filtrados.append(t)
+    nombre = '_'.join(filtrados)
+    nombre = nombre.replace('arriba_0', 'arriba').replace('abajo_180', 'abajo')
+    return nombre
+
+
+def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tubo: str):
+    entrada_norm = normalizar_entrada_topograma(entrada)
+    posicion_norm = normalizar_posicion_topograma(posicion)
+    tubo_norm = normalizar_tubo_topograma(pos_tubo)
+
+    if not entrada_norm or not posicion_norm or not tubo_norm:
+        return None
+
+    objetivo_norm = normalizar_nombre_archivo_topograma(
+        f"topograma_{entrada_norm}_{posicion_norm}_{tubo_norm}"
+    )
     extensiones = {".png", ".jpg", ".jpeg", ".webp"}
-    nombre_nfc = unicodedata.normalize('NFC', nombre_imagen.strip().lower())
-    nombre_nfd = unicodedata.normalize('NFD', nombre_imagen.strip().lower())
 
     for fuente in preparar_fuentes_imagenes_topograma():
         if not fuente.exists():
             continue
+
         for ruta in fuente.rglob("*"):
             if not ruta.is_file():
                 continue
             if ruta.suffix.lower() not in extensiones:
                 continue
-            if "__macosx" in str(ruta).lower() or ruta.name.startswith("._") or ruta.name == ".DS_Store":
+            nombre_lower = ruta.name.lower()
+            if "__macosx" in nombre_lower or ruta.name.startswith("._") or ruta.name == ".DS_Store":
                 continue
-            stem_nfc = unicodedata.normalize('NFC', ruta.stem.strip().lower())
-            stem_nfd = unicodedata.normalize('NFD', ruta.stem.strip().lower())
-            if stem_nfc in (nombre_nfc, nombre_nfd) or stem_nfd in (nombre_nfc, nombre_nfd):
+            if not nombre_lower.startswith("topograma"):
+                continue
+
+            stem_norm = normalizar_nombre_archivo_topograma(ruta.stem)
+            if stem_norm == objetivo_norm:
                 return ruta
+
     return None
-
-
-def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tubo: str, examen: str = ""):
-    """
-    Devuelve la ruta a la imagen de posicionamiento según la combinación:
-    entrada del paciente + posición tubo + examen.
-    Usa el Excel de combinaciones como fuente de verdad.
-    """
-    import unicodedata
-
-    entrada_k = unicodedata.normalize('NFC', (entrada or "").strip().lower())
-    tubo_k    = unicodedata.normalize('NFC', (pos_tubo or "").strip().lower())
-    examen_k  = unicodedata.normalize('NFC', (examen or "").strip().lower())
-
-    if not entrada_k or not tubo_k:
-        return None
-
-    lookup = _get_imagen_lookup()
-
-    # Búsqueda exacta primero
-    nombre_img = lookup.get((entrada_k, tubo_k, examen_k))
-
-    # Búsqueda flexible por examen (strip espacios extra en los valores del excel)
-    if nombre_img is None:
-        for (e, t, ex), img in lookup.items():
-            if e == entrada_k and t == tubo_k and ex.strip() == examen_k.strip():
-                nombre_img = img
-                break
-
-    # Fallback: sin examen — usa solo entrada + tubo (toma la primera coincidencia)
-    if nombre_img is None:
-        for (e, t, ex), img in lookup.items():
-            if e == entrada_k and t == tubo_k:
-                nombre_img = img
-                break
-
-    if not nombre_img:
-        return None
-
-    return _buscar_archivo_imagen(nombre_img)
 
 
 # Adquisición
@@ -1282,7 +1276,6 @@ with tab1b:
                 st.session_state.get("posicion", ""),
                 st.session_state.get("entrada", ""),
                 st.session_state.get("t1pt", None),
-                examen=st.session_state.get("examen", ""),
             )
             if imagen_posicionamiento is not None:
                 st.image(str(imagen_posicionamiento), use_container_width=True)
@@ -1530,7 +1523,6 @@ with tab1b:
                 topo2_posicion if topo2_posicion else "",
                 topo2_entrada if topo2_entrada else "",
                 st.session_state.get("t2pt", None),
-                examen=st.session_state.get("examen", ""),
             )
             if imagen_posicionamiento_t2 is not None:
                 st.image(str(imagen_posicionamiento_t2), use_container_width=True)
