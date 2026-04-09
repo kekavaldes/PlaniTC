@@ -71,13 +71,20 @@ st.markdown("""
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input,
     .stTextArea > div > div > textarea,
-    .stDateInput input {
+    .stDateInput input,
+    .stDateInput input:disabled,
+    .stNumberInput input,
+    .stNumberInput input:disabled,
+    .stTextInput input:disabled {
         background-color: #1A1A1A !important;
         color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
         border: 1px solid #444444 !important;
+        opacity: 1 !important;
     }
     .stDateInput > div > div,
-    .stNumberInput > div > div {
+    .stNumberInput > div > div,
+    .stTextInput > div > div {
         background-color: #1A1A1A !important;
         border: 1px solid #444444 !important;
         border-radius: 0.5rem !important;
@@ -91,6 +98,11 @@ st.markdown("""
     .stDateInput svg,
     .stNumberInput svg {
         fill: #FFFFFF !important;
+    }
+    .stDateInput [data-baseweb="input"],
+    .stNumberInput [data-baseweb="input"],
+    .stTextInput [data-baseweb="input"] {
+        background-color: #1A1A1A !important;
     }
     /* Selectbox contenedor visible */
     .stSelectbox > div > div {
@@ -201,7 +213,7 @@ REGIONES = {
     "COLUMNA":  ["CERVICAL", "DORSAL", "LUMBAR", "SACROCOXIS"],
     "CUERPO":   ["TORAX", "ABDOMEN", "PELVIS", "ABDOMEN-PELVIS", "TORAX-ABDOMEN-PELVIS"],
     "EEII":     ["CADERA", "MUSLO", "RODILLA", "TOBILLO", "PIE"],
-    "ANGIO":    ["CEREBRO", "CUELLO", "ART PULMONARES", "AORTA", "EESS", "EEII"],
+    "ANGIO":    ["ATC CEREBRO", "ATC CUELLO", "ATC ART PULMONARES", "ATC AORTA", "ATC EESS", "ATC EEII"],
 }
 
 POSICIONES_PACIENTE = [
@@ -994,7 +1006,7 @@ with tab1:
     if "cantidad_contraste" not in st.session_state:
         st.session_state["cantidad_contraste"] = None
 
-    col_ing1, col_ing2, col_ing3 = st.columns([1.1, 1.1, 0.8])
+    col_ing1, col_ing2, col_ing3 = st.columns([1.15, 0.9, 1.0])
 
     with col_ing1:
         st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
@@ -1017,20 +1029,56 @@ with tab1:
         peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
-    with col_ing2:
         st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
-        region_anat = st.selectbox("Región anatómica", [None] + list(REGIONES.keys()), index=0,
-                format_func=lambda x: "— Seleccionar —" if x is None else x)
+        region_anat = st.selectbox(
+            "Región anatómica",
+            [None] + list(REGIONES.keys()),
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else x
+        )
         region_anat_seleccionada = region_anat
         if region_anat is None:
             region_anat = "CUERPO"
         st.session_state["region_anat"] = region_anat if region_anat else "CUERPO"
 
         examenes_disp = REGIONES.get(region_anat, ["—"])
-        examen = st.selectbox("Examen", [None] + examenes_disp, index=0,
-                    format_func=lambda x: "— Seleccionar —" if x is None else x)
+        examen = st.selectbox(
+            "Examen",
+            [None] + examenes_disp,
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else x
+        )
         st.session_state["examen"] = examen if examen else ""
 
+        # La posición del paciente y la entrada se configuran en la pestaña Topograma.
+
+    with col_ing2:
+        st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
+        if region_anat_seleccionada is None:
+            st.markdown("""
+            <div style="color:#555; text-align:center; padding:2rem; border:1px dashed #333;
+                        border-radius:8px; margin-top:1rem; min-height:460px;
+                        display:flex; align-items:center; justify-content:center;">
+                Selecciona una región anatómica para ver la imagen
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            _img_region = IMG_REGIONES.get(region_anat)
+            if _img_region:
+                st.markdown(f"""
+                <div style="text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:520px;">
+                    <img src="data:image/png;base64,{_img_region}"
+                         style="max-height:460px; max-width:100%;
+                                object-fit:contain; display:block; margin:auto;">
+                    <div style="font-size:12px; color:#888; margin-top:6px; text-align:center;">
+                        {region_anat}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info(f"No se encontró imagen para {region_anat}.")
+
+    with col_ing3:
         st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
         st.checkbox("¿Embarazo?", key="embarazo")
         st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
@@ -1045,275 +1093,23 @@ with tab1:
                 "VVP",
                 [None, "24G", "22G", "20G", "18G", "CVC"],
                 key="vvp",
-                format_func=lambda x: "— Seleccionar —" if x is None else x
+                format_func=lambda x: "Seleccionar" if x is None else x
             )
             st.selectbox(
                 "Método de inyección",
                 [None, "INYECTORA AUTOMÁTICA", "INYECCIÓN MANUAL"],
                 key="metodo_inyeccion",
-                format_func=lambda x: "— Seleccionar —" if x is None else x
+                format_func=lambda x: "Seleccionar" if x is None else x
             )
             st.selectbox(
                 "Cantidad de medio de contraste",
                 [None] + [f"{i} cc" for i in range(10, 151, 10)],
                 key="cantidad_contraste",
-                format_func=lambda x: "— Seleccionar —" if x is None else x
+                format_func=lambda x: "Seleccionar" if x is None else x
             )
-
-        # La posición del paciente y la entrada se configuran en la pestaña Topograma.
-
-    with col_ing3:
-        st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
-        if region_anat_seleccionada is None:
-            st.markdown("""
-            <div style="color:#555; text-align:center; padding:2rem; border:1px dashed #333;
-                        border-radius:8px; margin-top:1rem;">
-                Selecciona una región anatómica para ver la imagen
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            _img_region = IMG_REGIONES.get(region_anat)
-            if _img_region:
-                st.markdown(f"""
-                <div style="text-align:center;">
-                    <img src="data:image/png;base64,{_img_region}"
-                         style="max-height:460px; max-width:100%;
-                                object-fit:contain; display:block; margin:auto;">
-                    <div style="font-size:12px; color:#888; margin-top:6px;">
-                        {region_anat}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown('<div style="color:#555; text-align:center; padding:2rem;">Sin imagen disponible</div>', unsafe_allow_html=True)
-
-    col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 2])
-    with col_btn2:
-        if st.button("Continuar →", key="btn_ir_topo", use_container_width=True):
-            js_topo = "<script>window.parent.document.querySelectorAll('[data-baseweb=tab]')[2].click();</script>"
-            st.components.v1.html(js_topo, height=0)
 
 # ───────────────────────────────────────────────────────────────
-# TAB 1b: TOPOGRAMA
-# ───────────────────────────────────────────────────────────────
-with tab1b:
-    col_topo_cfg, col_topo_img = st.columns([1, 1])
-
-    with col_topo_cfg:
-        st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente</div>', unsafe_allow_html=True)
-        col_pos_topo, col_ent_topo = st.columns(2)
-        with col_pos_topo:
-            posicion = st.selectbox(
-                "Posición paciente",
-                [None] + POSICIONES_PACIENTE,
-                index=0,
-                format_func=lambda x: "— Seleccionar —" if x is None else x,
-                key="posicion_topo"
-            )
-            st.session_state["posicion"] = posicion if posicion else ""
-        with col_ent_topo:
-            entrada = st.selectbox(
-                "Entrada",
-                [None] + ENTRADAS_PACIENTE,
-                index=0,
-                format_func=lambda x: "— Seleccionar —" if x is None else x,
-                key="entrada_topo"
-            )
-            st.session_state["entrada"] = entrada if entrada else ""
-
-        with col_topo_img:
-            st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado</div>', unsafe_allow_html=True)
-            imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
-                st.session_state.get("posicion", ""),
-                st.session_state.get("entrada", ""),
-                st.session_state.get("t1pt", None),
-            )
-            if imagen_posicionamiento is not None:
-                st.image(str(imagen_posicionamiento), use_container_width=True)
-            else:
-                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
-
-        def _get_posicion_key(pos, ent):
-            if not pos or not ent:
-                return None
-            pos = pos.upper()
-            ent = ent.upper()
-            if "PRONO" in pos:
-                return "prono_cabeza" if "CABEZA" in ent else "prono_pies"
-            elif "LATERAL" in pos:
-                return "lateral_cabeza" if "CABEZA" in ent else "lateral_pies"
-            else:
-                return "supino_cabeza" if "CABEZA" in ent else "supino_pies"
-
-        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
-        col_t1a, col_t1b = st.columns(2)
-        with col_t1a:
-            topo1_kv   = st.selectbox("kV", [None, 80, 100, 120], index=0,
-                             format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t1kv")
-        with col_t1b:
-            topo1_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
-                             format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t1ma")
-        col_t1c, col_t1d = st.columns(2)
-        with col_t1c:
-            topo1_pos  = st.selectbox("Posición tubo", [None] + POS_TUBO, index=0,
-                             format_func=lambda x: "— Seleccionar —" if x is None else x, key="t1pt")
-        with col_t1d:
-            topo1_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                             format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t1l")
-        topo1_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                         format_func=lambda x: "— Seleccionar —" if x is None else x, key="t1dir")
-        topo1_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                         format_func=lambda x: "— Seleccionar —" if x is None else x, key="t1vz")
-
-        aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=False)
-
-        if aplica_topo2:
-            st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
-            col_t2a, col_t2b = st.columns(2)
-            with col_t2a:
-                topo2_kv   = st.selectbox("kV", [None, 80, 100, 120], index=0,
-                                 format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t2kv")
-            with col_t2b:
-                topo2_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
-                                 format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t2ma")
-            col_t2c, col_t2d = st.columns(2)
-            with col_t2c:
-                topo2_pos  = st.selectbox("Posición tubo", [None] + POS_TUBO, index=0,
-                                 format_func=lambda x: "— Seleccionar —" if x is None else x, key="t2pt")
-            with col_t2d:
-                topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                                 format_func=lambda x: "— Seleccionar —" if x is None else str(x), key="t2l")
-            topo2_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                             format_func=lambda x: "— Seleccionar —" if x is None else x, key="t2dir")
-            topo2_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                             format_func=lambda x: "— Seleccionar —" if x is None else x, key="t2vz")
-
-        st.markdown("---")
-
-        # Botón de inicio con símbolo de trisector de radiación
-        st.markdown("""
-        <style>
-        .btn-iniciar button {
-            background-color: #1A1A1A !important;
-            border: 2px solid #FFD700 !important;
-            color: #FFD700 !important;
-            font-size: 1.1rem !important;
-            font-weight: 700 !important;
-            border-radius: 10px !important;
-            padding: 0.6rem 1.5rem !important;
-            width: 100% !important;
-            letter-spacing: 0.05em !important;
-        }
-        .btn-iniciar button:hover {
-            background-color: #FFD700 !important;
-            color: #000000 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        _topo_campos_completos = all([
-            topo1_kv is not None,
-            topo1_ma is not None,
-            topo1_pos is not None,
-            topo1_long is not None,
-            topo1_dir is not None,
-            topo1_voz is not None,
-        ])
-
-        if not _topo_campos_completos:
-            _campos_faltantes = []
-            if topo1_kv   is None: _campos_faltantes.append("kV")
-            if topo1_ma   is None: _campos_faltantes.append("mA")
-            if topo1_pos  is None: _campos_faltantes.append("Posición tubo")
-            if topo1_long is None: _campos_faltantes.append("Longitud")
-            if topo1_dir  is None: _campos_faltantes.append("Dirección")
-            if topo1_voz  is None: _campos_faltantes.append("Instrucción de voz")
-            st.markdown(f"""
-            <div style="background:#1A1100; border:1px solid #554400; border-radius:8px;
-                        padding:0.6rem 1rem; margin-bottom:0.5rem; font-size:0.82rem; color:#FFAA00;">
-                ⚠️ Completa todos los campos antes de iniciar:<br>
-                <span style="color:#FF8800;">{'  ·  '.join(_campos_faltantes)}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown('<div class="btn-iniciar">', unsafe_allow_html=True)
-        if st.button("☢️  INICIAR TOPOGRAMA", key="btn_iniciar_topo",
-                     use_container_width=True, disabled=not _topo_campos_completos):
-            st.session_state["topograma_iniciado"] = True
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        if st.session_state.get("topograma_iniciado", False):
-            if st.button("↺  Repetir topograma", key="btn_reset_topo", use_container_width=True):
-                st.session_state["topograma_iniciado"] = False
-                st.rerun()
-
-    with col_topo_img:
-        _region_prev   = st.session_state.get("region_anat", "CUERPO")
-        _examen_prev   = st.session_state.get("examen", "")
-        _pos_tubo_prev = st.session_state.get("t1pt", "ARRIBA 0°")
-        _posicion_prev = st.session_state.get("posicion", "")
-        _entrada_prev  = st.session_state.get("entrada", "")
-
-        # Se eliminó la vista previa de la imagen resultante según posición / entrada.
-
-        def _tubo_to_proy_prev(pos_tubo, region, examen):
-            if not pos_tubo:
-                return IMG_ABDOMEN_B64, "AP"
-            pos = str(pos_tubo).upper()
-            if "DERECHA" in pos or "IZQUIERDA" in pos:
-                return (IMG_CEREBRO_B64, "Lateral") if region == "CABEZA" else (IMG_ABDOMEN_B64, "Lateral")
-            else:
-                if region == "CABEZA":
-                    return IMG_CEREBRO_B64, "Lateral"
-                elif region in ("CUERPO","ANGIO") or any(x in examen.upper() for x in ["ABDOMEN","PELVIS","TORAX"]):
-                    return IMG_ABDOMEN_B64, "AP"
-                else:
-                    return IMG_ABDOMEN_B64, "AP"
-
-        _img_b64_prev, _proy_prev = _tubo_to_proy_prev(_pos_tubo_prev, _region_prev, _examen_prev)
-
-        if not st.session_state.get("topograma_iniciado", False):
-            # Estado de espera — mostrar pantalla oscura con instrucción
-            st.markdown('<div class="section-header">🖼️ Topograma</div>', unsafe_allow_html=True)
-            st.markdown(f"""
-            <div style="
-                border: 1px solid #333; border-radius: 8px;
-                background: #0A0A0A; height: 380px;
-                display: flex; flex-direction: column;
-                align-items: center; justify-content: center;
-                text-align: center; gap: 16px;">
-                <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
-                <div style="color: #555; font-size: 0.95rem;">
-                    Configure los parámetros del topograma<br>
-                    y presione <strong style="color:#FFD700;">INICIAR TOPOGRAMA</strong>
-                </div>
-                <div style="color:#333; font-size:0.8rem;">
-                    Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            # Topograma adquirido
-            st.markdown('<div class="section-header">✅ Topograma adquirido</div>', unsafe_allow_html=True)
-            if _img_b64_prev:
-                st.markdown(f"""
-                <div style="text-align:center;">
-                  <img src="data:image/jpeg;base64,{_img_b64_prev}"
-                       style="width:100%; border-radius:6px; border:1px solid #FFD700;">
-                  <div style="font-size:11px; color:#888; margin-top:6px;">
-                    Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
-                    · {topo1_long} mm · {topo1_kv} kV · {topo1_ma} mA
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-                st.markdown("""<div class="alert-info">
-                ✅ Topograma adquirido correctamente. Continúa a <b>⚡ Adquisición</b>.
-                </div>""", unsafe_allow_html=True)
-            else:
-                st.info("Imagen no disponible para esta región.")
-
-# ───────────────────────────────────────────────────────────────
+# TAB 2: ADQUISICIÓN
 # TAB 2: ADQUISICIÓN
 # ───────────────────────────────────────────────────────────────
 with tab2:
