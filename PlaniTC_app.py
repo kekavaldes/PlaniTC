@@ -1002,16 +1002,26 @@ def calc_clearance_cockcroft_gault(edad, peso_kg, creatinina_mg_dl, sexo):
 
 
 def render_clearance_result(clearance):
-    """Muestra clearance en verde o rojo según valor de referencia."""
+    """Muestra clearance estimado con semáforo clínico."""
     if clearance is None:
         st.info("Selecciona sexo e ingresa creatinina para calcular el clearance estimado.")
         return
 
-    es_normal = clearance >= 60
-    fondo = "#143d22" if es_normal else "#4a1616"
-    borde = "#2ecc71" if es_normal else "#ff5c5c"
-    texto = "#d8ffe5" if es_normal else "#ffe0e0"
-    estado = "Adecuado" if es_normal else "Disminuido"
+    if clearance >= 60:
+        fondo = "#143d22"
+        borde = "#2ecc71"
+        texto = "#d8ffe5"
+        estado = "Adecuado"
+    elif clearance >= 30:
+        fondo = "#4a3d12"
+        borde = "#f1c40f"
+        texto = "#fff6cc"
+        estado = "Disminución moderada"
+    else:
+        fondo = "#4a1616"
+        borde = "#ff5c5c"
+        texto = "#ffe0e0"
+        estado = "Disminución severa"
 
     st.markdown(
         f"""
@@ -1123,11 +1133,12 @@ with tab1:
                 "Fecha de nacimiento",
                 min_value=date(1900, 1, 1),
                 max_value=date.today(),
+                format="DD/MM/YYYY",
                 key="fecha_nacimiento"
             )
-        edad = calcular_edad(fecha_nacimiento)
+        edad = calcular_edad(fecha_nacimiento, date.today())
         with col_edad:
-            st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True, key="edad_calculada")
+            st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True)
 
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
