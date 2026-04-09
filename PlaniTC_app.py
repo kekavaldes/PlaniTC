@@ -323,6 +323,8 @@ def _build_imagen_lookup():
         entrada = unicodedata.normalize('NFC', str(row['entrada del paciente']).strip().lower())
         tubo    = unicodedata.normalize('NFC', str(row['Posición tubo']).strip().lower())
         examen  = unicodedata.normalize('NFC', str(row['examen']).strip().lower())
+        # Normalizar guiones y espacios en examen del Excel para consistencia
+        examen  = examen.replace('-', '-').strip()
         imagen  = unicodedata.normalize('NFC', str(row['nombre exacto de la imagen']).strip())
         lookup[(entrada, tubo, examen)] = imagen
     return lookup
@@ -356,6 +358,27 @@ def _buscar_archivo_imagen(nombre_imagen: str):
     return None
 
 
+def _normalizar_examen_para_lookup(examen: str) -> str:
+    """Mapea valores de examen de la app a los del Excel (ambos en minúsculas)."""
+    e = (examen or "").strip().lower()
+    mapa = {
+        "abdomen-pelvis":           "abdomen-pelvis",
+        "torax-abdomen-pelvis":     "torax abdomen-pelvis",
+        "torax abdomen pelvis":     "torax abdomen-pelvis",
+        "atc abdomen-pelvis":       "atc abdomen-pelvis",
+        "atc torax-abdomen-pelvis": "atctorax-abdomen-pelvis",
+        "atc torax abdomen-pelvis": "atctorax-abdomen-pelvis",
+        "atctorax-abdomen-pelvis":  "atctorax-abdomen-pelvis",
+        "atc eess":                 "atc eess derecha",
+        "atc eeii":                 "atc eeii",
+        "atc aorta":                "atc abdomen",
+        "atc art pulmonares":       "atc torax",
+        "tobillo":                  "pie",
+        "sacrocoxis":               "pelvis",
+    }
+    return mapa.get(e, e)
+
+
 def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tubo: str, examen: str = ""):
     """
     Devuelve la ruta a la imagen de posicionamiento según la combinación:
@@ -364,26 +387,36 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
     """
     import unicodedata
 
-    entrada_k = unicodedata.normalize('NFC', (entrada or "").strip().lower())
-    tubo_k    = unicodedata.normalize('NFC', (pos_tubo or "").strip().lower())
-    examen_k  = unicodedata.normalize('NFC', (examen or "").strip().lower())
+    entrada_k  = unicodedata.normalize('NFC', (entrada  or "").strip().lower())
+    tubo_k     = unicodedata.normalize('NFC', (pos_tubo or "").strip().lower())
+    examen_raw = unicodedata.normalize('NFC', (examen   or "").strip().lower())
+    examen_k   = _normalizar_examen_para_lookup(examen_raw)
 
     if not entrada_k or not tubo_k:
         return None
 
     lookup = _get_imagen_lookup()
+    nombre_img = None
 
-    # Búsqueda exacta primero
+    # 1) Exacta
     nombre_img = lookup.get((entrada_k, tubo_k, examen_k))
 
-    # Búsqueda flexible por examen (strip espacios extra en los valores del excel)
+    # 2) Espacios extra ignorados
     if nombre_img is None:
         for (e, t, ex), img in lookup.items():
             if e == entrada_k and t == tubo_k and ex.strip() == examen_k.strip():
                 nombre_img = img
                 break
 
-    # Fallback: sin examen — usa solo entrada + tubo (toma la primera coincidencia)
+    # 3) Contención (ej. "atc cerebro cuello" contiene "cerebro")
+    if nombre_img is None:
+        for (e, t, ex), img in lookup.items():
+            if e == entrada_k and t == tubo_k:
+                if examen_k in ex or ex in examen_k:
+                    nombre_img = img
+                    break
+
+    # 4) Fallback: solo entrada + tubo
     if nombre_img is None:
         for (e, t, ex), img in lookup.items():
             if e == entrada_k and t == tubo_k:
