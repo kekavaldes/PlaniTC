@@ -1326,67 +1326,6 @@ with tab1b:
 
         aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=False)
 
-        if aplica_topo2:
-            st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
-            col_t2a, col_t2b = st.columns(2)
-            with col_t2a:
-                topo2_kv   = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2kv")
-            with col_t2b:
-                topo2_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
-                                 format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2ma")
-            topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2l")
-            col_t2e, col_t2f = st.columns(2)
-            with col_t2e:
-                topo2_posicion = st.selectbox(
-                    "Posición paciente",
-                    [None] + POSICIONES_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2_posicion_paciente"
-                )
-            with col_t2f:
-                topo2_entrada = st.selectbox(
-                    "Entrada",
-                    [None] + ENTRADAS_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2_entrada"
-                )
-            col_t2g, col_t2h = st.columns(2)
-            with col_t2g:
-                topo2_pos_tubo_extra = st.selectbox(
-                    "Posición tubo",
-                    [None] + POS_TUBO,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2_pos_tubo_extra"
-                )
-            with col_t2h:
-                topo2_extremidades = st.selectbox(
-                    "Posición extremidades",
-                    [
-                        "Seleccionar",
-                        "brazos arriba",
-                        "brazos abajo",
-                        "eleva brazo derecho",
-                        "eleva brazo izquierdo",
-                        "flexión extremidad inferior derecha",
-                        "flexión extremidad inferior izquierda"
-                    ],
-                    key="t2_pos_extremidades"
-                )
-            topo2_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t2dir")
-            topo2_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t2vz")
-
         st.markdown("---")
 
         # Botón de inicio con símbolo de trisector de radiación
@@ -1510,6 +1449,85 @@ with tab1b:
                 </div>""", unsafe_allow_html=True)
             else:
                 st.info("Imagen no disponible para esta región.")
+
+    if aplica_topo2:
+        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+        col_t2_cfg, col_t2_img = st.columns([1, 1])
+
+        with col_t2_cfg:
+            st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente — Topograma 2</div>', unsafe_allow_html=True)
+            col_t2e, col_t2f = st.columns(2)
+            with col_t2e:
+                topo2_posicion = st.selectbox(
+                    "Posición paciente",
+                    [None] + POSICIONES_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_posicion_paciente"
+                )
+            with col_t2f:
+                topo2_entrada = st.selectbox(
+                    "Entrada",
+                    [None] + ENTRADAS_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_entrada"
+                )
+            col_t2g, col_t2h = st.columns(2)
+            with col_t2g:
+                topo2_pos = st.selectbox(
+                    "Posición tubo",
+                    [None] + POS_TUBO,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2pt"
+                )
+            with col_t2h:
+                topo2_extremidades = st.selectbox(
+                    "Posición extremidades",
+                    [
+                        "Seleccionar",
+                        "brazos arriba",
+                        "brazos abajo",
+                        "eleva brazo derecho",
+                        "eleva brazo izquierdo",
+                        "flexión extremidad inferior derecha",
+                        "flexión extremidad inferior izquierda"
+                    ],
+                    key="t2_pos_extremidades"
+                )
+
+            st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
+            col_t2a, col_t2b = st.columns(2)
+            with col_t2a:
+                topo2_kv = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
+                                format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2kv")
+            with col_t2b:
+                topo2_ma = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
+                                format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2ma")
+            topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
+                            format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2l")
+            topo2_dir = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
+                            format_func=lambda x: "Seleccionar" if x is None else x,
+                            placeholder="Seleccionar", key="t2dir")
+            topo2_voz = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
+                            format_func=lambda x: "Seleccionar" if x is None else x,
+                            placeholder="Seleccionar", key="t2vz")
+
+        with col_t2_img:
+            st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado — Topograma 2</div>', unsafe_allow_html=True)
+            imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
+                topo2_posicion if topo2_posicion else "",
+                topo2_entrada if topo2_entrada else "",
+                st.session_state.get("t2pt", None),
+            )
+            if imagen_posicionamiento_t2 is not None:
+                st.image(str(imagen_posicionamiento_t2), use_container_width=True)
+            else:
+                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
 # ───────────────────────────────────────────────────────────────
 # TAB 2: ADQUISICIÓN
