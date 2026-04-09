@@ -213,9 +213,9 @@ REGIONES = {
     "CUELLO":   ["CUELLO"],
     "EESS":     ["HOMBRO", "BRAZO", "CODO", "ANTEBRAZO", "MUÑECA", "MANO"],
     "COLUMNA":  ["CERVICAL", "DORSAL", "LUMBAR", "SACROCOXIS"],
-    "CUERPO":   ["TORAX", "ABDOMEN", "PELVIS", "PIELOTC", "ABDOMEN-PELVIS", "TORAX-ABDOMEN-PELVIS"],
+    "CUERPO":   ["TORAX", "ABDOMEN", "PELVIS", "ABDOMEN-PELVIS", "TORAX-ABDOMEN-PELVIS"],
     "EEII":     ["CADERA", "MUSLO", "RODILLA", "TOBILLO", "PIE"],
-    "ANGIO":    ["CEREBRO", "CUELLO", "ART PULMONARES", "AORTA", "EESS DERECHA", "EESS IZQUIERDA", "EEII"],
+    "ANGIO":    ["CEREBRO", "CUELLO", "ART PULMONARES", "AORTA", "EESS", "EEII"],
 }
 
 POSICIONES_PACIENTE = [
@@ -1125,10 +1125,7 @@ with tab1:
         st.session_state["region_anat"] = region_anat_real
 
         examenes_base = REGIONES.get(region_anat_real, ["—"])
-        if region_anat_real == "ANGIO":
-            examenes_disp = [x if str(x).upper().startswith("ATC ") else f"ATC {x}" for x in examenes_base]
-        else:
-            examenes_disp = examenes_base
+        examenes_disp = examenes_base
 
         examen = st.selectbox(
             "Examen",
