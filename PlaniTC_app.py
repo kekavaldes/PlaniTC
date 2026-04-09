@@ -100,10 +100,36 @@ st.markdown("""
     /* Inputs oscuros */
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input,
-    .stTextArea > div > div > textarea {
+    .stTextArea > div > div > textarea,
+    [data-testid="stDateInputField"] input,
+    [data-testid="stDateInput"] input,
+    [data-baseweb="input"] input {
         background-color: #1A1A1A !important;
         color: #FFFFFF !important;
         border: 1px solid #444444 !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        opacity: 1 !important;
+    }
+    .stTextInput input:disabled,
+    .stNumberInput input:disabled,
+    [data-testid="stDateInputField"] input:disabled,
+    [data-testid="stDateInput"] input:disabled {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stDateInputField"] svg,
+    [data-testid="stDateInput"] svg {
+        fill: #FFFFFF !important;
+    }
+    /* Calendario emergente */
+    [data-baseweb="calendar"],
+    [data-baseweb="calendar"] *,
+    [role="dialog"],
+    [role="dialog"] * {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
     }
     /* Selectbox contenedor visible */
     .stSelectbox > div > div {
@@ -918,6 +944,22 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
     return html
 
 
+
+
+def calc_clearance_cockcroft_gault(edad, peso_kg, creatinina_mg_dl, sexo):
+    """Calcula clearance estimado de creatinina por fórmula de Cockcroft-Gault."""
+    try:
+        if edad is None or peso_kg is None or creatinina_mg_dl is None:
+            return None
+        if edad <= 0 or peso_kg <= 0 or creatinina_mg_dl <= 0:
+            return None
+        crcl = ((140 - float(edad)) * float(peso_kg)) / (72 * float(creatinina_mg_dl))
+        if sexo == "Femenino":
+            crcl *= 0.85
+        return round(crcl, 1)
+    except Exception:
+        return None
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # INTERFAZ PRINCIPAL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -991,13 +1033,6 @@ with tab0:
 # TAB 1: INGRESO
 # ───────────────────────────────────────────────────────────────
 with tab1:
-    # Valores por defecto del ingreso
-    if "fecha_nacimiento" not in st.session_state:
-        st.session_state["fecha_nacimiento"] = date(2000, 1, 1)
-    if "embarazo" not in st.session_state:
-        st.session_state["embarazo"] = False
-    if "requiere_creatinina" not in st.session_state:
-        st.session_state["requiere_creatinina"] = False
     if "contraste_ev" not in st.session_state:
         st.session_state["contraste_ev"] = False
     if "vvp" not in st.session_state:
@@ -1006,14 +1041,16 @@ with tab1:
         st.session_state["metodo_inyeccion"] = None
     if "cantidad_contraste" not in st.session_state:
         st.session_state["cantidad_contraste"] = None
+    if "sexo_clearance" not in st.session_state:
+        st.session_state["sexo_clearance"] = None
 
-    col_ing1, col_ing2, col_ing3 = st.columns([1.1, 1.1, 0.8])
+    col_ing1, col_ing2, col_ing3 = st.columns([1.3, 1.0, 1.0])
 
     with col_ing1:
         st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
         nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
 
-        col_fn, col_edad = st.columns([1.35, 0.65])
+        col_fn, col_edad = st.columns(2)
         with col_fn:
             fecha_nacimiento = st.date_input(
                 "Fecha de nacimiento",
@@ -1021,18 +1058,91 @@ with tab1:
                 max_value=date.today(),
                 key="fecha_nacimiento"
             )
+        hoy = date.today()
+        edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
         with col_edad:
-            hoy = date.today()
-            edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.metric("Edad", f"{edad} años")
+            st.text_input("Edad", value=f"{edad} años", disabled=True, key="edad_calculada")
 
-        peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
+        st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
+        region_anat = st.selectbox(
+            "Región anatómica",
+            [None] + list(REGIONES.keys()),
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else x
+        )
+        region_anat_seleccionada = region_anat
+        region_anat_real = region_anat if region_anat else "CUERPO"
+        st.session_state["region_anat"] = region_anat_real
+
+        examenes_base = REGIONES.get(region_anat_real, ["—"])
+        if region_anat_real == "ANGIO":
+            examenes_disp = [x if str(x).upper().startswith("ATC ") else f"ATC {x}" for x in examenes_base]
+        else:
+            examenes_disp = examenes_base
+
+        examen = st.selectbox(
+            "Examen",
+            [None] + examenes_disp,
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else x
+        )
+        st.session_state["examen"] = examen if examen else ""
+
+        # La posición del paciente y la entrada se configuran en la pestaña Topograma.
+
+    with col_ing2:
+        st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
+        if region_anat_seleccionada is None:
+            st.markdown("""
+            <div style="color:#555; text-align:center; padding:2rem; border:1px dashed #333;
+                        border-radius:8px; margin-top:1rem;">
+                Selecciona una región anatómica para ver la imagen
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            img_b64 = REGION_IMAGES.get(region_anat_real, None)
+            if img_b64:
+                st.markdown(
+                    f"<div style='text-align:center;'><img src='data:image/png;base64,{img_b64}' style='max-width:100%; border-radius:10px; border:1px solid #333;'></div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info("No hay imagen disponible para esta región.")
+
+    with col_ing3:
         st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
-        st.checkbox("¿Embarazo?", key="embarazo")
-        st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
+        peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
+        embarazo = st.selectbox(
+            "¿Embarazo?",
+            [None, "SI", "NO", "PROBABLE"],
+            index=0,
+            key="embarazo",
+            format_func=lambda x: "Seleccionar" if x is None else x
+        )
+        requiere_creatinina = st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
+
+        if requiere_creatinina:
+            sexo_clearance = st.selectbox(
+                "Sexo",
+                [None, "Femenino", "Masculino"],
+                index=0,
+                key="sexo_clearance",
+                format_func=lambda x: "Seleccionar" if x is None else x
+            )
+            creatinina_serica = st.number_input(
+                "Creatinina sérica (mg/dL)",
+                min_value=0.1,
+                max_value=20.0,
+                value=1.0,
+                step=0.1,
+                key="creatinina_serica"
+            )
+            clearance = calc_clearance_cockcroft_gault(edad, peso, creatinina_serica, sexo_clearance) if sexo_clearance else None
+            valor_clearance = f"{clearance} mL/min" if clearance is not None else "Selecciona sexo e ingresa creatinina"
+            st.text_input("Clearance de creatinina estimado", value=valor_clearance, disabled=True, key="clearance_calculado")
+
         st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
 
         if not st.session_state["contraste_ev"]:
@@ -1044,71 +1154,21 @@ with tab1:
                 "VVP",
                 [None, "24G", "22G", "20G", "18G", "CVC"],
                 key="vvp",
-                format_func=lambda x: "— Seleccionar —" if x is None else x
+                format_func=lambda x: "Seleccionar" if x is None else x
             )
             st.selectbox(
                 "Método de inyección",
                 [None, "INYECTORA AUTOMÁTICA", "INYECCIÓN MANUAL"],
                 key="metodo_inyeccion",
-                format_func=lambda x: "— Seleccionar —" if x is None else x
+                format_func=lambda x: "Seleccionar" if x is None else x
             )
             st.selectbox(
                 "Cantidad de medio de contraste",
                 [None] + [f"{i} cc" for i in range(10, 151, 10)],
                 key="cantidad_contraste",
-                format_func=lambda x: "— Seleccionar —" if x is None else x
+                format_func=lambda x: "Seleccionar" if x is None else x
             )
 
-    with col_ing2:
-        st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
-        region_anat = st.selectbox("Región anatómica", [None] + list(REGIONES.keys()), index=0,
-                format_func=lambda x: "— Seleccionar —" if x is None else x)
-        region_anat_seleccionada = region_anat
-        if region_anat is None:
-            region_anat = "CUERPO"
-        st.session_state["region_anat"] = region_anat if region_anat else "CUERPO"
-
-        examenes_disp = REGIONES.get(region_anat, ["—"])
-        examen = st.selectbox("Examen", [None] + examenes_disp, index=0,
-                    format_func=lambda x: "— Seleccionar —" if x is None else x)
-        st.session_state["examen"] = examen if examen else ""
-
-        # La posición del paciente y la entrada se configuran en la pestaña Topograma.
-
-    with col_ing3:
-        st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
-        if region_anat_seleccionada is None:
-            st.markdown("""
-            <div style="color:#555; text-align:center; padding:2rem; border:1px dashed #333;
-                        border-radius:8px; margin-top:1rem;">
-                Selecciona una región anatómica para ver la imagen
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            _img_region = IMG_REGIONES.get(region_anat)
-            if _img_region:
-                st.markdown(f"""
-                <div style="text-align:center;">
-                    <img src="data:image/png;base64,{_img_region}"
-                         style="max-height:460px; max-width:100%;
-                                object-fit:contain; display:block; margin:auto;">
-                    <div style="font-size:12px; color:#888; margin-top:6px;">
-                        {region_anat}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown('<div style="color:#555; text-align:center; padding:2rem;">Sin imagen disponible</div>', unsafe_allow_html=True)
-
-    col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 2])
-    with col_btn2:
-        if st.button("Continuar →", key="btn_ir_topo", use_container_width=True):
-            js_topo = "<script>window.parent.document.querySelectorAll('[data-baseweb=tab]')[2].click();</script>"
-            st.components.v1.html(js_topo, height=0)
-
-# ───────────────────────────────────────────────────────────────
-# TAB 1b: TOPOGRAMA
-# ───────────────────────────────────────────────────────────────
 with tab1b:
     col_topo_cfg, col_topo_img = st.columns([1, 1])
 
