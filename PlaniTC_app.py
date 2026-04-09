@@ -99,6 +99,35 @@ st.markdown("""
     .stNumberInput svg {
         fill: #FFFFFF !important;
     }
+    /* Calendario emergente de fecha */
+    [data-baseweb="calendar"],
+    [data-baseweb="datepicker"],
+    [data-baseweb="popover"] [role="dialog"],
+    [data-baseweb="popover"] [aria-label*="calendar" i],
+    [data-baseweb="popover"] [aria-label*="calend" i] {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+        border: 1px solid #444444 !important;
+    }
+    [data-baseweb="calendar"] *,
+    [data-baseweb="datepicker"] *,
+    [data-baseweb="popover"] [role="dialog"] * {
+        color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] button,
+    [data-baseweb="datepicker"] button,
+    [data-baseweb="calendar"] [role="gridcell"],
+    [data-baseweb="datepicker"] [role="gridcell"] {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] button:hover,
+    [data-baseweb="datepicker"] button:hover,
+    [data-baseweb="calendar"] [aria-selected="true"],
+    [data-baseweb="datepicker"] [aria-selected="true"] {
+        background-color: #3A3A3A !important;
+        color: #FFFFFF !important;
+    }
     .stDateInput [data-baseweb="input"],
     .stNumberInput [data-baseweb="input"],
     .stTextInput [data-baseweb="input"] {
@@ -1006,13 +1035,13 @@ with tab1:
     if "cantidad_contraste" not in st.session_state:
         st.session_state["cantidad_contraste"] = None
 
-    col_ing1, col_ing2, col_ing3 = st.columns([1.15, 0.9, 1.0])
+    col_ing1, col_ing2, col_ing3 = st.columns([1.2, 0.9, 1.0])
 
     with col_ing1:
         st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
         nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
 
-        col_fn, col_edad = st.columns([1.35, 0.65])
+        col_fn, col_edad = st.columns([1.0, 0.7])
         with col_fn:
             fecha_nacimiento = st.date_input(
                 "Fecha de nacimiento",
@@ -1023,10 +1052,8 @@ with tab1:
         with col_edad:
             hoy = date.today()
             edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
-            st.markdown("<br>", unsafe_allow_html=True)
             st.text_input("Edad", value=f"{edad} años", disabled=True)
 
-        peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
         st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
@@ -1080,6 +1107,7 @@ with tab1:
 
     with col_ing3:
         st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
+        peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
         st.checkbox("¿Embarazo?", key="embarazo")
         st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
         st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
