@@ -583,6 +583,18 @@ def duracion_inyeccion(vol_mc, caudal_mc, vol_sf, caudal_sf):
     dur_sf = round(vol_sf / caudal_sf, 1) if caudal_sf > 0 and vol_sf > 0 else 0
     return dur_mc, dur_sf
 
+def calcular_clearance_creatinina(edad, peso_kg, creatinina_mg_dl, sexo):
+    """Calcula clearance estimado con fórmula de Cockcroft-Gault."""
+    try:
+        if edad <= 0 or peso_kg <= 0 or creatinina_mg_dl <= 0:
+            return None
+        clearance = ((140 - edad) * peso_kg) / (72 * creatinina_mg_dl)
+        if sexo == "Femenino":
+            clearance *= 0.85
+        return round(clearance, 1)
+    except Exception:
+        return None
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SIMULACIÓN VISUAL DE IMAGEN CT (canvas HTML)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1034,6 +1046,10 @@ with tab1:
         st.session_state["metodo_inyeccion"] = None
     if "cantidad_contraste" not in st.session_state:
         st.session_state["cantidad_contraste"] = None
+    if "sexo_clearance" not in st.session_state:
+        st.session_state["sexo_clearance"] = "Femenino"
+    if "creatinina_serica" not in st.session_state:
+        st.session_state["creatinina_serica"] = 1.0
 
     col_ing1, col_ing2, col_ing3 = st.columns([1.2, 0.9, 1.0])
 
@@ -1110,6 +1126,29 @@ with tab1:
         peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
         st.checkbox("¿Embarazo?", key="embarazo")
         st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
+
+        if st.session_state["requiere_creatinina"]:
+            sexo_clearance = st.selectbox(
+                "Sexo para cálculo",
+                ["Femenino", "Masculino"],
+                key="sexo_clearance"
+            )
+            creatinina_serica = st.number_input(
+                "Creatinina sérica (mg/dL)",
+                min_value=0.1,
+                max_value=20.0,
+                value=float(st.session_state.get("creatinina_serica", 1.0)),
+                step=0.1,
+                key="creatinina_serica"
+            )
+            clearance = calcular_clearance_creatinina(edad, peso, creatinina_serica, sexo_clearance)
+            if clearance is not None:
+                st.text_input("Clearance de creatinina estimado", value=f"{clearance} mL/min", disabled=True)
+                if clearance < 30:
+                    st.markdown('<div class="alert-warn">Clearance estimado &lt; 30 mL/min.</div>', unsafe_allow_html=True)
+                elif clearance < 60:
+                    st.markdown('<div class="alert-info">Clearance estimado entre 30 y 59 mL/min.</div>', unsafe_allow_html=True)
+
         st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
 
         if not st.session_state["contraste_ev"]:
