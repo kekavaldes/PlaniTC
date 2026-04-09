@@ -214,7 +214,7 @@ REGIONES = {
     "EESS":     ["HOMBRO", "BRAZO", "CODO", "ANTEBRAZO", "MUÑECA", "MANO"],
     "COLUMNA":  ["CERVICAL", "DORSAL", "LUMBAR", "SACROCOXIS"],
     "CUERPO":   ["TORAX", "ABDOMEN", "PELVIS", "ABDOMEN-PELVIS", "TORAX-ABDOMEN-PELVIS"],
-    "EEII":     ["CADERA", "MUSLO", "RODILLA", "PIERNA", "TOBILLO", "PIE"],
+    "EEII":     ["CADERA", "MUSLO", "RODILLA", "TOBILLO", "PIE"],
     "ANGIO":    ["CEREBRO", "CUELLO", "ART PULMONARES", "AORTA", "EESS", "EEII"],
 }
 
@@ -1234,6 +1234,14 @@ with tab1b:
                 key="posicion_topo"
             )
             st.session_state["posicion"] = posicion if posicion else ""
+            topo1_pos  = st.selectbox(
+                "Posición tubo",
+                [None] + POS_TUBO,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="t1pt"
+            )
         with col_ent_topo:
             entrada = st.selectbox(
                 "Entrada",
@@ -1271,18 +1279,24 @@ with tab1b:
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
+        refs_inicio_topo = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
         col_t1a, col_t1b = st.columns(2)
         with col_t1a:
-            topo1_kv   = st.selectbox("kV", [None, 80, 100, 120], index=0,
+            topo1_kv   = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
                              format_func=lambda x: "Seleccionar" if x is None else str(x), placeholder="Seleccionar", key="t1kv")
         with col_t1b:
             topo1_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
                              format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1ma")
         col_t1c, col_t1d = st.columns(2)
         with col_t1c:
-            topo1_pos  = st.selectbox("Posición tubo", [None] + POS_TUBO, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t1pt")
+            centro_inicio_topo = st.selectbox(
+                "Centraje inicio de topograma",
+                refs_inicio_topo,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="t1_centraje_inicio"
+            )
         with col_t1d:
             topo1_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
                              format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1l")
@@ -1299,7 +1313,7 @@ with tab1b:
             st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
             col_t2a, col_t2b = st.columns(2)
             with col_t2a:
-                topo2_kv   = st.selectbox("kV", [None, 80, 100, 120], index=0,
+                topo2_kv   = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
                                  format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2kv")
             with col_t2b:
                 topo2_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
