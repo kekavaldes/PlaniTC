@@ -586,10 +586,10 @@ def duracion_inyeccion(vol_mc, caudal_mc, vol_sf, caudal_sf):
 def calcular_clearance_creatinina(edad, peso_kg, creatinina_mg_dl, sexo):
     """Calcula clearance estimado con fórmula de Cockcroft-Gault."""
     try:
-        if edad <= 0 or peso_kg <= 0 or creatinina_mg_dl <= 0:
+        if edad <= 0 or peso_kg <= 0 or creatinina_mg_dl <= 0 or not sexo:
             return None
         clearance = ((140 - edad) * peso_kg) / (72 * creatinina_mg_dl)
-        if sexo == "Femenino":
+        if str(sexo).strip().lower() == "femenino":
             clearance *= 0.85
         return round(clearance, 1)
     except Exception:
@@ -1034,8 +1034,10 @@ with tab1:
     # Valores por defecto del ingreso
     if "fecha_nacimiento" not in st.session_state:
         st.session_state["fecha_nacimiento"] = date(2000, 1, 1)
+    if "sexo" not in st.session_state:
+        st.session_state["sexo"] = None
     if "embarazo" not in st.session_state:
-        st.session_state["embarazo"] = False
+        st.session_state["embarazo"] = None
     if "requiere_creatinina" not in st.session_state:
         st.session_state["requiere_creatinina"] = False
     if "contraste_ev" not in st.session_state:
@@ -1046,8 +1048,6 @@ with tab1:
         st.session_state["metodo_inyeccion"] = None
     if "cantidad_contraste" not in st.session_state:
         st.session_state["cantidad_contraste"] = None
-    if "sexo_clearance" not in st.session_state:
-        st.session_state["sexo_clearance"] = "Femenino"
     if "creatinina_serica" not in st.session_state:
         st.session_state["creatinina_serica"] = 1.0
 
@@ -1070,6 +1070,12 @@ with tab1:
             edad = hoy.year - fecha_nacimiento.year - ((hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day))
             st.text_input("Edad", value=f"{edad} años", disabled=True)
 
+        sexo = st.selectbox(
+            "Sexo",
+            [None, "Femenino", "Masculino"],
+            key="sexo",
+            format_func=lambda x: "Seleccionar" if x is None else x,
+        )
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
         st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
@@ -1124,15 +1130,15 @@ with tab1:
     with col_ing3:
         st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
         peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
-        st.checkbox("¿Embarazo?", key="embarazo")
+        embarazo = st.selectbox(
+            "Embarazo",
+            [None, "SI", "NO", "PROBABLE"],
+            key="embarazo",
+            format_func=lambda x: "Seleccionar" if x is None else x,
+        )
         st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
 
         if st.session_state["requiere_creatinina"]:
-            sexo_clearance = st.selectbox(
-                "Sexo para cálculo",
-                ["Femenino", "Masculino"],
-                key="sexo_clearance"
-            )
             creatinina_serica = st.number_input(
                 "Creatinina sérica (mg/dL)",
                 min_value=0.1,
@@ -1141,8 +1147,11 @@ with tab1:
                 step=0.1,
                 key="creatinina_serica"
             )
-            clearance = calcular_clearance_creatinina(edad, peso, creatinina_serica, sexo_clearance)
-            if clearance is not None:
+            sexo_calculo = st.session_state.get("sexo")
+            clearance = calcular_clearance_creatinina(edad, peso, creatinina_serica, sexo_calculo)
+            if sexo_calculo is None:
+                st.text_input("Clearance de creatinina estimado", value="Seleccione sexo para calcular", disabled=True)
+            elif clearance is not None:
                 st.text_input("Clearance de creatinina estimado", value=f"{clearance} mL/min", disabled=True)
                 if clearance < 30:
                     st.markdown('<div class="alert-warn">Clearance estimado &lt; 30 mL/min.</div>', unsafe_allow_html=True)
@@ -1174,6 +1183,110 @@ with tab1:
                 key="cantidad_contraste",
                 format_func=lambda x: "Seleccionar" if x is None else x
             )
+
+# ───────────────────────────────────────────────────────────────
+# TAB 1b: TOPOGRAMA
+# ───────────────────────────────────────────────────────────────
+with tab1b:
+    if "posicion_topo" not in st.session_state:
+        st.session_state["posicion_topo"] = None
+    if "entrada_topo" not in st.session_state:
+        st.session_state["entrada_topo"] = None
+    if "t1pt" not in st.session_state:
+        st.session_state["t1pt"] = "ARRIBA 0°"
+    if "topo1_long" not in st.session_state:
+        st.session_state["topo1_long"] = 1020
+    if "topo1_kv" not in st.session_state:
+        st.session_state["topo1_kv"] = 120
+    if "topo1_ma" not in st.session_state:
+        st.session_state["topo1_ma"] = 35
+    if "topograma_adquirido" not in st.session_state:
+        st.session_state["topograma_adquirido"] = False
+
+    col_topo_cfg, col_topo_img = st.columns([1, 1])
+
+    with col_topo_cfg:
+        st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente</div>', unsafe_allow_html=True)
+        col_pos_topo, col_ent_topo = st.columns(2)
+        with col_pos_topo:
+            posicion = st.selectbox(
+                "Posición paciente",
+                [None] + POSICIONES_PACIENTE,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                key="posicion_topo"
+            )
+        with col_ent_topo:
+            entrada = st.selectbox(
+                "Entrada",
+                [None] + ENTRADAS_PACIENTE,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                key="entrada_topo"
+            )
+
+        st.markdown('<div class="section-header">☢️ Parámetros del topograma</div>', unsafe_allow_html=True)
+        pos_tubo = st.selectbox("Posición del tubo", POS_TUBO, key="t1pt")
+        col_long, col_kv_ma = st.columns(2)
+        with col_long:
+            topo1_long = st.selectbox("Longitud (mm)", LONGITUDES_TOPO, key="topo1_long")
+        with col_kv_ma:
+            topo1_kv = st.selectbox("kV", [80, 100, 120, 140], index=[80,100,120,140].index(st.session_state.get("topo1_kv",120)) if st.session_state.get("topo1_kv",120) in [80,100,120,140] else 2, key="topo1_kv")
+            topo1_ma = st.selectbox("mA", [20, 35, 50, 100], index=[20,35,50,100].index(st.session_state.get("topo1_ma",35)) if st.session_state.get("topo1_ma",35) in [20,35,50,100] else 1, key="topo1_ma")
+
+        st.session_state["posicion_paciente"] = posicion
+        st.session_state["entrada_paciente"] = entrada
+
+        if st.button("INICIAR TOPOGRAMA", use_container_width=True):
+            st.session_state["topograma_adquirido"] = True
+
+    with col_topo_img:
+        _pos_sel = st.session_state.get("posicion_topo")
+        _ent_sel = st.session_state.get("entrada_topo")
+        _pos_tubo_prev = st.session_state.get("t1pt", "ARRIBA 0°")
+        _img_b64_prev = None
+        if _pos_sel and _ent_sel and _pos_tubo_prev:
+            _img_b64_prev = obtener_imagen_posicionamiento_topograma(_pos_sel, _ent_sel, _pos_tubo_prev)
+
+        _proy_prev = "Lateral" if ("DERECHA" in _pos_tubo_prev or "IZQUIERDA" in _pos_tubo_prev) else "AP"
+
+        if not st.session_state.get("topograma_adquirido", False):
+            st.markdown('<div class="section-header">🖼️ Topograma</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="
+                border: 1px solid #333; border-radius: 8px;
+                background: #0A0A0A; height: 380px;
+                display: flex; flex-direction: column;
+                align-items: center; justify-content: center;
+                text-align: center; gap: 16px;">
+                <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
+                <div style="color: #555; font-size: 0.95rem;">
+                    Configure los parámetros del topograma<br>
+                    y presione <strong style="color:#FFD700;">INICIAR TOPOGRAMA</strong>
+                </div>
+                <div style="color:#333; font-size:0.8rem;">
+                    Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="section-header">✅ Topograma adquirido</div>', unsafe_allow_html=True)
+            if _img_b64_prev:
+                st.markdown(f"""
+                <div style="text-align:center;">
+                  <img src="data:image/jpeg;base64,{_img_b64_prev}"
+                       style="width:100%; border-radius:6px; border:1px solid #FFD700;">
+                  <div style="font-size:11px; color:#888; margin-top:6px;">
+                    Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
+                    · {st.session_state.get('topo1_long')} mm · {st.session_state.get('topo1_kv')} kV · {st.session_state.get('topo1_ma')} mA
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("""<div class="alert-info">
+                ✅ Topograma adquirido correctamente. Continúa a <b>⚡ Adquisición</b>.
+                </div>""", unsafe_allow_html=True)
+            else:
+                st.info("Selecciona posición, entrada y posición del tubo para visualizar el topograma.")
 
 # ───────────────────────────────────────────────────────────────
 # TAB 2: ADQUISICIÓN
