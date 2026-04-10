@@ -2018,12 +2018,17 @@ with tab2:
 
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [
-            {"id": "topograma", "tipo": "topograma", "nombre": "Topograma"},
             _crear_exploracion_adq(1),
         ]
 
-    if "exploracion_adq_activa" not in st.session_state:
-        st.session_state["exploracion_adq_activa"] = "topograma"
+    # Compatibilidad con sesiones anteriores: eliminar la vista especial de topograma
+    st.session_state["exploraciones_adq"] = [
+        e for e in st.session_state["exploraciones_adq"]
+        if e.get("tipo") == "adquisicion"
+    ] or [_crear_exploracion_adq(1)]
+
+    if "exploracion_adq_activa" not in st.session_state or st.session_state["exploracion_adq_activa"] == "topograma":
+        st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][0]["id"]
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2078,7 +2083,7 @@ with tab2:
 
         for _exp in st.session_state["exploraciones_adq"]:
             _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
-            _icono = "📡" if _exp.get("tipo") == "topograma" else "⚡"
+            _icono = "⚡"
             _nombre_base = _exp.get("nombre", "Exploración")
             _label = f"{_icono} {_nombre_base}"
             if _exp.get("tipo") == "adquisicion":
@@ -2129,7 +2134,8 @@ with tab2:
                     if e.get("id") != _id_eliminar
                 ]
                 _reindexar_exploraciones_adq()
-                st.session_state["exploracion_adq_activa"] = "topograma"
+                _ids_restantes = [e.get("id") for e in st.session_state["exploraciones_adq"]]
+                st.session_state["exploracion_adq_activa"] = _ids_restantes[0] if _ids_restantes else _crear_exploracion_adq(1)["id"]
                 st.rerun()
 
     with col_det:
@@ -2137,79 +2143,6 @@ with tab2:
 
         if _actual is None:
             st.warning("No se pudo cargar la exploración seleccionada.")
-
-        elif _actual.get("tipo") == "topograma":
-            st.markdown('<div class="section-header">🖼️ Topograma(s) programado(s)</div>', unsafe_allow_html=True)
-            _hay_topo1 = st.session_state.get("topograma_iniciado", False)
-            _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
-
-            if _hay_topo1 or _hay_topo2:
-                _topos_programados = []
-                _errores_topos = []
-
-                if _hay_topo1:
-                    _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
-                        st.session_state.get("examen", ""),
-                        st.session_state.get("posicion", ""),
-                        st.session_state.get("entrada", ""),
-                        st.session_state.get("t1pt", ""),
-                    )
-                    if _img_adq_1 is not None:
-                        _topos_programados.append({
-                            "titulo": "✅ Topograma 1 programado",
-                            "subtitulo": (
-                                f"Tubo: {st.session_state.get('t1pt', '—')} · "
-                                f"{st.session_state.get('t1l', '—')} mm · "
-                                f"{st.session_state.get('t1kv', '—')} kV · "
-                                f"{st.session_state.get('t1ma', '—')} mA"
-                            ),
-                            "img_b64": _pil_to_b64_jpeg(_img_adq_1),
-                        })
-                    else:
-                        _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
-
-                if _hay_topo2:
-                    _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
-                        st.session_state.get("examen", ""),
-                        st.session_state.get("t2_posicion_paciente", ""),
-                        st.session_state.get("t2_entrada", ""),
-                        st.session_state.get("t2pt", ""),
-                    )
-                    if _img_adq_2 is not None:
-                        _topos_programados.append({
-                            "titulo": "✅ Topograma 2 programado",
-                            "subtitulo": (
-                                f"Tubo: {st.session_state.get('t2pt', '—')} · "
-                                f"{st.session_state.get('t2l', '—')} mm · "
-                                f"{st.session_state.get('t2kv', '—')} kV · "
-                                f"{st.session_state.get('t2ma', '—')} mA"
-                            ),
-                            "img_b64": _pil_to_b64_jpeg(_img_adq_2),
-                        })
-                    else:
-                        _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
-
-                _ini_ref_prog = st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0])
-                _fin_ref_prog = st.session_state.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0])
-
-                if _topos_programados:
-                    _html_topos_prog = render_topogramas_programados_interactivos(
-                        _topos_programados,
-                        _ini_ref_prog,
-                        _fin_ref_prog,
-                    )
-                    if _html_topos_prog:
-                        st.components.v1.html(_html_topos_prog, height=820 if len(_topos_programados) > 1 else 980)
-                        if len(_topos_programados) > 1:
-                            st.caption("Las líneas de Topograma 1 y Topograma 2 están sincronizadas en esta vista.")
-                    else:
-                        st.warning("No se pudieron renderizar los topogramas programados.")
-
-                for _err in _errores_topos:
-                    if _err:
-                        st.warning(_err)
-            else:
-                st.info("Aún no hay topogramas programados. Inicia Topograma 1 o Topograma 2 en la pestaña de Topograma.")
 
         else:
             _exp_id = _actual["id"]
@@ -2326,6 +2259,74 @@ with tab2:
                     _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
                     _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
                     _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
+
+            st.markdown("---")
+            st.markdown('<div class="section-header">🖼️ Topograma(s) en esta adquisición</div>', unsafe_allow_html=True)
+            _hay_topo1 = st.session_state.get("topograma_iniciado", False)
+            _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
+            _topos_programados = []
+            _errores_topos = []
+
+            if _hay_topo1:
+                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("posicion", ""),
+                    st.session_state.get("entrada", ""),
+                    st.session_state.get("t1pt", ""),
+                )
+                if _img_adq_1 is not None:
+                    _topos_programados.append({
+                        "titulo": "✅ Topograma 1 programado",
+                        "subtitulo": (
+                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
+                            f"{st.session_state.get('t1l', '—')} mm · "
+                            f"{st.session_state.get('t1kv', '—')} kV · "
+                            f"{st.session_state.get('t1ma', '—')} mA"
+                        ),
+                        "img_b64": _pil_to_b64_jpeg(_img_adq_1),
+                    })
+                else:
+                    _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
+
+            if _hay_topo2:
+                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("t2_posicion_paciente", ""),
+                    st.session_state.get("t2_entrada", ""),
+                    st.session_state.get("t2pt", ""),
+                )
+                if _img_adq_2 is not None:
+                    _topos_programados.append({
+                        "titulo": "✅ Topograma 2 programado",
+                        "subtitulo": (
+                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
+                            f"{st.session_state.get('t2l', '—')} mm · "
+                            f"{st.session_state.get('t2kv', '—')} kV · "
+                            f"{st.session_state.get('t2ma', '—')} mA"
+                        ),
+                        "img_b64": _pil_to_b64_jpeg(_img_adq_2),
+                    })
+                else:
+                    _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
+
+            if _topos_programados:
+                _html_topos_prog = render_topogramas_programados_interactivos(
+                    _topos_programados,
+                    _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
+                    _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
+                )
+                if _html_topos_prog:
+                    st.components.v1.html(_html_topos_prog, height=820 if len(_topos_programados) > 1 else 980)
+                    if len(_topos_programados) > 1:
+                        st.caption("Las líneas de inicio y fin se muestran sincronizadas en ambos topogramas de esta adquisición.")
+                else:
+                    st.warning("No se pudieron renderizar los topogramas programados en esta adquisición.")
+            else:
+                st.info("Aún no hay topogramas iniciados en la pestaña Topograma.")
+
+            for _err in _errores_topos:
+                if _err:
+                    st.warning(_err)
 
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
