@@ -1094,12 +1094,16 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     """
     Renderiza uno o dos topogramas programados con líneas móviles sincronizadas.
     Si hay dos topogramas, al mover una línea en cualquiera, se actualizan ambos.
+    Ajusta el tamaño sin recortar la imagen y conserva su proporción.
     """
     if not topos:
         return None
 
     y_ini = get_y_position(inicio_ref)
     y_fin = get_y_position(fin_ref)
+    multiple = len(topos) > 1
+    canvas_css_width = 360 if multiple else 500
+    min_col_width = 320 if multiple else 540
 
     cols_html = []
     for i, topo in enumerate(topos):
@@ -1109,10 +1113,10 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
         titulo = topo.get("titulo", f"Topograma {i+1}")
         subtitulo = topo.get("subtitulo", "")
         cols_html.append(f"""
-        <div style="flex:1; min-width:280px;">
+        <div style="flex:0 1 {canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width + 30}px;">
           <div style="font-size:18px;font-weight:700;color:#fff;margin:0 0 8px 0;">{titulo}</div>
-          <canvas id="topoCanvas{i}" width="560" height="560"
-            style="width:100%; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000;"></canvas>
+          <canvas id="topoCanvas{i}" width="500" height="900"
+            style="width:{canvas_css_width}px; max-width:100%; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
           <div style="margin-top:6px; font-size:12px; color:#ccc;">{subtitulo}</div>
         </div>
         """)
@@ -1153,8 +1157,18 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
   var dragThresh = 12;
   var imgs = [];
 
+  function syncCanvasSize(canvas, img) {{
+    if (!canvas || !img || !img.width || !img.height) return;
+    var cssW = parseFloat(canvas.style.width) || canvas.clientWidth || 500;
+    var ratio = img.height / img.width;
+    var cssH = Math.round(cssW * ratio);
+    canvas.width = Math.max(200, Math.round(cssW));
+    canvas.height = Math.max(300, cssH);
+  }}
+
   function drawCanvas(canvas, img) {{
     if(!canvas || !img) return;
+    syncCanvasSize(canvas, img);
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
     ctx.clearRect(0,0,W,H);
@@ -1618,7 +1632,6 @@ with tab1b:
                 )
 
         with col_pos_preview:
-            st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado</div>', unsafe_allow_html=True)
             imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
                 st.session_state.get("posicion", ""),
                 st.session_state.get("entrada", ""),
@@ -1843,7 +1856,6 @@ with tab1b:
                     )
 
             with col_t2_preview:
-                st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado — Topograma 2</div>', unsafe_allow_html=True)
                 imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
                     topo2_posicion if topo2_posicion else "",
                     topo2_entrada if topo2_entrada else "",
@@ -1969,269 +1981,659 @@ with tab1b:
 with tab2:
     region_anat = st.session_state.get("region_anat", "CUERPO")
 
-    st.markdown('<div class="section-header">🖼️ Topograma(s) programado(s)</div>', unsafe_allow_html=True)
-    _hay_topo1 = st.session_state.get("topograma_iniciado", False)
-    _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
+    def _crear_exploracion_adq(numero):
+        return {
+            "id": f"exp_{numero}",
+            "tipo": "adquisicion",
+            "nombre": f"Exploración {numero}",
+            "tipo_exp": st.session_state.get("tipo_exp", TIPOS_EXPLORACION[0]),
+            "doble_muestreo": st.session_state.get("doble_muestreo", "NO"),
+            "voz_adq": st.session_state.get("voz_adq", INSTRUCCIONES_VOZ[0]),
+            "mod_corriente": st.session_state.get("mod_corriente", MODULACION_CORRIENTE[0]),
+            "kvp": st.session_state.get("kvp", 120),
+            "mas_val": st.session_state.get("mas_val", 200),
+            "ind_cal": st.session_state.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0]),
+            "ind_ruido": st.session_state.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0]),
+            "rango_ma": st.session_state.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0]),
+            "conf_det": st.session_state.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0]),
+            "sfov": st.session_state.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0]),
+            "grosor_prosp": str(st.session_state.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0])),
+            "pitch": st.session_state.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0]),
+            "rot_tubo": st.session_state.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0]),
+            "retardo": st.session_state.get("retardo", RETARDOS[0]),
+            "inicio_ref": st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "ini_mm": int(st.session_state.get("ini_mm", 0)),
+            "fin_ref": st.session_state.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "fin_mm": int(st.session_state.get("fin_mm", 400)),
+        }
 
-    if _hay_topo1 or _hay_topo2:
-        _topos_programados = []
-        _errores_topos = []
+    def _reindexar_exploraciones_adq():
+        _contador = 1
+        for _exp in st.session_state["exploraciones_adq"]:
+            if _exp.get("tipo") == "adquisicion":
+                _exp["id"] = f"exp_{_contador}"
+                _exp["nombre"] = f"Exploración {_contador}"
+                _contador += 1
 
-        if _hay_topo1:
-            _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
-                st.session_state.get("examen", ""),
-                st.session_state.get("posicion", ""),
-                st.session_state.get("entrada", ""),
-                st.session_state.get("t1pt", ""),
-            )
-            if _img_adq_1 is not None:
-                _topos_programados.append({
-                    "titulo": "✅ Topograma 1 programado",
-                    "subtitulo": (
-                        f"Tubo: {st.session_state.get('t1pt', '—')} · "
-                        f"{st.session_state.get('t1l', '—')} mm · "
-                        f"{st.session_state.get('t1kv', '—')} kV · "
-                        f"{st.session_state.get('t1ma', '—')} mA"
-                    ),
-                    "img_b64": _pil_to_b64_jpeg(_img_adq_1),
-                })
+    if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
+        st.session_state["exploraciones_adq"] = [
+            {"id": "topograma", "tipo": "topograma", "nombre": "Topograma"},
+            _crear_exploracion_adq(1),
+        ]
+
+    if "exploracion_adq_activa" not in st.session_state:
+        st.session_state["exploracion_adq_activa"] = "topograma"
+
+    ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
+    if st.session_state["exploracion_adq_activa"] not in ids_validos:
+        st.session_state["exploracion_adq_activa"] = ids_validos[0]
+
+    col_nav, col_det = st.columns([0.95, 2.4])
+
+    with col_nav:
+        st.markdown('<div class="section-header">📋 Exploraciones</div>', unsafe_allow_html=True)
+        st.caption("Selecciona una exploración para editar sus parámetros.")
+
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] button[kind="secondary"] {
+            background: #1b1b1b !important;
+            color: #ffffff !important;
+            border: 1px solid #3a3a3a !important;
+            border-radius: 14px !important;
+            min-height: 54px !important;
+            font-size: 1.05rem !important;
+            font-weight: 600 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            padding-left: 16px !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stButton"] button[kind="secondary"]:hover {
+            background: #262626 !important;
+            border-color: #5a5a5a !important;
+            color: #ffffff !important;
+        }
+        div[data-testid="stButton"] button[kind="primary"] {
+            background: linear-gradient(180deg, #0d2f5c 0%, #0a2340 100%) !important;
+            color: #ffffff !important;
+            border: 1px solid #4da3ff !important;
+            border-radius: 14px !important;
+            min-height: 58px !important;
+            font-size: 1.08rem !important;
+            font-weight: 700 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            padding-left: 16px !important;
+            box-shadow: 0 0 0 1px rgba(77,163,255,0.15) inset !important;
+        }
+        div[data-testid="stButton"] button[kind="primary"]:hover {
+            background: linear-gradient(180deg, #123e77 0%, #0d2f5c 100%) !important;
+            color: #ffffff !important;
+            border-color: #79b8ff !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        for _exp in st.session_state["exploraciones_adq"]:
+            _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
+            _icono = "📡" if _exp.get("tipo") == "topograma" else "⚡"
+            _nombre_base = _exp.get("nombre", "Exploración")
+            _label = f"{_icono} {_nombre_base}"
+            if _exp.get("tipo") == "adquisicion":
+                _tipo_resumen = _exp.get("tipo_exp", "HELICOIDAL")
+                _voz_resumen = _exp.get("voz", "NINGUNA")
+                st.caption(f"{_nombre_base} · {_tipo_resumen} · Voz: {_voz_resumen}")
             else:
-                _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
+                st.caption("Topogramas programados del estudio")
+            if st.button(
+                _label,
+                key=f"btn_sel_{_exp['id']}",
+                use_container_width=True,
+                type="primary" if _activa else "secondary",
+            ):
+                st.session_state["exploracion_adq_activa"] = _exp["id"]
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
-        if _hay_topo2:
-            _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
-                st.session_state.get("examen", ""),
-                st.session_state.get("t2_posicion_paciente", ""),
-                st.session_state.get("t2_entrada", ""),
-                st.session_state.get("t2pt", ""),
-            )
-            if _img_adq_2 is not None:
-                _topos_programados.append({
-                    "titulo": "✅ Topograma 2 programado",
-                    "subtitulo": (
-                        f"Tubo: {st.session_state.get('t2pt', '—')} · "
-                        f"{st.session_state.get('t2l', '—')} mm · "
-                        f"{st.session_state.get('t2kv', '—')} kV · "
-                        f"{st.session_state.get('t2ma', '—')} mA"
-                    ),
-                    "img_b64": _pil_to_b64_jpeg(_img_adq_2),
-                })
+        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+        if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq", type="secondary"):
+            _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
+            _numero = len(_existentes) + 1
+            st.session_state["exploraciones_adq"].append(_crear_exploracion_adq(_numero))
+            _reindexar_exploraciones_adq()
+            st.session_state["exploracion_adq_activa"] = f"exp_{_numero}"
+            st.rerun()
+
+        _exp_activa_nav = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
+        _es_adq_activa = _exp_activa_nav is not None and _exp_activa_nav.get("tipo") == "adquisicion"
+
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        _c1, _c2 = st.columns(2)
+        with _c1:
+            if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
+                _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
+                _nuevo_numero = len(_existentes) + 1
+                _copia = dict(_exp_activa_nav)
+                _copia["id"] = f"exp_{_nuevo_numero}"
+                _copia["nombre"] = f"Exploración {_nuevo_numero}"
+                st.session_state["exploraciones_adq"].append(_copia)
+                _reindexar_exploraciones_adq()
+                st.session_state["exploracion_adq_activa"] = f"exp_{_nuevo_numero}"
+                st.rerun()
+        with _c2:
+            if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
+                _id_eliminar = st.session_state["exploracion_adq_activa"]
+                st.session_state["exploraciones_adq"] = [
+                    e for e in st.session_state["exploraciones_adq"]
+                    if e.get("id") != _id_eliminar
+                ]
+                _reindexar_exploraciones_adq()
+                st.session_state["exploracion_adq_activa"] = "topograma"
+                st.rerun()
+
+    with col_det:
+        _actual = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
+
+        if _actual is None:
+            st.warning("No se pudo cargar la exploración seleccionada.")
+
+        elif _actual.get("tipo") == "topograma":
+            st.markdown('<div class="section-header">🖼️ Topograma(s) programado(s)</div>', unsafe_allow_html=True)
+            _hay_topo1 = st.session_state.get("topograma_iniciado", False)
+            _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
+
+            if _hay_topo1 or _hay_topo2:
+                _topos_programados = []
+                _errores_topos = []
+
+                if _hay_topo1:
+                    _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
+                        st.session_state.get("examen", ""),
+                        st.session_state.get("posicion", ""),
+                        st.session_state.get("entrada", ""),
+                        st.session_state.get("t1pt", ""),
+                    )
+                    if _img_adq_1 is not None:
+                        _topos_programados.append({
+                            "titulo": "✅ Topograma 1 programado",
+                            "subtitulo": (
+                                f"Tubo: {st.session_state.get('t1pt', '—')} · "
+                                f"{st.session_state.get('t1l', '—')} mm · "
+                                f"{st.session_state.get('t1kv', '—')} kV · "
+                                f"{st.session_state.get('t1ma', '—')} mA"
+                            ),
+                            "img_b64": _pil_to_b64_jpeg(_img_adq_1),
+                        })
+                    else:
+                        _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
+
+                if _hay_topo2:
+                    _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
+                        st.session_state.get("examen", ""),
+                        st.session_state.get("t2_posicion_paciente", ""),
+                        st.session_state.get("t2_entrada", ""),
+                        st.session_state.get("t2pt", ""),
+                    )
+                    if _img_adq_2 is not None:
+                        _topos_programados.append({
+                            "titulo": "✅ Topograma 2 programado",
+                            "subtitulo": (
+                                f"Tubo: {st.session_state.get('t2pt', '—')} · "
+                                f"{st.session_state.get('t2l', '—')} mm · "
+                                f"{st.session_state.get('t2kv', '—')} kV · "
+                                f"{st.session_state.get('t2ma', '—')} mA"
+                            ),
+                            "img_b64": _pil_to_b64_jpeg(_img_adq_2),
+                        })
+                    else:
+                        _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
+
+                _ini_ref_prog = st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0])
+                _fin_ref_prog = st.session_state.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0])
+
+                if _topos_programados:
+                    _html_topos_prog = render_topogramas_programados_interactivos(
+                        _topos_programados,
+                        _ini_ref_prog,
+                        _fin_ref_prog,
+                    )
+                    if _html_topos_prog:
+                        st.components.v1.html(_html_topos_prog, height=820 if len(_topos_programados) > 1 else 980)
+                        if len(_topos_programados) > 1:
+                            st.caption("Las líneas de Topograma 1 y Topograma 2 están sincronizadas en esta vista.")
+                    else:
+                        st.warning("No se pudieron renderizar los topogramas programados.")
+
+                for _err in _errores_topos:
+                    if _err:
+                        st.warning(_err)
             else:
-                _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
+                st.info("Aún no hay topogramas programados. Inicia Topograma 1 o Topograma 2 en la pestaña de Topograma.")
 
-        _ini_ref_prog = st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0])
-        _fin_ref_prog = st.session_state.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0])
-
-        if _topos_programados:
-            _html_topos_prog = render_topogramas_programados_interactivos(
-                _topos_programados,
-                _ini_ref_prog,
-                _fin_ref_prog,
-            )
-            if _html_topos_prog:
-                st.components.v1.html(_html_topos_prog, height=640 if len(_topos_programados) > 1 else 700)
-                if len(_topos_programados) > 1:
-                    st.caption("Las líneas de Topograma 1 y Topograma 2 están sincronizadas en esta vista.")
-            else:
-                st.warning("No se pudieron renderizar los topogramas programados.")
-
-        for _err in _errores_topos:
-            if _err:
-                st.warning(_err)
-    else:
-        st.info("Aún no hay topogramas programados. Inicia Topograma 1 o Topograma 2 en la pestaña de Topograma.")
-
-    st.markdown("---")
-
-    # ── Topograma interactivo al inicio ─────────────────────────────────────
-    st.markdown("---")
-    col_adq1, col_adq2 = st.columns([1, 1])
-
-    with col_adq1:
-        st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
-        tipo_exp = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION)
-        st.session_state["tipo_exp"] = tipo_exp
-
-        if tipo_exp == "HELICOIDAL":
-            doble_muestreo = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"])
         else:
-            doble_muestreo = "NO"
-        st.session_state["doble_muestreo"] = doble_muestreo
+            _exp_id = _actual["id"]
+            st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
-        voz_adq = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, key="voz_adq")
+            _actual["nombre"] = st.text_input(
+                "Nombre de la exploración",
+                value=_actual.get("nombre", "Exploración"),
+                key=f"nombre_{_exp_id}",
+            )
 
-        st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
-        mod_corriente = st.selectbox("Modulación", MODULACION_CORRIENTE)
-        st.session_state["mod_corriente"] = mod_corriente
+            col_adq1, col_adq2 = st.columns([1, 1])
 
-        col_kv, col_mas = st.columns(2)
-        with col_kv:
-            if mod_corriente == "CARE DOSE 4D":
-                st.selectbox("CARE kV", KVP_OPCIONES, index=3, key="kvp_sel")
-            elif mod_corriente == "AUTO mA":
-                st.selectbox("AUTO kV", KVP_OPCIONES, index=3, key="kvp_sel")
-            else:
-                st.selectbox("kV", KVP_OPCIONES, index=3, key="kvp_sel")
-        kvp = st.session_state.get("kvp_sel", 120)
+            with col_adq1:
+                st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
+                _tipo_idx = TIPOS_EXPLORACION.index(_actual.get("tipo_exp", TIPOS_EXPLORACION[0])) if _actual.get("tipo_exp", TIPOS_EXPLORACION[0]) in TIPOS_EXPLORACION else 0
+                _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_exp_id}")
 
-        with col_mas:
-            if mod_corriente == "CARE DOSE 4D":
-                mas_ref = st.selectbox("mAs REF", MAS_OPCIONES, index=3)
-                st.session_state["mas_val"] = mas_ref
-                ind_cal = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=4)
-            elif mod_corriente == "AUTO mA":
-                rango_ma = st.selectbox("Rango mA", RANGO_MA, index=2)
-                st.session_state["mas_val"] = int(rango_ma.split("-")[1].strip())
-                ind_ruido = st.selectbox("Índice de ruido", INDICE_RUIDO, index=2)
-                st.session_state["ind_ruido"] = ind_ruido
-            else:
-                mas_manual = st.selectbox("mAs", MAS_OPCIONES, index=3)
-                st.session_state["mas_val"] = mas_manual
+                if _actual["tipo_exp"] == "HELICOIDAL":
+                    _dm_idx = ["NO", "SI"].index(_actual.get("doble_muestreo", "NO")) if _actual.get("doble_muestreo", "NO") in ["NO", "SI"] else 0
+                    _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_exp_id}")
+                else:
+                    _actual["doble_muestreo"] = "NO"
 
-        mas_val = st.session_state.get("mas_val", 200)
+                _voz_idx = INSTRUCCIONES_VOZ.index(_actual.get("voz_adq", INSTRUCCIONES_VOZ[0])) if _actual.get("voz_adq", INSTRUCCIONES_VOZ[0]) in INSTRUCCIONES_VOZ else 0
+                _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_exp_id}")
 
-    with col_adq2:
-        st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
-        conf_det = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=4)
-        st.session_state["conf_det"] = conf_det
+                st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
+                _mod_idx = MODULACION_CORRIENTE.index(_actual.get("mod_corriente", MODULACION_CORRIENTE[0])) if _actual.get("mod_corriente", MODULACION_CORRIENTE[0]) in MODULACION_CORRIENTE else 0
+                _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_exp_id}")
 
-        sfov = st.selectbox("SFOV", SFOV_OPCIONES, index=2)
-        grosor_prosp = st.selectbox("Corte prospectivo (mm)",
-                                     [str(g) for g in GROSOR_PROSP], index=2)
-        st.session_state["grosor_prosp"] = grosor_prosp
+                _col_kv, _col_mas = st.columns(2)
+                with _col_kv:
+                    _kv_actual = _actual.get("kvp", 120)
+                    _kv_idx = KVP_OPCIONES.index(_kv_actual) if _kv_actual in KVP_OPCIONES else 3
+                    _label_kv = "kV"
+                    if _actual["mod_corriente"] == "CARE DOSE 4D":
+                        _label_kv = "CARE kV"
+                    elif _actual["mod_corriente"] == "AUTO mA":
+                        _label_kv = "AUTO kV"
+                    _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_exp_id}")
 
-        col_p, col_r = st.columns(2)
-        with col_p:
-            if tipo_exp == "HELICOIDAL":
-                pitch = st.selectbox("Pitch", PITCH_OPCIONES, index=6)
-            else:
-                pitch = 1.0
-                st.info("Pitch no aplica")
-        with col_r:
-            rot_tubo = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=1)
+                with _col_mas:
+                    if _actual["mod_corriente"] == "CARE DOSE 4D":
+                        _mas_base = _actual.get("mas_val", 200)
+                        _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
+                        _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_exp_id}")
+                        _ind_cal = _actual.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0])
+                        _ind_cal_idx = INDICE_CALIDAD.index(_ind_cal) if _ind_cal in INDICE_CALIDAD else (4 if len(INDICE_CALIDAD) > 4 else 0)
+                        _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_exp_id}")
+                    elif _actual["mod_corriente"] == "AUTO mA":
+                        _rango_ma = _actual.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0])
+                        _rango_idx = RANGO_MA.index(_rango_ma) if _rango_ma in RANGO_MA else (2 if len(RANGO_MA) > 2 else 0)
+                        _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_exp_id}")
+                        try:
+                            _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
+                        except Exception:
+                            _actual["mas_val"] = 200
+                        _ind_ruido = _actual.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0])
+                        _ind_ruido_idx = INDICE_RUIDO.index(_ind_ruido) if _ind_ruido in INDICE_RUIDO else (2 if len(INDICE_RUIDO) > 2 else 0)
+                        _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_exp_id}")
+                    else:
+                        _mas_base = _actual.get("mas_val", 200)
+                        _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
+                        _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_exp_id}")
 
-        st.session_state["pitch"] = pitch
-        st.session_state["rot_tubo"] = rot_tubo
+            with col_adq2:
+                st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
+                _conf_actual = _actual.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0])
+                _conf_idx = CONF_DETECTORES.index(_conf_actual) if _conf_actual in CONF_DETECTORES else (4 if len(CONF_DETECTORES) > 4 else 0)
+                _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_exp_id}")
 
-        retardo = st.selectbox("Retardo (Delay)", RETARDOS, index=0)
+                _sfov_actual = _actual.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0])
+                _sfov_idx = SFOV_OPCIONES.index(_sfov_actual) if _sfov_actual in SFOV_OPCIONES else (2 if len(SFOV_OPCIONES) > 2 else 0)
+                _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_exp_id}")
 
-        st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
-        refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
-        refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
+                _grosor_actual = str(_actual.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]))
+                _grosor_opciones = [str(g) for g in GROSOR_PROSP]
+                _grosor_idx = _grosor_opciones.index(_grosor_actual) if _grosor_actual in _grosor_opciones else (2 if len(_grosor_opciones) > 2 else 0)
+                _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_exp_id}")
 
-        col_ini, col_fin = st.columns(2)
-        with col_ini:
-            inicio_ref = st.selectbox("Inicio exploración", refs_ini, key="inicio_ref")
-            inicio_mm  = st.number_input("mm inicio", value=0, step=10, key="ini_mm")
-        with col_fin:
-            fin_ref = st.selectbox("Fin exploración", refs_fin_lista, key="fin_ref")
-            fin_mm  = st.number_input("mm fin", value=400, step=10, key="fin_mm")
+                _col_p, _col_r = st.columns(2)
+                with _col_p:
+                    if _actual["tipo_exp"] == "HELICOIDAL":
+                        _pitch_actual = _actual.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0])
+                        _pitch_idx = PITCH_OPCIONES.index(_pitch_actual) if _pitch_actual in PITCH_OPCIONES else (6 if len(PITCH_OPCIONES) > 6 else 0)
+                        _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_exp_id}")
+                    else:
+                        _actual["pitch"] = 1.0
+                        st.info("Pitch no aplica")
+                with _col_r:
+                    _rot_actual = _actual.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0])
+                    _rot_idx = ROT_TUBO.index(_rot_actual) if _rot_actual in ROT_TUBO else (1 if len(ROT_TUBO) > 1 else 0)
+                    _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_exp_id}")
 
-    # Cálculos automáticos
-    cob = calcular_cobertura_helical(conf_det, pitch)
-    cob_str = f"{cob} mm/rot" if isinstance(cob, float) else "—"
+                _ret_actual = _actual.get("retardo", RETARDOS[0])
+                _ret_idx = RETARDOS.index(_ret_actual) if _ret_actual in RETARDOS else 0
+                _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_exp_id}")
 
-    grosor_float = float(grosor_prosp.replace(",", ".")) if grosor_prosp else 1.0
-    ctdi = estimar_dosis_ctdi(kvp, mas_val, conf_det)
-    duracion = calcular_duracion(inicio_mm, fin_mm, cob if isinstance(cob, float) else 1, rot_tubo)
-    ruido_est = nivel_ruido_estimado(mas_val, kvp, grosor_float)
+                st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
+                _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
+                _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
 
-    st.session_state["kvp"] = kvp
-    st.session_state["mas_val"] = mas_val
-    st.session_state["ctdi"] = ctdi
-    st.session_state["ruido_est"] = ruido_est
+                _col_ini, _col_fin = st.columns(2)
+                with _col_ini:
+                    _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
+                    _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
+                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
+                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
+                with _col_fin:
+                    _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
+                    _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
+                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
+                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
 
-    st.markdown("---")
-    st.markdown("**Resumen calculado automáticamente**")
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-        st.metric("Cobertura/rot.", cob_str)
-    with col_m2:
-        st.metric("CTDIvol estimado", f"{ctdi} mGy" if ctdi != "—" else "—")
-    with col_m3:
-        st.metric("Duración scan", f"{duracion} sg" if duracion != "—" else "—")
-    with col_m4:
-        st.metric("Ruido relativo", f"{ruido_est}" if ruido_est != "—" else "—")
+            _kvp = _actual.get("kvp", 120)
+            _mas_val = _actual.get("mas_val", 200)
+            _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
+            _pitch = _actual.get("pitch", 1.0)
+            _rot_tubo = _actual.get("rot_tubo", ROT_TUBO[0])
+            _ini_mm = _actual.get("ini_mm", 0)
+            _fin_mm = _actual.get("fin_mm", 400)
+            _grosor_float = float(str(_actual.get("grosor_prosp", 1.0)).replace(",", ".")) if _actual.get("grosor_prosp") is not None else 1.0
 
-    if isinstance(ctdi, float) and ctdi > 30:
-        st.markdown('<div class="alert-warn">⚠️ Dosis estimada elevada. Considere reducir mAs o usar modulación automática.</div>', unsafe_allow_html=True)
-    elif isinstance(ctdi, float):
-        st.markdown('<div class="alert-info">✅ Dosis dentro de rangos aceptables para este protocolo.</div>', unsafe_allow_html=True)
+            _cob = calcular_cobertura_helical(_conf_det, _pitch)
+            _cob_str = f"{_cob} mm/rot" if isinstance(_cob, float) else "—"
+            _ctdi = estimar_dosis_ctdi(_kvp, _mas_val, _conf_det)
+            _duracion = calcular_duracion(_ini_mm, _fin_mm, _cob if isinstance(_cob, float) else 1, _rot_tubo)
+            _ruido_est = nivel_ruido_estimado(_mas_val, _kvp, _grosor_float)
+
+            _actual["ctdi"] = _ctdi
+            _actual["ruido_est"] = _ruido_est
+            _actual["cobertura"] = _cob
+            _actual["duracion"] = _duracion
+
+            st.markdown("---")
+            st.markdown("**Resumen calculado automáticamente**")
+            _col_m1, _col_m2, _col_m3, _col_m4 = st.columns(4)
+            with _col_m1:
+                st.metric("Cobertura/rot.", _cob_str)
+            with _col_m2:
+                st.metric("CTDIvol estimado", f"{_ctdi} mGy" if _ctdi != "—" else "—")
+            with _col_m3:
+                st.metric("Duración scan", f"{_duracion} sg" if _duracion != "—" else "—")
+            with _col_m4:
+                st.metric("Ruido relativo", f"{_ruido_est}" if _ruido_est != "—" else "—")
+
+            if isinstance(_ctdi, float) and _ctdi > 30:
+                st.markdown('<div class="alert-warn">⚠️ Dosis estimada elevada. Considere reducir mAs o usar modulación automática.</div>', unsafe_allow_html=True)
+            elif isinstance(_ctdi, float):
+                st.markdown('<div class="alert-info">✅ Dosis dentro de rangos aceptables para esta exploración.</div>', unsafe_allow_html=True)
+
+            st.markdown('<div class="param-summary">', unsafe_allow_html=True)
+            st.markdown(f"""
+**Resumen de la exploración activa:**
+- Nombre: `{_actual.get('nombre', '—')}`
+- Tipo: `{_actual.get('tipo_exp', '—')}` | Modulación: `{_actual.get('mod_corriente', '—')}`
+- kV: `{_actual.get('kvp', '—')}` | mAs / referencia: `{_actual.get('mas_val', '—')}`
+- Detectores: `{_actual.get('conf_det', '—')}` | Pitch: `{_actual.get('pitch', '—')}` | Rotación: `{_actual.get('rot_tubo', '—')}` sg
+- Inicio: `{_actual.get('inicio_ref', '—')}` + `{_actual.get('ini_mm', 0)}` mm
+- Fin: `{_actual.get('fin_ref', '—')}` + `{_actual.get('fin_mm', 0)}` mm
+""")
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # ───────────────────────────────────────────────────────────────
 # TAB 3: RECONSTRUCCIÓN
 # ───────────────────────────────────────────────────────────────
 with tab3:
-    col_r1, col_r2 = st.columns([1, 1])
+    region_anat_r = st.session_state.get("region_anat", "CUERPO")
 
-    with col_r1:
-        st.markdown('<div class="section-header">🔄 Parámetros de Reconstrucción</div>', unsafe_allow_html=True)
-        fase_recons = st.selectbox("Fase a reconstruir", FASES_RECONS)
-        st.session_state["fase_recons"] = fase_recons
+    def _crear_reconstruccion_base(exp_id, numero):
+        _ventana_def = list(VENTANAS.keys())[0] if len(VENTANAS) > 0 else "Personalizada"
+        _ww_def = VENTANAS[_ventana_def]["ww"] if _ventana_def in VENTANAS else 400
+        _wl_def = VENTANAS[_ventana_def]["wl"] if _ventana_def in VENTANAS else 40
+        _refs_ini_local = REFS_INICIO.get(region_anat_r, REFS_INICIO["CUERPO"])
+        _refs_fin_local = REFS_FIN.get(region_anat_r, REFS_FIN["CUERPO"])
+        _tipo_recons_def = TIPOS_RECONS[0] if len(TIPOS_RECONS) > 0 else "FILTRO"
+        _algoritmo_def = ALGORITMOS_ITERATIVOS[0] if len(ALGORITMOS_ITERATIVOS) > 0 else "—"
+        _niveles_def = NIVEL_ITERATIVO.get(_algoritmo_def, [1])
+        return {
+            "id": f"{exp_id}_rec_{numero}",
+            "nombre": f"Reconstrucción {numero}",
+            "fase_recons": st.session_state.get("fase_recons", FASES_RECONS[0] if len(FASES_RECONS) > 0 else "—"),
+            "tipo_recons": st.session_state.get("tipo_recons", _tipo_recons_def),
+            "algoritmo_iter": st.session_state.get("algoritmo_iter", _algoritmo_def),
+            "nivel_iter": st.session_state.get("nivel_iter", _niveles_def[0] if len(_niveles_def) > 0 else "—"),
+            "kernel_sel": st.session_state.get("kernel_sel", KERNELS[1] if len(KERNELS) > 1 else KERNELS[0]),
+            "grosor_recons": st.session_state.get("grosor_recons", GROSORES_RECONS[6] if len(GROSORES_RECONS) > 6 else GROSORES_RECONS[0]),
+            "incremento": st.session_state.get("incremento", INCREMENTOS_RECONS[4] if len(INCREMENTOS_RECONS) > 4 else INCREMENTOS_RECONS[0]),
+            "ventana_preset": st.session_state.get("ventana_preset", _ventana_def),
+            "ww_val": int(st.session_state.get("ww_val", _ww_def)),
+            "wl_val": int(st.session_state.get("wl_val", _wl_def)),
+            "dfov": st.session_state.get("dfov", DFOV_OPCIONES[2] if len(DFOV_OPCIONES) > 2 else DFOV_OPCIONES[0]),
+            "inicio_recons": st.session_state.get("inicio_recons", _refs_ini_local[0]),
+            "fin_recons": st.session_state.get("fin_recons", _refs_fin_local[0]),
+        }
 
-        tipo_recons = st.selectbox("Tipo de reconstrucción", TIPOS_RECONS)
+    def _reindexar_reconstrucciones(exp_id):
+        _lista_local = st.session_state["reconstrucciones_por_exp"].get(exp_id, [])
+        for _idx_local, _rec_local in enumerate(_lista_local, start=1):
+            _rec_local["id"] = f"{exp_id}_rec_{_idx_local}"
+            _rec_local["nombre"] = f"Reconstrucción {_idx_local}"
 
-        if tipo_recons == "RECONS. ITERATIVA":
-            algoritmo_iter = st.selectbox("Algoritmo iterativo", ALGORITMOS_ITERATIVOS)
-            niveles_disp = NIVEL_ITERATIVO.get(algoritmo_iter, [1])
-            nivel_iter = st.selectbox("Nivel / Porcentaje / Modo", niveles_disp)
+    _adquisiciones_validas = [e for e in st.session_state.get("exploraciones_adq", []) if e.get("tipo") == "adquisicion"]
+
+    if "reconstrucciones_por_exp" not in st.session_state:
+        st.session_state["reconstrucciones_por_exp"] = {}
+    if "recon_activa_por_exp" not in st.session_state:
+        st.session_state["recon_activa_por_exp"] = {}
+
+    _ids_adq_validos = [e.get("id") for e in _adquisiciones_validas]
+
+    # Sincronizar adquisiciones con reconstrucciones
+    for _exp in _adquisiciones_validas:
+        _exp_id = _exp.get("id")
+        if _exp_id not in st.session_state["reconstrucciones_por_exp"] or not st.session_state["reconstrucciones_por_exp"][_exp_id]:
+            st.session_state["reconstrucciones_por_exp"][_exp_id] = [_crear_reconstruccion_base(_exp_id, 1)]
+        _reindexar_reconstrucciones(_exp_id)
+        _ids_rec = [r.get("id") for r in st.session_state["reconstrucciones_por_exp"][_exp_id]]
+        if st.session_state["recon_activa_por_exp"].get(_exp_id) not in _ids_rec:
+            st.session_state["recon_activa_por_exp"][_exp_id] = _ids_rec[0]
+
+    # Eliminar adquisiciones obsoletas
+    for _exp_id_existente in list(st.session_state["reconstrucciones_por_exp"].keys()):
+        if _exp_id_existente not in _ids_adq_validos:
+            st.session_state["reconstrucciones_por_exp"].pop(_exp_id_existente, None)
+            st.session_state["recon_activa_por_exp"].pop(_exp_id_existente, None)
+
+    if "exploracion_rec_activa" not in st.session_state:
+        st.session_state["exploracion_rec_activa"] = _ids_adq_validos[0] if len(_ids_adq_validos) > 0 else None
+
+    if st.session_state.get("exploracion_rec_activa") not in _ids_adq_validos:
+        st.session_state["exploracion_rec_activa"] = _ids_adq_validos[0] if len(_ids_adq_validos) > 0 else None
+
+    col_nav_rec, col_det_rec = st.columns([0.95, 2.4])
+
+    with col_nav_rec:
+        st.markdown('<div class="section-header">🧩 Adquisiciones</div>', unsafe_allow_html=True)
+        st.caption("Selecciona una adquisición para programar sus reconstrucciones.")
+
+        if len(_adquisiciones_validas) == 0:
+            st.info("Primero agrega al menos una exploración en la pestaña Adquisición.")
         else:
-            algoritmo_iter = "—"
-            nivel_iter = "—"
+            for _exp in _adquisiciones_validas:
+                _exp_id = _exp.get("id")
+                _activa = st.session_state.get("exploracion_rec_activa") == _exp_id
+                _n_rec = len(st.session_state["reconstrucciones_por_exp"].get(_exp_id, []))
+                _label = f"⚡ {_exp.get('nombre', _exp_id)}"
+                st.caption(f"{_exp.get('tipo_exp', 'HELICOIDAL')} · {_n_rec} reconstrucción(es)")
+                if st.button(
+                    _label,
+                    key=f"btn_rec_sel_{_exp_id}",
+                    use_container_width=True,
+                    type="primary" if _activa else "secondary",
+                ):
+                    st.session_state["exploracion_rec_activa"] = _exp_id
+                    st.rerun()
+                st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
-        kernel_sel = st.selectbox("Algoritmo (Kernel)", KERNELS, index=1)
-        st.session_state["kernel_sel"] = kernel_sel
+    with col_det_rec:
+        if len(_adquisiciones_validas) == 0 or st.session_state.get("exploracion_rec_activa") is None:
+            st.warning("No hay adquisiciones disponibles para reconstruir.")
+        else:
+            _exp_activa = next((e for e in _adquisiciones_validas if e.get("id") == st.session_state.get("exploracion_rec_activa")), None)
 
-        col_gr, col_inc = st.columns(2)
-        with col_gr:
-            grosor_recons = st.selectbox("Grosor reconstrucción", GROSORES_RECONS, index=6)
-            st.session_state["grosor_recons"] = grosor_recons
-        with col_inc:
-            incremento = st.selectbox("Incremento", INCREMENTOS_RECONS, index=4)
+            if _exp_activa is None:
+                st.warning("No se pudo cargar la adquisición seleccionada.")
+            else:
+                _exp_id = _exp_activa.get("id")
+                _recs_exp = st.session_state["reconstrucciones_por_exp"].get(_exp_id, [])
+                _rec_activa_id = st.session_state["recon_activa_por_exp"].get(_exp_id, _recs_exp[0]["id"])
+                _rec_actual = next((r for r in _recs_exp if r.get("id") == _rec_activa_id), _recs_exp[0])
+                st.session_state["recon_activa_por_exp"][_exp_id] = _rec_actual.get("id")
 
-    with col_r2:
-        st.markdown('<div class="section-header">🪟 Ventana de Visualización</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="section-header">🔄 Reconstrucciones de {_exp_activa.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
+                st.caption("Puedes programar una o más reconstrucciones para esta adquisición.")
 
-        ventana_preset = st.selectbox("Ventana preset", list(VENTANAS.keys()))
-        ww_default = VENTANAS[ventana_preset]["ww"]
-        wl_default = VENTANAS[ventana_preset]["wl"]
+                _cols_rec_nav = st.columns([1, 1, 1, 0.8, 0.8, 0.8])
+                _boton_cols = _cols_rec_nav[:3]
+                for _idx_btn, _rec_btn in enumerate(_recs_exp[:3]):
+                    with _boton_cols[_idx_btn]:
+                        if st.button(
+                            f"🧱 {_rec_btn.get('nombre', 'Reconstrucción')}",
+                            key=f"btn_rec_item_{_rec_btn['id']}",
+                            use_container_width=True,
+                            type="primary" if _rec_btn.get("id") == _rec_actual.get("id") else "secondary",
+                        ):
+                            st.session_state["recon_activa_por_exp"][_exp_id] = _rec_btn.get("id")
+                            st.rerun()
 
-        col_ww, col_wl = st.columns(2)
-        with col_ww:
-            ww_val = st.number_input("WW (Ancho)", min_value=1, max_value=4000,
-                                      value=ww_default, key="ww_input")
-        with col_wl:
-            wl_val = st.number_input("WL / Nivel", min_value=-1500, max_value=3000,
-                                      value=wl_default, key="wl_input")
+                # Si hay más de 3 reconstrucciones, mostrarlas debajo
+                if len(_recs_exp) > 3:
+                    _cols_extra = st.columns(min(len(_recs_exp) - 3, 4))
+                    for _idx_extra, _rec_btn in enumerate(_recs_exp[3:7]):
+                        with _cols_extra[_idx_extra]:
+                            if st.button(
+                                f"🧱 {_rec_btn.get('nombre', 'Reconstrucción')}",
+                                key=f"btn_rec_item_extra_{_rec_btn['id']}",
+                                use_container_width=True,
+                                type="primary" if _rec_btn.get("id") == _rec_actual.get("id") else "secondary",
+                            ):
+                                st.session_state["recon_activa_por_exp"][_exp_id] = _rec_btn.get("id")
+                                st.rerun()
 
-        st.session_state["ww_val"] = ww_val
-        st.session_state["wl_val"] = wl_val
+                _c_add, _c_dup, _c_del = st.columns([1, 1, 1])
+                with _c_add:
+                    if st.button("➕ Agregar reconstrucción", use_container_width=True, key=f"add_rec_{_exp_id}", type="secondary"):
+                        _nuevo_num = len(_recs_exp) + 1
+                        st.session_state["reconstrucciones_por_exp"][_exp_id].append(_crear_reconstruccion_base(_exp_id, _nuevo_num))
+                        _reindexar_reconstrucciones(_exp_id)
+                        st.session_state["recon_activa_por_exp"][_exp_id] = f"{_exp_id}_rec_{_nuevo_num}"
+                        st.rerun()
+                with _c_dup:
+                    if st.button("📄 Duplicar reconstrucción", use_container_width=True, key=f"dup_rec_{_exp_id}", type="secondary"):
+                        _copia_rec = dict(_rec_actual)
+                        st.session_state["reconstrucciones_por_exp"][_exp_id].append(_copia_rec)
+                        _reindexar_reconstrucciones(_exp_id)
+                        _nuevo_id = st.session_state["reconstrucciones_por_exp"][_exp_id][-1]["id"]
+                        st.session_state["recon_activa_por_exp"][_exp_id] = _nuevo_id
+                        st.rerun()
+                with _c_del:
+                    _deshabilitar_del = len(_recs_exp) <= 1
+                    if st.button("🗑️ Eliminar reconstrucción", use_container_width=True, key=f"del_rec_{_exp_id}", type="secondary", disabled=_deshabilitar_del):
+                        st.session_state["reconstrucciones_por_exp"][_exp_id] = [
+                            r for r in st.session_state["reconstrucciones_por_exp"][_exp_id]
+                            if r.get("id") != _rec_actual.get("id")
+                        ]
+                        _reindexar_reconstrucciones(_exp_id)
+                        _primer_id = st.session_state["reconstrucciones_por_exp"][_exp_id][0]["id"]
+                        st.session_state["recon_activa_por_exp"][_exp_id] = _primer_id
+                        st.rerun()
 
-        dfov = st.selectbox("DFOV", DFOV_OPCIONES, index=2)
+                st.markdown("---")
+                col_r1, col_r2 = st.columns([1, 1])
 
-        st.markdown('<div class="section-header">📍 Rango de Reconstrucción</div>', unsafe_allow_html=True)
-        region_anat_r = st.session_state.get("region_anat", "CUERPO")
-        refs_ini_r = REFS_INICIO.get(region_anat_r, REFS_INICIO["CUERPO"])
-        refs_fin_r = REFS_FIN.get(region_anat_r, REFS_FIN["CUERPO"])
+                with col_r1:
+                    st.markdown('<div class="section-header">🔄 Parámetros de Reconstrucción</div>', unsafe_allow_html=True)
 
-        col_ir, col_fr = st.columns(2)
-        with col_ir:
-            inicio_recons = st.selectbox("Inicio reconstrucción", refs_ini_r, key="ini_rec")
-        with col_fr:
-            fin_recons = st.selectbox("Fin reconstrucción", refs_fin_r, key="fin_rec")
+                    _fase_actual = _rec_actual.get("fase_recons", FASES_RECONS[0] if len(FASES_RECONS) > 0 else "—")
+                    _fase_idx = FASES_RECONS.index(_fase_actual) if _fase_actual in FASES_RECONS else 0
+                    _rec_actual["fase_recons"] = st.selectbox("Fase a reconstruir", FASES_RECONS, index=_fase_idx, key=f"fase_recons_{_rec_actual['id']}")
 
-    st.markdown("---")
-    st.markdown('<div class="param-summary">', unsafe_allow_html=True)
-    st.markdown(f"""
-**Resumen de reconstrucción:**
-- Fase: `{fase_recons}` | Tipo: `{tipo_recons}`
-- Algoritmo iterativo: `{algoritmo_iter}` — Nivel: `{nivel_iter}`
-- Kernel: `{kernel_sel}` | Grosor: `{grosor_recons}` | Incremento: `{incremento}`
-- Ventana: WW `{ww_val}` / WL `{wl_val}` | DFOV: `{dfov}`
-- Reconstrucción: de `{inicio_recons}` a `{fin_recons}`
+                    _tipo_actual = _rec_actual.get("tipo_recons", TIPOS_RECONS[0] if len(TIPOS_RECONS) > 0 else "FILTRO")
+                    _tipo_idx = TIPOS_RECONS.index(_tipo_actual) if _tipo_actual in TIPOS_RECONS else 0
+                    _rec_actual["tipo_recons"] = st.selectbox("Tipo de reconstrucción", TIPOS_RECONS, index=_tipo_idx, key=f"tipo_recons_{_rec_actual['id']}")
+
+                    if _rec_actual["tipo_recons"] == "RECONS. ITERATIVA":
+                        _alg_actual = _rec_actual.get("algoritmo_iter", ALGORITMOS_ITERATIVOS[0] if len(ALGORITMOS_ITERATIVOS) > 0 else "—")
+                        _alg_idx = ALGORITMOS_ITERATIVOS.index(_alg_actual) if _alg_actual in ALGORITMOS_ITERATIVOS else 0
+                        _rec_actual["algoritmo_iter"] = st.selectbox("Algoritmo iterativo", ALGORITMOS_ITERATIVOS, index=_alg_idx, key=f"alg_iter_{_rec_actual['id']}")
+                        _niveles_disp = NIVEL_ITERATIVO.get(_rec_actual["algoritmo_iter"], [1])
+                        _nivel_actual = _rec_actual.get("nivel_iter", _niveles_disp[0] if len(_niveles_disp) > 0 else "—")
+                        _nivel_idx = _niveles_disp.index(_nivel_actual) if _nivel_actual in _niveles_disp else 0
+                        _rec_actual["nivel_iter"] = st.selectbox("Nivel / Porcentaje / Modo", _niveles_disp, index=_nivel_idx, key=f"nivel_iter_{_rec_actual['id']}")
+                    else:
+                        _rec_actual["algoritmo_iter"] = "—"
+                        _rec_actual["nivel_iter"] = "—"
+
+                    _kernel_actual = _rec_actual.get("kernel_sel", KERNELS[1] if len(KERNELS) > 1 else KERNELS[0])
+                    _kernel_idx = KERNELS.index(_kernel_actual) if _kernel_actual in KERNELS else (1 if len(KERNELS) > 1 else 0)
+                    _rec_actual["kernel_sel"] = st.selectbox("Algoritmo (Kernel)", KERNELS, index=_kernel_idx, key=f"kernel_sel_{_rec_actual['id']}")
+
+                    col_gr, col_inc = st.columns(2)
+                    with col_gr:
+                        _grosor_actual = _rec_actual.get("grosor_recons", GROSORES_RECONS[6] if len(GROSORES_RECONS) > 6 else GROSORES_RECONS[0])
+                        _grosor_idx = GROSORES_RECONS.index(_grosor_actual) if _grosor_actual in GROSORES_RECONS else (6 if len(GROSORES_RECONS) > 6 else 0)
+                        _rec_actual["grosor_recons"] = st.selectbox("Grosor reconstrucción", GROSORES_RECONS, index=_grosor_idx, key=f"grosor_recons_{_rec_actual['id']}")
+                    with col_inc:
+                        _inc_actual = _rec_actual.get("incremento", INCREMENTOS_RECONS[4] if len(INCREMENTOS_RECONS) > 4 else INCREMENTOS_RECONS[0])
+                        _inc_idx = INCREMENTOS_RECONS.index(_inc_actual) if _inc_actual in INCREMENTOS_RECONS else (4 if len(INCREMENTOS_RECONS) > 4 else 0)
+                        _rec_actual["incremento"] = st.selectbox("Incremento", INCREMENTOS_RECONS, index=_inc_idx, key=f"incremento_{_rec_actual['id']}")
+
+                with col_r2:
+                    st.markdown('<div class="section-header">🪟 Ventana de Visualización</div>', unsafe_allow_html=True)
+
+                    _ventanas_disp = list(VENTANAS.keys())
+                    _preset_actual = _rec_actual.get("ventana_preset", _ventanas_disp[0])
+                    _preset_idx = _ventanas_disp.index(_preset_actual) if _preset_actual in _ventanas_disp else 0
+                    _rec_actual["ventana_preset"] = st.selectbox("Ventana preset", _ventanas_disp, index=_preset_idx, key=f"preset_{_rec_actual['id']}")
+
+                    _ww_default = VENTANAS[_rec_actual["ventana_preset"]]["ww"]
+                    _wl_default = VENTANAS[_rec_actual["ventana_preset"]]["wl"]
+
+                    col_ww, col_wl = st.columns(2)
+                    with col_ww:
+                        _rec_actual["ww_val"] = st.number_input(
+                            "WW (Ancho)", min_value=1, max_value=4000,
+                            value=int(_rec_actual.get("ww_val", _ww_default)), key=f"ww_{_rec_actual['id']}"
+                        )
+                    with col_wl:
+                        _rec_actual["wl_val"] = st.number_input(
+                            "WL / Nivel", min_value=-1500, max_value=3000,
+                            value=int(_rec_actual.get("wl_val", _wl_default)), key=f"wl_{_rec_actual['id']}"
+                        )
+
+                    _dfov_actual = _rec_actual.get("dfov", DFOV_OPCIONES[2] if len(DFOV_OPCIONES) > 2 else DFOV_OPCIONES[0])
+                    _dfov_idx = DFOV_OPCIONES.index(_dfov_actual) if _dfov_actual in DFOV_OPCIONES else (2 if len(DFOV_OPCIONES) > 2 else 0)
+                    _rec_actual["dfov"] = st.selectbox("DFOV", DFOV_OPCIONES, index=_dfov_idx, key=f"dfov_{_rec_actual['id']}")
+
+                    st.markdown('<div class="section-header">📍 Rango de Reconstrucción</div>', unsafe_allow_html=True)
+                    refs_ini_r = REFS_INICIO.get(region_anat_r, REFS_INICIO["CUERPO"])
+                    refs_fin_r = REFS_FIN.get(region_anat_r, REFS_FIN["CUERPO"])
+
+                    col_ir, col_fr = st.columns(2)
+                    with col_ir:
+                        _ini_actual = _rec_actual.get("inicio_recons", refs_ini_r[0])
+                        _ini_idx = refs_ini_r.index(_ini_actual) if _ini_actual in refs_ini_r else 0
+                        _rec_actual["inicio_recons"] = st.selectbox("Inicio reconstrucción", refs_ini_r, index=_ini_idx, key=f"ini_rec_{_rec_actual['id']}")
+                    with col_fr:
+                        _fin_actual = _rec_actual.get("fin_recons", refs_fin_r[0])
+                        _fin_idx = refs_fin_r.index(_fin_actual) if _fin_actual in refs_fin_r else 0
+                        _rec_actual["fin_recons"] = st.selectbox("Fin reconstrucción", refs_fin_r, index=_fin_idx, key=f"fin_rec_{_rec_actual['id']}")
+
+                st.markdown("---")
+                st.markdown('<div class="param-summary">', unsafe_allow_html=True)
+                st.markdown(f"""
+**Resumen de reconstrucción activa:**
+- Adquisición base: `{_exp_activa.get('nombre', '—')}` | Tipo adquisición: `{_exp_activa.get('tipo_exp', '—')}`
+- Nombre reconstrucción: `{_rec_actual.get('nombre', '—')}` | Fase: `{_rec_actual.get('fase_recons', '—')}`
+- Tipo: `{_rec_actual.get('tipo_recons', '—')}` | Algoritmo iterativo: `{_rec_actual.get('algoritmo_iter', '—')}` | Nivel: `{_rec_actual.get('nivel_iter', '—')}`
+- Kernel: `{_rec_actual.get('kernel_sel', '—')}` | Grosor: `{_rec_actual.get('grosor_recons', '—')}` | Incremento: `{_rec_actual.get('incremento', '—')}`
+- Ventana: `{_rec_actual.get('ventana_preset', '—')}` | WW/WL: `{_rec_actual.get('ww_val', '—')}` / `{_rec_actual.get('wl_val', '—')}` | DFOV: `{_rec_actual.get('dfov', '—')}`
+- Reconstrucción: de `{_rec_actual.get('inicio_recons', '—')}` a `{_rec_actual.get('fin_recons', '—')}`
 """)
-    st.markdown('</div>', unsafe_allow_html=True)
-
+                st.markdown('</div>', unsafe_allow_html=True)
 # ───────────────────────────────────────────────────────────────
 # TAB 4: JERINGA INYECTORA
 # ───────────────────────────────────────────────────────────────
