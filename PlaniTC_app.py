@@ -326,6 +326,13 @@ def cargar_tabla_topogramas_adquiridos():
     return df
 
 
+def _reparar_nombre_zip(name):
+    try:
+        reparado = name.encode("cp437").decode("utf-8")
+    except Exception:
+        reparado = name
+    return reparado
+
 @st.cache_data
 def cargar_indice_zip_topogramas():
     indice = {}
@@ -335,7 +342,8 @@ def cargar_indice_zip_topogramas():
         for name in zf.namelist():
             if name.endswith("/") or "__MACOSX" in name:
                 continue
-            base = Path(name).name
+            name_ok = _reparar_nombre_zip(name)
+            base = Path(name_ok).name
             stem = Path(base).stem
             indice[_norm_topo_texto(base)] = name
             indice[_norm_topo_texto(stem)] = name
