@@ -1080,9 +1080,9 @@ def render_topogramas_independientes_interactivos(topos, width=760):
     if not topos:
         return None
 
-    # Se muestran aproximadamente a la mitad del tamaño visual anterior.
-    canvas_css_width = 170 if len(topos) > 1 else 230
-    canvas_css_height = 250 if len(topos) > 1 else 290
+    # Se muestran aproximadamente un tercio más grandes que el tamaño actual.
+    canvas_css_width = 227 if len(topos) > 1 else 307
+    canvas_css_height = 333 if len(topos) > 1 else 387
     canvas_width = 420
     canvas_height = 640
     min_col_width = canvas_css_width
@@ -1118,11 +1118,11 @@ def render_topogramas_independientes_interactivos(topos, width=760):
         return None
 
     html = f"""
-<div style="text-align:center; margin:0.1rem 0 0.2rem 0;">
-  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:8px;">
+<div style="text-align:center; margin:0 0 0 0;">
+  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;">
     Arrastra las líneas para ajustar el rango de exploración. Cada imagen se mueve de forma independiente.
   </div>
-  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; justify-content:center;">
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;">
     {''.join(cols_html)}
   </div>
 </div>
@@ -2457,8 +2457,8 @@ with tab2:
 
                 _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq)
                 if _html_topos_adq:
-                    st.components.v1.html(_html_topos_adq, height=620 if len(_topos_adq) > 1 else 700)
-                    st.markdown("<div style='margin-top:-6px; margin-bottom:0.15rem;'></div>", unsafe_allow_html=True)
+                    st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
+                    st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
                 else:
                     st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
 
