@@ -2152,13 +2152,17 @@ with tab2:
             _exp_id = _actual["id"]
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
-            _nombre_idx = NOMBRES_EXPLORACION.index(_actual.get("nombre", NOMBRES_EXPLORACION[0])) if _actual.get("nombre", NOMBRES_EXPLORACION[0]) in NOMBRES_EXPLORACION else 0
-            _actual["nombre"] = st.selectbox(
+            _key_nombre = f"nombre_{_exp_id}"
+            if _key_nombre not in st.session_state:
+                st.session_state[_key_nombre] = _actual.get("nombre", NOMBRES_EXPLORACION[0])
+            _nombre_idx = NOMBRES_EXPLORACION.index(st.session_state[_key_nombre]) if st.session_state[_key_nombre] in NOMBRES_EXPLORACION else 0
+            st.selectbox(
                 "Nombre de la exploración",
                 NOMBRES_EXPLORACION,
                 index=_nombre_idx,
-                key=f"nombre_{_exp_id}",
+                key=_key_nombre,
             )
+            _actual["nombre"] = st.session_state[_key_nombre]
 
             st.markdown('<div class="section-header">🖼️ Topograma(s) en esta adquisición</div>', unsafe_allow_html=True)
             _hay_topo1 = st.session_state.get("topograma_iniciado", False)
@@ -2321,17 +2325,34 @@ with tab2:
                 _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
                 _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
 
+                _key_ini_ref = f"iniref_{_exp_id}"
+                _key_ini_mm = f"inimm_{_exp_id}"
+                _key_fin_ref = f"finref_{_exp_id}"
+                _key_fin_mm = f"finmm_{_exp_id}"
+
+                if _key_ini_ref not in st.session_state:
+                    st.session_state[_key_ini_ref] = _actual.get("inicio_ref", _refs_ini[0]) if _actual.get("inicio_ref", _refs_ini[0]) in _refs_ini else _refs_ini[0]
+                if _key_ini_mm not in st.session_state:
+                    st.session_state[_key_ini_mm] = int(_actual.get("ini_mm", 0))
+                if _key_fin_ref not in st.session_state:
+                    st.session_state[_key_fin_ref] = _actual.get("fin_ref", _refs_fin_lista[0]) if _actual.get("fin_ref", _refs_fin_lista[0]) in _refs_fin_lista else _refs_fin_lista[0]
+                if _key_fin_mm not in st.session_state:
+                    st.session_state[_key_fin_mm] = int(_actual.get("fin_mm", 400))
+
                 _col_ini, _col_fin = st.columns(2)
                 with _col_ini:
-                    _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
-                    _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
-                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
-                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
+                    _ini_ref_idx = _refs_ini.index(st.session_state[_key_ini_ref]) if st.session_state[_key_ini_ref] in _refs_ini else 0
+                    st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=_key_ini_ref)
+                    st.number_input("mm inicio", step=10, key=_key_ini_mm)
                 with _col_fin:
-                    _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
-                    _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
-                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
-                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
+                    _fin_ref_idx = _refs_fin_lista.index(st.session_state[_key_fin_ref]) if st.session_state[_key_fin_ref] in _refs_fin_lista else 0
+                    st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=_key_fin_ref)
+                    st.number_input("mm fin", step=10, key=_key_fin_mm)
+
+                _actual["inicio_ref"] = st.session_state[_key_ini_ref]
+                _actual["ini_mm"] = int(st.session_state[_key_ini_mm])
+                _actual["fin_ref"] = st.session_state[_key_fin_ref]
+                _actual["fin_mm"] = int(st.session_state[_key_fin_mm])
 
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
