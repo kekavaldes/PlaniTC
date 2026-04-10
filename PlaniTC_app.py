@@ -14,7 +14,6 @@ import unicodedata
 import pandas as pd
 from PIL import Image
 from datetime import date, datetime
-import uuid
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -545,7 +544,6 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
 TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"]
 
 MODULACION_CORRIENTE = ["MANUAL", "AUTO mA", "CARE DOSE 4D"]
-NOMBRES_EXPLORACION = ["SIN CONTRASTE", "ANGIOGRÁFICA", "BOLUS TEST O BOLUS TRACKING", "VENOSA", "TARDÍA"]
 
 KVP_OPCIONES = [70, 80, 90, 100, 110, 120, 140]
 
@@ -1986,9 +1984,8 @@ with tab2:
     def _crear_exploracion_adq(numero):
         return {
             "id": f"exp_{numero}",
-            "uid": uuid.uuid4().hex,
             "tipo": "adquisicion",
-            "nombre": st.session_state.get("nombre_exploracion", NOMBRES_EXPLORACION[0]),
+            "nombre": f"Exploración {numero}",
             "tipo_exp": st.session_state.get("tipo_exp", TIPOS_EXPLORACION[0]),
             "doble_muestreo": st.session_state.get("doble_muestreo", "NO"),
             "voz_adq": st.session_state.get("voz_adq", INSTRUCCIONES_VOZ[0]),
@@ -2015,8 +2012,7 @@ with tab2:
         for _exp in st.session_state["exploraciones_adq"]:
             if _exp.get("tipo") == "adquisicion":
                 _exp["id"] = f"exp_{_contador}"
-                if not _exp.get("uid"):
-                    _exp["uid"] = uuid.uuid4().hex
+                _exp["nombre"] = f"Exploración {_contador}"
                 _contador += 1
 
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
@@ -2027,10 +2023,6 @@ with tab2:
 
     if "exploracion_adq_activa" not in st.session_state:
         st.session_state["exploracion_adq_activa"] = "topograma"
-
-    for _exp in st.session_state["exploraciones_adq"]:
-        if _exp.get("tipo") == "adquisicion" and not _exp.get("uid"):
-            _exp["uid"] = uuid.uuid4().hex
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2123,7 +2115,7 @@ with tab2:
                 _nuevo_numero = len(_existentes) + 1
                 _copia = dict(_exp_activa_nav)
                 _copia["id"] = f"exp_{_nuevo_numero}"
-                _copia["uid"] = uuid.uuid4().hex
+                _copia["nombre"] = f"Exploración {_nuevo_numero}"
                 st.session_state["exploraciones_adq"].append(_copia)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = f"exp_{_nuevo_numero}"
@@ -2220,36 +2212,112 @@ with tab2:
 
         else:
             _exp_id = _actual["id"]
-            _widget_id = _actual.get("uid", _exp_id)
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
-            _nombre_idx = NOMBRES_EXPLORACION.index(_actual.get("nombre", NOMBRES_EXPLORACION[0])) if _actual.get("nombre", NOMBRES_EXPLORACION[0]) in NOMBRES_EXPLORACION else 0
+            _opciones_nombre_exp = [
+                "SIN CONTRASTE",
+                "ARTERIAL",
+                "ANGIOGRÁFICA",
+                "BOLUS TEST O BOLUS TRACKING",
+                "VENOSA",
+                "TARDÍA",
+            ]
+            _nombre_actual = _actual.get("nombre", _opciones_nombre_exp[0])
+            _nombre_idx = _opciones_nombre_exp.index(_nombre_actual) if _nombre_actual in _opciones_nombre_exp else 0
             _actual["nombre"] = st.selectbox(
                 "Nombre de la exploración",
-                NOMBRES_EXPLORACION,
+                _opciones_nombre_exp,
                 index=_nombre_idx,
-                key=f"nombre_{_widget_id}",
+                key=f"nombre_{_exp_id}",
             )
 
-            col_adq1, col_adq2 = st.columns([1, 1])
+            _hay_topo1_adq = st.session_state.get("topograma_iniciado", False)
+            _hay_topo2_adq = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
+            _topos_adq = []
+            _errores_topos_adq = []
+
+            if _hay_topo1_adq:
+                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("posicion", ""),
+                    st.session_state.get("entrada", ""),
+                    st.session_state.get("t1pt", ""),
+                )
+                if _img_adq_1 is not None:
+                    _topos_adq.append({
+                        "titulo": "✅ Topograma 1",
+                        "subtitulo": (
+                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
+                            f"{st.session_state.get('t1l', '—')} mm · "
+                            f"{st.session_state.get('t1kv', '—')} kV · "
+                            f"{st.session_state.get('t1ma', '—')} mA"
+                        ),
+                        "img_b64": _pil_to_b64_jpeg(_img_adq_1),
+                    })
+                else:
+                    _errores_topos_adq.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
+
+            if _hay_topo2_adq:
+                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("t2_posicion_paciente", ""),
+                    st.session_state.get("t2_entrada", ""),
+                    st.session_state.get("t2pt", ""),
+                )
+                if _img_adq_2 is not None:
+                    _topos_adq.append({
+                        "titulo": "✅ Topograma 2",
+                        "subtitulo": (
+                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
+                            f"{st.session_state.get('t2l', '—')} mm · "
+                            f"{st.session_state.get('t2kv', '—')} kV · "
+                            f"{st.session_state.get('t2ma', '—')} mA"
+                        ),
+                        "img_b64": _pil_to_b64_jpeg(_img_adq_2),
+                    })
+                else:
+                    _errores_topos_adq.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
+
+            _refs_ini_adq = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
+            _refs_fin_adq = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
+            _ini_ref_topo_adq = _actual.get("inicio_ref", _refs_ini_adq[0])
+            _fin_ref_topo_adq = _actual.get("fin_ref", _refs_fin_adq[0])
+
+            if _topos_adq:
+                _html_topos_adq = render_topogramas_programados_interactivos(
+                    _topos_adq,
+                    _ini_ref_topo_adq,
+                    _fin_ref_topo_adq,
+                )
+                if _html_topos_adq:
+                    st.components.v1.html(_html_topos_adq, height=590 if len(_topos_adq) > 1 else 720)
+                    st.markdown("<div style='margin-top:-14px; margin-bottom:0.2rem;'></div>", unsafe_allow_html=True)
+                else:
+                    st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
+
+            for _err_topo_adq in _errores_topos_adq:
+                if _err_topo_adq:
+                    st.warning(_err_topo_adq)
+
+            col_adq1, col_adq2 = st.columns([1, 1], gap="small")
 
             with col_adq1:
                 st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
                 _tipo_idx = TIPOS_EXPLORACION.index(_actual.get("tipo_exp", TIPOS_EXPLORACION[0])) if _actual.get("tipo_exp", TIPOS_EXPLORACION[0]) in TIPOS_EXPLORACION else 0
-                _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_widget_id}")
+                _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_exp_id}")
 
                 if _actual["tipo_exp"] == "HELICOIDAL":
                     _dm_idx = ["NO", "SI"].index(_actual.get("doble_muestreo", "NO")) if _actual.get("doble_muestreo", "NO") in ["NO", "SI"] else 0
-                    _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_widget_id}")
+                    _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_exp_id}")
                 else:
                     _actual["doble_muestreo"] = "NO"
 
                 _voz_idx = INSTRUCCIONES_VOZ.index(_actual.get("voz_adq", INSTRUCCIONES_VOZ[0])) if _actual.get("voz_adq", INSTRUCCIONES_VOZ[0]) in INSTRUCCIONES_VOZ else 0
-                _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_widget_id}")
+                _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_exp_id}")
 
                 st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
                 _mod_idx = MODULACION_CORRIENTE.index(_actual.get("mod_corriente", MODULACION_CORRIENTE[0])) if _actual.get("mod_corriente", MODULACION_CORRIENTE[0]) in MODULACION_CORRIENTE else 0
-                _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_widget_id}")
+                _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_exp_id}")
 
                 _col_kv, _col_mas = st.columns(2)
                 with _col_kv:
@@ -2260,64 +2328,64 @@ with tab2:
                         _label_kv = "CARE kV"
                     elif _actual["mod_corriente"] == "AUTO mA":
                         _label_kv = "AUTO kV"
-                    _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_widget_id}")
+                    _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_exp_id}")
 
                 with _col_mas:
                     if _actual["mod_corriente"] == "CARE DOSE 4D":
                         _mas_base = _actual.get("mas_val", 200)
                         _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                        _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_widget_id}")
+                        _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_exp_id}")
                         _ind_cal = _actual.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0])
                         _ind_cal_idx = INDICE_CALIDAD.index(_ind_cal) if _ind_cal in INDICE_CALIDAD else (4 if len(INDICE_CALIDAD) > 4 else 0)
-                        _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_widget_id}")
+                        _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_exp_id}")
                     elif _actual["mod_corriente"] == "AUTO mA":
                         _rango_ma = _actual.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0])
                         _rango_idx = RANGO_MA.index(_rango_ma) if _rango_ma in RANGO_MA else (2 if len(RANGO_MA) > 2 else 0)
-                        _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_widget_id}")
+                        _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_exp_id}")
                         try:
                             _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
                         except Exception:
                             _actual["mas_val"] = 200
                         _ind_ruido = _actual.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0])
                         _ind_ruido_idx = INDICE_RUIDO.index(_ind_ruido) if _ind_ruido in INDICE_RUIDO else (2 if len(INDICE_RUIDO) > 2 else 0)
-                        _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_widget_id}")
+                        _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_exp_id}")
                     else:
                         _mas_base = _actual.get("mas_val", 200)
                         _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                        _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_widget_id}")
+                        _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_exp_id}")
 
             with col_adq2:
                 st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
                 _conf_actual = _actual.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0])
                 _conf_idx = CONF_DETECTORES.index(_conf_actual) if _conf_actual in CONF_DETECTORES else (4 if len(CONF_DETECTORES) > 4 else 0)
-                _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_widget_id}")
+                _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_exp_id}")
 
                 _sfov_actual = _actual.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0])
                 _sfov_idx = SFOV_OPCIONES.index(_sfov_actual) if _sfov_actual in SFOV_OPCIONES else (2 if len(SFOV_OPCIONES) > 2 else 0)
-                _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_widget_id}")
+                _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_exp_id}")
 
                 _grosor_actual = str(_actual.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]))
                 _grosor_opciones = [str(g) for g in GROSOR_PROSP]
                 _grosor_idx = _grosor_opciones.index(_grosor_actual) if _grosor_actual in _grosor_opciones else (2 if len(_grosor_opciones) > 2 else 0)
-                _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_widget_id}")
+                _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_exp_id}")
 
                 _col_p, _col_r = st.columns(2)
                 with _col_p:
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         _pitch_actual = _actual.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0])
                         _pitch_idx = PITCH_OPCIONES.index(_pitch_actual) if _pitch_actual in PITCH_OPCIONES else (6 if len(PITCH_OPCIONES) > 6 else 0)
-                        _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_widget_id}")
+                        _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_exp_id}")
                     else:
                         _actual["pitch"] = 1.0
                         st.info("Pitch no aplica")
                 with _col_r:
                     _rot_actual = _actual.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0])
                     _rot_idx = ROT_TUBO.index(_rot_actual) if _rot_actual in ROT_TUBO else (1 if len(ROT_TUBO) > 1 else 0)
-                    _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_widget_id}")
+                    _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_exp_id}")
 
                 _ret_actual = _actual.get("retardo", RETARDOS[0])
                 _ret_idx = RETARDOS.index(_ret_actual) if _ret_actual in RETARDOS else 0
-                _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_widget_id}")
+                _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_exp_id}")
 
                 st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
                 _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
@@ -2327,13 +2395,13 @@ with tab2:
                 with _col_ini:
                     _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
                     _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
-                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_widget_id}")
-                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_widget_id}")
+                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
+                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
                 with _col_fin:
                     _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
                     _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
-                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_widget_id}")
-                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_widget_id}")
+                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
+                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
 
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
