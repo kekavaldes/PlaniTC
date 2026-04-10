@@ -544,7 +544,7 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
 TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"]
 
 MODULACION_CORRIENTE = ["MANUAL", "AUTO mA", "CARE DOSE 4D"]
-NOMBRES_EXPLORACION = ["SIN CONTRASTE", "ANGIOGRÁFICA", "BOLUS TEST O BOLUS TRACKING", "VENOSA", "TARDÍA"]
+NOMBRES_EXPLORACION = ["SIN CONTRASTE", "ARTERIAL", "ANGIOGRÁFICA", "BOLUS TEST O BOLUS TRACKING", "VENOSA", "TARDÍA"]
 
 KVP_OPCIONES = [70, 80, 90, 100, 110, 120, 140]
 
@@ -1135,11 +1135,11 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
         return None
 
     html = f"""
-<div style="text-align:center; margin: 0.25rem 0 0.75rem 0;">
-  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:10px;">
+<div style="text-align:center; margin: 0.15rem 0 0.2rem 0;">
+  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:4px;">
     Arrastra las líneas de cada imagen para ajustar su rango de exploración de forma independiente.
   </div>
-  <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; justify-content:center;">
+  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; justify-content:center;">
     {''.join(cols_html)}
   </div>
 </div>
@@ -2217,7 +2217,7 @@ with tab2:
                     _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
                 )
                 if _html_topos_prog:
-                    st.components.v1.html(_html_topos_prog, height=590 if len(_topos_programados) > 1 else 760)
+                    st.components.v1.html(_html_topos_prog, height=500 if len(_topos_programados) > 1 else 650)
                 else:
                     st.warning("No se pudieron renderizar los topogramas programados en esta adquisición.")
             else:
@@ -2226,8 +2226,6 @@ with tab2:
             for _err in _errores_topos:
                 if _err:
                     st.warning(_err)
-
-            st.markdown("---")
 
             col_adq1, col_adq2 = st.columns([1, 1])
 
