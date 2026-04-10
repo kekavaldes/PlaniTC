@@ -2310,6 +2310,19 @@ with tab2:
                 _copia["id"] = f"exp_{st.session_state['exploracion_adq_counter']}"
                 st.session_state["exploracion_adq_counter"] += 1
                 _copia["orden"] = _nuevo_numero
+                _copia["nombre"] = "SIN CONTRASTE"
+                _copia["inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
+                _copia["ini_mm"] = 0
+                _copia["fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
+                _copia["fin_mm"] = 400
+                _copia["topo1_inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
+                _copia["topo1_ini_mm"] = 0
+                _copia["topo1_fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
+                _copia["topo1_fin_mm"] = 400
+                _copia["topo2_inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
+                _copia["topo2_ini_mm"] = 0
+                _copia["topo2_fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
+                _copia["topo2_fin_mm"] = 400
                 st.session_state["exploraciones_adq"].append(_copia)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = _copia["id"]
