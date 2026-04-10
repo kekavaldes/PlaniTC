@@ -1470,7 +1470,8 @@ with tab1b:
                          format_func=lambda x: "Seleccionar" if x is None else x,
                 placeholder="Seleccionar", key="t1vz")
 
-        aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=False)
+        aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=st.session_state.get("aplica_topo2", False))
+        st.session_state["aplica_topo2"] = aplica_topo2
 
         st.markdown("---")
 
@@ -1762,6 +1763,60 @@ with tab1b:
 # ───────────────────────────────────────────────────────────────
 with tab2:
     region_anat = st.session_state.get("region_anat", "CUERPO")
+
+    st.markdown('<div class="section-header">🖼️ Topograma(s) programado(s)</div>', unsafe_allow_html=True)
+    _hay_topo1 = st.session_state.get("topograma_iniciado", False)
+    _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
+
+    if _hay_topo1 or _hay_topo2:
+        _ncols = 2 if (_hay_topo1 and _hay_topo2) else 1
+        _cols_topos = st.columns(_ncols)
+        _idx_col = 0
+
+        if _hay_topo1:
+            with _cols_topos[_idx_col]:
+                st.markdown('<div class="section-header">✅ Topograma 1 programado</div>', unsafe_allow_html=True)
+                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("posicion", ""),
+                    st.session_state.get("entrada", ""),
+                    st.session_state.get("t1pt", ""),
+                )
+                if _img_adq_1 is not None:
+                    st.image(_img_adq_1, use_container_width=True)
+                    st.caption(
+                        f"Tubo: {st.session_state.get('t1pt', '—')} · "
+                        f"{st.session_state.get('t1l', '—')} mm · "
+                        f"{st.session_state.get('t1kv', '—')} kV · "
+                        f"{st.session_state.get('t1ma', '—')} mA"
+                    )
+                else:
+                    st.warning(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
+                _idx_col += 1
+
+        if _hay_topo2:
+            with _cols_topos[_idx_col if _ncols > 1 else 0]:
+                st.markdown('<div class="section-header">✅ Topograma 2 programado</div>', unsafe_allow_html=True)
+                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("t2_posicion_paciente", ""),
+                    st.session_state.get("t2_entrada", ""),
+                    st.session_state.get("t2pt", ""),
+                )
+                if _img_adq_2 is not None:
+                    st.image(_img_adq_2, use_container_width=True)
+                    st.caption(
+                        f"Tubo: {st.session_state.get('t2pt', '—')} · "
+                        f"{st.session_state.get('t2l', '—')} mm · "
+                        f"{st.session_state.get('t2kv', '—')} kV · "
+                        f"{st.session_state.get('t2ma', '—')} mA"
+                    )
+                else:
+                    st.warning(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
+    else:
+        st.info("Aún no hay topogramas programados. Inicia Topograma 1 o Topograma 2 en la pestaña de Topograma.")
+
+    st.markdown("---")
 
     # ── Topograma interactivo al inicio ─────────────────────────────────────
     st.markdown('<div class="section-header">📡 Topograma de planificación</div>', unsafe_allow_html=True)
