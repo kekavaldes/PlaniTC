@@ -10,6 +10,7 @@ import math
 import zipfile
 import io
 import base64
+import json
 import unicodedata
 import pandas as pd
 from PIL import Image
@@ -1083,15 +1084,18 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
 
 
 
-def render_topogramas_independientes_interactivos(topos, width=760):
+def render_topogramas_independientes_interactivos(topos, width=760, modo="rect"):
     """
-    Renderiza uno o dos topogramas con líneas móviles independientes por imagen.
-    Todas las imágenes se muestran con el mismo tamaño visual.
+    Renderiza uno o dos topogramas con interacción independiente por imagen.
+    - modo="rect": muestra un rectángulo movible y redimensionable.
+    - modo="line": muestra una sola línea horizontal movible para simular un único corte.
     """
     if not topos:
         return None
 
-    # Se muestran aproximadamente un tercio más grandes que el tamaño actual.
+    modo = "line" if str(modo).lower() == "line" else "rect"
+    es_linea = modo == "line"
+
     canvas_css_width = 227 if len(topos) > 1 else 307
     canvas_css_height = 333 if len(topos) > 1 else 387
     canvas_width = 420
@@ -1099,10 +1103,13 @@ def render_topogramas_independientes_interactivos(topos, width=760):
     min_col_width = canvas_css_width
 
     cols_html = []
+    topo_payload = []
+
     for i, topo in enumerate(topos):
         img_b64 = topo.get("img_b64")
         if not img_b64:
             continue
+
         titulo = topo.get("titulo", f"Topograma {i+1}")
         subtitulo = topo.get("subtitulo", "")
         inicio_ref = topo.get("inicio_ref", "—")
@@ -1111,53 +1118,164 @@ def render_topogramas_independientes_interactivos(topos, width=760):
         fin_mm = topo.get("fin_mm", 0)
         y_ini = topo.get("y_ini", get_y_position_with_offset(inicio_ref, inicio_mm))
         y_fin = topo.get("y_fin", get_y_position_with_offset(fin_ref, fin_mm))
-        inicio_txt = f"{inicio_ref} + {int(inicio_mm)} mm" if str(inicio_ref) != "—" else "—"
-        fin_txt = f"{fin_ref} + {int(fin_mm)} mm" if str(fin_ref) != "—" else "—"
-        cols_html.append(f"""
-        <div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">
-          <div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;">{titulo}</div>
-          <canvas id="topoCanvasInd{i}" width="{canvas_width}" height="{canvas_height}"
-            style="width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
-          <div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;">{subtitulo}</div>
-          <div style="margin-top:4px; font-size:13px; color:#fff; text-align:center;">
-            <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioInd{i}">{inicio_txt}</b>
-            &nbsp;&nbsp;
-            <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinInd{i}">{fin_txt}</b>
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            Longitud: <b id="lblLongInd{i}">—</b> mm
+
+        y1 = max(0.05, min(y_ini, y_fin))
+        y2 = min(0.95, max(y_ini, y_fin))
+        rect_h = max(0.10, y2 - y1)
+        rect_y = max(0.02, min(0.98 - rect_h, y1))
+        rect_x = 0.22
+        rect_w = 0.56
+        line_y = max(0.04, min(0.96, (y_ini + y_fin) / 2 if (y_ini is not None and y_fin is not None) else 0.5))
+
+        if es_linea:
+            info_html = f"""
+          <div style=\"margin-top:4px; font-size:13px; color:#fff; text-align:center; line-height:1.45;\">
+            Corte único: <b id=\"lblLinePosInd{i}\">—</b>
           </div>
+            """
+        else:
+            info_html = f"""
+          <div style=\"margin-top:4px; font-size:13px; color:#fff; text-align:center; line-height:1.45;\">
+            Campo: <b id=\"lblSizeInd{i}\">—</b>
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            Centro: <b id=\"lblCenterInd{i}\">—</b>
+            <br>
+            Alto aprox.: <b id=\"lblHeightInd{i}\">—</b> mm
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            Ancho aprox.: <b id=\"lblWidthInd{i}\">—</b> %
+          </div>
+            """
+
+        cols_html.append(f"""
+        <div style=\"flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;\">
+          <div style=\"font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;\">{titulo}</div>
+          <canvas id=\"topoCanvasInd{i}\" width=\"{canvas_width}\" height=\"{canvas_height}\"
+            style=\"width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:{'ns-resize' if es_linea else 'grab'}; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto; touch-action:none;\"></canvas>
+          <div style=\"margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;\">{subtitulo}</div>
+          {info_html}
         </div>
         """)
+
+        topo_payload.append({
+            "img_b64": img_b64,
+            "rect_x": rect_x,
+            "rect_y": rect_y,
+            "rect_w": rect_w,
+            "rect_h": rect_h,
+            "line_y": line_y,
+        })
 
     if not cols_html:
         return None
 
+    instruccion = (
+        "Arrastra la línea para ubicar el corte único en cada topograma."
+        if es_linea else
+        "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño en cada topograma."
+    )
+
     html = f"""
-<div style="text-align:center; margin:0 0 0 0;">
-  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;">
-    Arrastra las líneas para ajustar el rango de exploración. Cada imagen se mueve de forma independiente.
+<div style=\"text-align:center; margin:0 0 0 0;\">
+  <div style=\"display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;\">
+    {instruccion}
   </div>
-  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;">
+  <div style=\"display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;\">
     {''.join(cols_html)}
   </div>
 </div>
 <script>
 (function() {{
-  var topoData = {str([{"img_b64": t.get("img_b64", ""), "y_ini": t.get("y_ini", get_y_position_with_offset(t.get("inicio_ref", "—"), t.get("inicio_mm", 0))), "y_fin": t.get("y_fin", get_y_position_with_offset(t.get("fin_ref", "—"), t.get("fin_mm", 0)))} for t in topos]).replace("'", '"')};
+  var topoData = {json.dumps(topo_payload)};
+  var mode = {json.dumps(modo)};
 
   topoData.forEach(function(data, idx) {{
     var canvas = document.getElementById('topoCanvasInd' + idx);
     if (!canvas) return;
+
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
-    var yIni = data.y_ini;
-    var yFin = data.y_fin;
-    var dragging = null;
-    var dragThresh = 12;
+    var rectState = {{
+      x: data.rect_x,
+      y: data.rect_y,
+      w: data.rect_w,
+      h: data.rect_h
+    }};
+    var lineState = {{ y: data.line_y }};
+
+    var dragMode = null;
+    var dragOffsetX = 0;
+    var dragOffsetY = 0;
+    var handleSize = 18;
+    var minW = 0.12;
+    var minH = 0.10;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
 
+    function clampRect() {{
+      rectState.w = Math.max(minW, Math.min(0.92, rectState.w));
+      rectState.h = Math.max(minH, Math.min(0.92, rectState.h));
+      rectState.x = Math.max(0.02, Math.min(0.98 - rectState.w, rectState.x));
+      rectState.y = Math.max(0.02, Math.min(0.98 - rectState.h, rectState.y));
+    }}
+
+    function clampLine() {{
+      lineState.y = Math.max(0.03, Math.min(0.97, lineState.y));
+    }}
+
+    function getRectPx() {{
+      return {{
+        x: rectState.x * W,
+        y: rectState.y * H,
+        w: rectState.w * W,
+        h: rectState.h * H
+      }};
+    }}
+
+    function getLinePx() {{
+      return lineState.y * H;
+    }}
+
+    function isInResizeHandle(mx, my, rp) {{
+      return mx >= rp.x + rp.w - handleSize && mx <= rp.x + rp.w + 4 &&
+             my >= rp.y + rp.h - handleSize && my <= rp.y + rp.h + 4;
+    }}
+
+    function isInsideRect(mx, my, rp) {{
+      return mx >= rp.x && mx <= rp.x + rp.w && my >= rp.y && my <= rp.y + rp.h;
+    }}
+
+    function isOnLine(my, lineY) {{
+      return Math.abs(my - lineY) <= 12;
+    }}
+
+    function updateLabels() {{
+      if (mode === 'line') {{
+        var lblLinePos = document.getElementById('lblLinePosInd' + idx);
+        var yPct = Math.round(lineState.y * 100);
+        var yMm = Math.round(lineState.y * 600);
+        if (lblLinePos) lblLinePos.textContent = 'Y ' + yPct + '% · ' + yMm + ' mm';
+        return;
+      }}
+
+      var lblSize = document.getElementById('lblSizeInd' + idx);
+      var lblCenter = document.getElementById('lblCenterInd' + idx);
+      var lblHeight = document.getElementById('lblHeightInd' + idx);
+      var lblWidth = document.getElementById('lblWidthInd' + idx);
+
+      var centerX = Math.round((rectState.x + rectState.w / 2) * 100);
+      var centerY = Math.round((rectState.y + rectState.h / 2) * 100);
+      var widthPct = Math.round(rectState.w * 100);
+      var heightMm = Math.round(rectState.h * 600);
+
+      if (lblSize) lblSize.textContent = widthPct + '% × ' + Math.round(rectState.h * 100) + '%';
+      if (lblCenter) lblCenter.textContent = 'X ' + centerX + '% · Y ' + centerY + '%';
+      if (lblHeight) lblHeight.textContent = heightMm;
+      if (lblWidth) lblWidth.textContent = widthPct;
+    }}
+
     function draw() {{
+      clampRect();
+      clampLine();
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
@@ -1171,90 +1289,179 @@ def render_topogramas_independientes_interactivos(topos, width=760):
         ctx.drawImage(img, dx, dy, drawW, drawH);
       }}
 
-      var yi = Math.round(yIni * H);
-      var yf = Math.round(yFin * H);
+      if (mode === 'line') {{
+        var lineY = getLinePx();
+        ctx.strokeStyle = '#00D2FF';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([12, 7]);
+        ctx.beginPath();
+        ctx.moveTo(W * 0.12, lineY);
+        ctx.lineTo(W * 0.88, lineY);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-      var y1 = Math.min(yi, yf), y2 = Math.max(yi, yf);
-      ctx.fillStyle = 'rgba(100,180,255,0.12)';
-      ctx.fillRect(0, y1, W, y2 - y1);
+        ctx.fillStyle = '#00D2FF';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('CORTE', W * 0.12 + 6, Math.max(18, lineY - 8));
 
-      ctx.beginPath();
-      ctx.moveTo(0, yi); ctx.lineTo(W, yi);
-      ctx.strokeStyle = '#00FF88';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([8,4]);
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(W * 0.12, lineY, 6, 0, Math.PI * 2);
+        ctx.arc(W * 0.88, lineY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        updateLabels();
+        return;
+      }}
+
+      var rp = getRectPx();
+
+      ctx.fillStyle = 'rgba(0, 210, 255, 0.14)';
+      ctx.fillRect(rp.x, rp.y, rp.w, rp.h);
+
+      ctx.strokeStyle = '#00D2FF';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 6]);
+      ctx.strokeRect(rp.x, rp.y, rp.w, rp.h);
       ctx.setLineDash([]);
-      ctx.fillStyle = '#00FF88';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillText('INICIO', 6, Math.max(14, yi - 5));
 
-      ctx.beginPath();
-      ctx.moveTo(0, yf); ctx.lineTo(W, yf);
-      ctx.strokeStyle = '#FF4444';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([8,4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#FF4444';
-      ctx.fillText('FIN', 6, Math.max(14, yf - 5));
+      ctx.fillStyle = '#00D2FF';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('SFOV / DFOV', rp.x + 8, Math.max(16, rp.y + 16));
 
-      var pct = Math.abs(yFin - yIni);
-      var longMm = Math.round(pct * 600);
-      var lblLong = document.getElementById('lblLongInd' + idx);
-      if (lblLong) lblLong.textContent = longMm;
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
+
+      updateLabels();
     }}
 
-    function getMouseY(e) {{
+    function getMousePos(e) {{
       var rect = canvas.getBoundingClientRect();
+      var scaleX = W / rect.width;
       var scaleY = H / rect.height;
-      return (e.clientY - rect.top) * scaleY;
+      return {{
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      }};
+    }}
+
+    function updateCursor(mx, my) {{
+      if (mode === 'line') {{
+        canvas.style.cursor = isOnLine(my, getLinePx()) ? 'ns-resize' : 'default';
+        return;
+      }}
+
+      var rp = getRectPx();
+      if (isInResizeHandle(mx, my, rp)) canvas.style.cursor = 'nwse-resize';
+      else if (isInsideRect(mx, my, rp)) canvas.style.cursor = 'grab';
+      else canvas.style.cursor = 'default';
     }}
 
     canvas.addEventListener('mousedown', function(e) {{
-      var my = getMouseY(e);
-      var yi = yIni * H, yf = yFin * H;
-      if (Math.abs(my - yi) < dragThresh) dragging = 'ini';
-      else if (Math.abs(my - yf) < dragThresh) dragging = 'fin';
+      var pos = getMousePos(e);
+
+      if (mode === 'line') {{
+        if (isOnLine(pos.y, getLinePx())) {{
+          dragMode = 'line';
+          canvas.style.cursor = 'ns-resize';
+        }}
+        return;
+      }}
+
+      var rp = getRectPx();
+      if (isInResizeHandle(pos.x, pos.y, rp)) {{
+        dragMode = 'resize';
+        canvas.style.cursor = 'nwse-resize';
+      }} else if (isInsideRect(pos.x, pos.y, rp)) {{
+        dragMode = 'move';
+        dragOffsetX = pos.x - rp.x;
+        dragOffsetY = pos.y - rp.y;
+        canvas.style.cursor = 'grabbing';
+      }}
     }});
 
     canvas.addEventListener('mousemove', function(e) {{
-      var my = getMouseY(e);
-      var yi = yIni * H, yf = yFin * H;
-      if (Math.abs(my - yi) < dragThresh || Math.abs(my - yf) < dragThresh) canvas.style.cursor = 'ns-resize';
-      else canvas.style.cursor = 'default';
-      if (!dragging) return;
-      var newY = Math.max(0.01, Math.min(0.99, my / H));
-      if (dragging === 'ini') yIni = newY;
-      else yFin = newY;
+      var pos = getMousePos(e);
+      updateCursor(pos.x, pos.y);
+
+      if (!dragMode) return;
+
+      if (mode === 'line' && dragMode === 'line') {{
+        lineState.y = pos.y / H;
+        clampLine();
+        draw();
+        return;
+      }}
+
+      if (dragMode === 'move') {{
+        rectState.x = (pos.x - dragOffsetX) / W;
+        rectState.y = (pos.y - dragOffsetY) / H;
+      }} else if (dragMode === 'resize') {{
+        rectState.w = (pos.x / W) - rectState.x;
+        rectState.h = (pos.y / H) - rectState.y;
+      }}
+
+      clampRect();
       draw();
     }});
 
-    canvas.addEventListener('mouseup', function() {{ dragging = null; }});
-    canvas.addEventListener('mouseleave', function() {{ dragging = null; }});
+    function endDrag() {{
+      dragMode = null;
+      canvas.style.cursor = mode === 'line' ? 'ns-resize' : 'grab';
+    }}
+
+    canvas.addEventListener('mouseup', endDrag);
+    canvas.addEventListener('mouseleave', endDrag);
 
     canvas.addEventListener('touchstart', function(e) {{
       e.preventDefault();
       var t = e.touches[0];
-      var rect = canvas.getBoundingClientRect();
-      var my = (t.clientY - rect.top) * (H / rect.height);
-      if (Math.abs(my - yIni * H) < dragThresh * 2) dragging = 'ini';
-      else if (Math.abs(my - yFin * H) < dragThresh * 2) dragging = 'fin';
+      var pos = getMousePos(t);
+
+      if (mode === 'line') {{
+        if (isOnLine(pos.y, getLinePx())) dragMode = 'line';
+        return;
+      }}
+
+      var rp = getRectPx();
+      if (isInResizeHandle(pos.x, pos.y, rp)) {{
+        dragMode = 'resize';
+      }} else if (isInsideRect(pos.x, pos.y, rp)) {{
+        dragMode = 'move';
+        dragOffsetX = pos.x - rp.x;
+        dragOffsetY = pos.y - rp.y;
+      }}
     }}, {{passive:false}});
 
     canvas.addEventListener('touchmove', function(e) {{
       e.preventDefault();
-      if (!dragging) return;
+      if (!dragMode) return;
+
       var t = e.touches[0];
-      var rect = canvas.getBoundingClientRect();
-      var my = (t.clientY - rect.top) * (H / rect.height);
-      var newY = Math.max(0.01, Math.min(0.99, my / H));
-      if (dragging === 'ini') yIni = newY;
-      else yFin = newY;
+      var pos = getMousePos(t);
+
+      if (mode === 'line' && dragMode === 'line') {{
+        lineState.y = pos.y / H;
+        clampLine();
+        draw();
+        return;
+      }}
+
+      if (dragMode === 'move') {{
+        rectState.x = (pos.x - dragOffsetX) / W;
+        rectState.y = (pos.y - dragOffsetY) / H;
+      }} else if (dragMode === 'resize') {{
+        rectState.w = (pos.x / W) - rectState.x;
+        rectState.h = (pos.y / H) - rectState.y;
+      }}
+
+      clampRect();
       draw();
     }}, {{passive:false}});
 
-    canvas.addEventListener('touchend', function() {{ dragging = null; }});
+    canvas.addEventListener('touchend', endDrag);
 
     img.onload = function() {{ draw(); }};
     if (img.complete) draw();
@@ -1263,6 +1470,7 @@ def render_topogramas_independientes_interactivos(topos, width=760):
 </script>
 """
     return html
+
 
 
 def _pil_to_b64_jpeg(img, max_width=900):
@@ -2633,7 +2841,8 @@ with tab2:
                     _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topos_adq[1]["inicio_ref"], _topos_adq[1]["inicio_mm"])
                     _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
 
-                _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq)
+                _modo_topograma_adq = "line" if "BOLUS TEST" in str(_actual.get("nombre", "")).upper() or "BOLUS TRACKING" in str(_actual.get("nombre", "")).upper() else "rect"
+                _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq, modo=_modo_topograma_adq)
                 if _html_topos_adq:
                     st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
                     st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
