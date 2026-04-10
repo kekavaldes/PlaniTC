@@ -1094,12 +1094,16 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     """
     Renderiza uno o dos topogramas programados con líneas móviles sincronizadas.
     Si hay dos topogramas, al mover una línea en cualquiera, se actualizan ambos.
+    Ajusta el tamaño sin recortar la imagen y conserva su proporción.
     """
     if not topos:
         return None
 
     y_ini = get_y_position(inicio_ref)
     y_fin = get_y_position(fin_ref)
+    multiple = len(topos) > 1
+    canvas_css_width = 360 if multiple else 500
+    min_col_width = 320 if multiple else 540
 
     cols_html = []
     for i, topo in enumerate(topos):
@@ -1109,10 +1113,10 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
         titulo = topo.get("titulo", f"Topograma {i+1}")
         subtitulo = topo.get("subtitulo", "")
         cols_html.append(f"""
-        <div style="flex:1; min-width:280px;">
+        <div style="flex:0 1 {canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width + 30}px;">
           <div style="font-size:18px;font-weight:700;color:#fff;margin:0 0 8px 0;">{titulo}</div>
-          <canvas id="topoCanvas{i}" width="560" height="560"
-            style="width:100%; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000;"></canvas>
+          <canvas id="topoCanvas{i}" width="500" height="900"
+            style="width:{canvas_css_width}px; max-width:100%; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
           <div style="margin-top:6px; font-size:12px; color:#ccc;">{subtitulo}</div>
         </div>
         """)
@@ -1153,8 +1157,18 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
   var dragThresh = 12;
   var imgs = [];
 
+  function syncCanvasSize(canvas, img) {{
+    if (!canvas || !img || !img.width || !img.height) return;
+    var cssW = parseFloat(canvas.style.width) || canvas.clientWidth || 500;
+    var ratio = img.height / img.width;
+    var cssH = Math.round(cssW * ratio);
+    canvas.width = Math.max(200, Math.round(cssW));
+    canvas.height = Math.max(300, cssH);
+  }}
+
   function drawCanvas(canvas, img) {{
     if(!canvas || !img) return;
+    syncCanvasSize(canvas, img);
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
     ctx.clearRect(0,0,W,H);
@@ -2184,7 +2198,7 @@ with tab2:
                         _fin_ref_prog,
                     )
                     if _html_topos_prog:
-                        st.components.v1.html(_html_topos_prog, height=640 if len(_topos_programados) > 1 else 700)
+                        st.components.v1.html(_html_topos_prog, height=820 if len(_topos_programados) > 1 else 980)
                         if len(_topos_programados) > 1:
                             st.caption("Las líneas de Topograma 1 y Topograma 2 están sincronizadas en esta vista.")
                     else:
