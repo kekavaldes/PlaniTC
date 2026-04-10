@@ -1070,185 +1070,6 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
 
 
 
-
-
-def render_topogramas_independientes_interactivos(topos, width=760):
-    """
-    Renderiza uno o dos topogramas con líneas móviles independientes por imagen.
-    Todas las imágenes se muestran con el mismo tamaño visual.
-    """
-    if not topos:
-        return None
-
-    canvas_css_width = 300 if len(topos) > 1 else 420
-    canvas_css_height = 460 if len(topos) > 1 else 540
-    canvas_width = 420
-    canvas_height = 640
-    min_col_width = canvas_css_width
-
-    cols_html = []
-    for i, topo in enumerate(topos):
-        img_b64 = topo.get("img_b64")
-        if not img_b64:
-            continue
-        titulo = topo.get("titulo", f"Topograma {i+1}")
-        subtitulo = topo.get("subtitulo", "")
-        inicio_ref = topo.get("inicio_ref", "—")
-        fin_ref = topo.get("fin_ref", "—")
-        y_ini = get_y_position(inicio_ref)
-        y_fin = get_y_position(fin_ref)
-        cols_html.append(f"""
-        <div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">
-          <div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;">{titulo}</div>
-          <canvas id="topoCanvasInd{i}" width="{canvas_width}" height="{canvas_height}"
-            style="width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
-          <div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;">{subtitulo}</div>
-          <div style="margin-top:4px; font-size:13px; color:#fff; text-align:center;">
-            <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioInd{i}">{inicio_ref}</b>
-            &nbsp;&nbsp;
-            <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinInd{i}">{fin_ref}</b>
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            Longitud: <b id="lblLongInd{i}">—</b> mm
-          </div>
-        </div>
-        """)
-
-    if not cols_html:
-        return None
-
-    html = f"""
-<div style="text-align:center; margin:0.1rem 0 0.2rem 0;">
-  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:8px;">
-    Arrastra las líneas para ajustar el rango de exploración. Cada imagen se mueve de forma independiente.
-  </div>
-  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; justify-content:center;">
-    {''.join(cols_html)}
-  </div>
-</div>
-<script>
-(function() {{
-  var topoData = {str([{"img_b64": t.get("img_b64", ""), "y_ini": get_y_position(t.get("inicio_ref", "—")), "y_fin": get_y_position(t.get("fin_ref", "—"))} for t in topos]).replace("'", '"')};
-
-  topoData.forEach(function(data, idx) {{
-    var canvas = document.getElementById('topoCanvasInd' + idx);
-    if (!canvas) return;
-    var ctx = canvas.getContext('2d');
-    var W = canvas.width, H = canvas.height;
-    var yIni = data.y_ini;
-    var yFin = data.y_fin;
-    var dragging = null;
-    var dragThresh = 12;
-    var img = new Image();
-    img.src = 'data:image/jpeg;base64,' + data.img_b64;
-
-    function draw() {{
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, W, H);
-
-      if (img.width && img.height) {{
-        var scale = Math.min(W / img.width, H / img.height);
-        var drawW = img.width * scale;
-        var drawH = img.height * scale;
-        var dx = (W - drawW) / 2;
-        var dy = (H - drawH) / 2;
-        ctx.drawImage(img, dx, dy, drawW, drawH);
-      }}
-
-      var yi = Math.round(yIni * H);
-      var yf = Math.round(yFin * H);
-
-      var y1 = Math.min(yi, yf), y2 = Math.max(yi, yf);
-      ctx.fillStyle = 'rgba(100,180,255,0.12)';
-      ctx.fillRect(0, y1, W, y2 - y1);
-
-      ctx.beginPath();
-      ctx.moveTo(0, yi); ctx.lineTo(W, yi);
-      ctx.strokeStyle = '#00FF88';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([8,4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#00FF88';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillText('INICIO', 6, Math.max(14, yi - 5));
-
-      ctx.beginPath();
-      ctx.moveTo(0, yf); ctx.lineTo(W, yf);
-      ctx.strokeStyle = '#FF4444';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([8,4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#FF4444';
-      ctx.fillText('FIN', 6, Math.max(14, yf - 5));
-
-      var pct = Math.abs(yFin - yIni);
-      var longMm = Math.round(pct * 600);
-      var lblLong = document.getElementById('lblLongInd' + idx);
-      if (lblLong) lblLong.textContent = longMm;
-    }}
-
-    function getMouseY(e) {{
-      var rect = canvas.getBoundingClientRect();
-      var scaleY = H / rect.height;
-      return (e.clientY - rect.top) * scaleY;
-    }}
-
-    canvas.addEventListener('mousedown', function(e) {{
-      var my = getMouseY(e);
-      var yi = yIni * H, yf = yFin * H;
-      if (Math.abs(my - yi) < dragThresh) dragging = 'ini';
-      else if (Math.abs(my - yf) < dragThresh) dragging = 'fin';
-    }});
-
-    canvas.addEventListener('mousemove', function(e) {{
-      var my = getMouseY(e);
-      var yi = yIni * H, yf = yFin * H;
-      if (Math.abs(my - yi) < dragThresh || Math.abs(my - yf) < dragThresh) canvas.style.cursor = 'ns-resize';
-      else canvas.style.cursor = 'default';
-      if (!dragging) return;
-      var newY = Math.max(0.01, Math.min(0.99, my / H));
-      if (dragging === 'ini') yIni = newY;
-      else yFin = newY;
-      draw();
-    }});
-
-    canvas.addEventListener('mouseup', function() {{ dragging = null; }});
-    canvas.addEventListener('mouseleave', function() {{ dragging = null; }});
-
-    canvas.addEventListener('touchstart', function(e) {{
-      e.preventDefault();
-      var t = e.touches[0];
-      var rect = canvas.getBoundingClientRect();
-      var my = (t.clientY - rect.top) * (H / rect.height);
-      if (Math.abs(my - yIni * H) < dragThresh * 2) dragging = 'ini';
-      else if (Math.abs(my - yFin * H) < dragThresh * 2) dragging = 'fin';
-    }}, {{passive:false}});
-
-    canvas.addEventListener('touchmove', function(e) {{
-      e.preventDefault();
-      if (!dragging) return;
-      var t = e.touches[0];
-      var rect = canvas.getBoundingClientRect();
-      var my = (t.clientY - rect.top) * (H / rect.height);
-      var newY = Math.max(0.01, Math.min(0.99, my / H));
-      if (dragging === 'ini') yIni = newY;
-      else yFin = newY;
-      draw();
-    }}, {{passive:false}});
-
-    canvas.addEventListener('touchend', function() {{ dragging = null; }});
-
-    img.onload = function() {{ draw(); }};
-    if (img.complete) draw();
-  }});
-}})();
-</script>
-"""
-    return html
-
-
 def _pil_to_b64_jpeg(img, max_width=900):
     """Convierte una imagen PIL a base64 JPEG para usarla en canvas HTML."""
     if img is None:
@@ -2160,17 +1981,11 @@ with tab1b:
 with tab2:
     region_anat = st.session_state.get("region_anat", "CUERPO")
 
-    if "exploracion_adq_counter" not in st.session_state:
-        st.session_state["exploracion_adq_counter"] = 1
-
     def _crear_exploracion_adq(numero):
-        _uid = f"exp_{st.session_state['exploracion_adq_counter']}"
-        st.session_state["exploracion_adq_counter"] += 1
         return {
-            "id": _uid,
-            "orden": numero,
+            "id": f"exp_{numero}",
             "tipo": "adquisicion",
-            "nombre": "SIN CONTRASTE",
+            "nombre": f"Exploración {numero}",
             "tipo_exp": st.session_state.get("tipo_exp", TIPOS_EXPLORACION[0]),
             "doble_muestreo": st.session_state.get("doble_muestreo", "NO"),
             "voz_adq": st.session_state.get("voz_adq", INSTRUCCIONES_VOZ[0]),
@@ -2186,128 +2001,19 @@ with tab2:
             "pitch": st.session_state.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0]),
             "rot_tubo": st.session_state.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0]),
             "retardo": st.session_state.get("retardo", RETARDOS[0]),
-            "inicio_ref": REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0],
-            "ini_mm": 0,
-            "fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
-            "fin_mm": 400,
-            "topo1_inicio_ref": REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0],
-            "topo1_ini_mm": 0,
-            "topo1_fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
-            "topo1_fin_mm": 400,
-            "topo2_inicio_ref": REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0],
-            "topo2_ini_mm": 0,
-            "topo2_fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
-            "topo2_fin_mm": 400,
+            "inicio_ref": st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "ini_mm": int(st.session_state.get("ini_mm", 0)),
+            "fin_ref": st.session_state.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "fin_mm": int(st.session_state.get("fin_mm", 400)),
         }
 
     def _reindexar_exploraciones_adq():
         _contador = 1
         for _exp in st.session_state["exploraciones_adq"]:
             if _exp.get("tipo") == "adquisicion":
-                _exp["orden"] = _contador
+                _exp["id"] = f"exp_{_contador}"
+                _exp["nombre"] = f"Exploración {_contador}"
                 _contador += 1
-
-    def _buscar_exploracion_adq(exp_id):
-        for _exp in st.session_state.get("exploraciones_adq", []):
-            if _exp.get("id") == exp_id:
-                return _exp
-        return None
-
-    if "rangos_por_exploracion_adq" not in st.session_state:
-        st.session_state["rangos_por_exploracion_adq"] = {}
-
-    def _valores_rango_por_defecto(exp):
-        return {
-            "inicio_ref": exp.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
-            "ini_mm": int(exp.get("ini_mm", 0)),
-            "fin_ref": exp.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
-            "fin_mm": int(exp.get("fin_mm", 400)),
-            "topo1_inicio_ref": exp.get("topo1_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
-            "topo1_ini_mm": int(exp.get("topo1_ini_mm", 0)),
-            "topo1_fin_ref": exp.get("topo1_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
-            "topo1_fin_mm": int(exp.get("topo1_fin_mm", 400)),
-            "topo2_inicio_ref": exp.get("topo2_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
-            "topo2_ini_mm": int(exp.get("topo2_ini_mm", 0)),
-            "topo2_fin_ref": exp.get("topo2_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
-            "topo2_fin_mm": int(exp.get("topo2_fin_mm", 400)),
-        }
-
-    def _asegurar_rangos_exploracion(exp):
-        if not exp or exp.get("tipo") != "adquisicion":
-            return {}
-        _exp_id = exp.get("id")
-        _store = st.session_state["rangos_por_exploracion_adq"]
-        if _exp_id not in _store:
-            _store[_exp_id] = _valores_rango_por_defecto(exp)
-        return _store[_exp_id]
-
-    def _cargar_rangos_en_widgets(exp, forzar=False):
-        if not exp or exp.get("tipo") != "adquisicion":
-            return
-        _exp_id = exp.get("id")
-        _rangos = _asegurar_rangos_exploracion(exp)
-        _mapa = {
-            f"iniref_{_exp_id}": _rangos["inicio_ref"],
-            f"inimm_{_exp_id}": int(_rangos["ini_mm"]),
-            f"finref_{_exp_id}": _rangos["fin_ref"],
-            f"finmm_{_exp_id}": int(_rangos["fin_mm"]),
-            f"topo1_iniref_{_exp_id}": _rangos["topo1_inicio_ref"],
-            f"topo1_inimm_{_exp_id}": int(_rangos["topo1_ini_mm"]),
-            f"topo1_finref_{_exp_id}": _rangos["topo1_fin_ref"],
-            f"topo1_finmm_{_exp_id}": int(_rangos["topo1_fin_mm"]),
-            f"topo2_iniref_{_exp_id}": _rangos["topo2_inicio_ref"],
-            f"topo2_inimm_{_exp_id}": int(_rangos["topo2_ini_mm"]),
-            f"topo2_finref_{_exp_id}": _rangos["topo2_fin_ref"],
-            f"topo2_finmm_{_exp_id}": int(_rangos["topo2_fin_mm"]),
-        }
-        for _k, _v in _mapa.items():
-            if forzar or _k not in st.session_state:
-                st.session_state[_k] = _v
-
-    def _guardar_rangos_desde_widgets(exp_id):
-        _exp = _buscar_exploracion_adq(exp_id)
-        if not _exp or _exp.get("tipo") != "adquisicion":
-            return
-        _rangos = _asegurar_rangos_exploracion(_exp)
-        _rangos["inicio_ref"] = st.session_state.get(f"iniref_{exp_id}", _rangos.get("inicio_ref"))
-        _rangos["ini_mm"] = int(st.session_state.get(f"inimm_{exp_id}", _rangos.get("ini_mm", 0)))
-        _rangos["fin_ref"] = st.session_state.get(f"finref_{exp_id}", _rangos.get("fin_ref"))
-        _rangos["fin_mm"] = int(st.session_state.get(f"finmm_{exp_id}", _rangos.get("fin_mm", 400)))
-        _rangos["topo1_inicio_ref"] = st.session_state.get(f"topo1_iniref_{exp_id}", _rangos.get("topo1_inicio_ref"))
-        _rangos["topo1_ini_mm"] = int(st.session_state.get(f"topo1_inimm_{exp_id}", _rangos.get("topo1_ini_mm", 0)))
-        _rangos["topo1_fin_ref"] = st.session_state.get(f"topo1_finref_{exp_id}", _rangos.get("topo1_fin_ref"))
-        _rangos["topo1_fin_mm"] = int(st.session_state.get(f"topo1_finmm_{exp_id}", _rangos.get("topo1_fin_mm", 400)))
-        _rangos["topo2_inicio_ref"] = st.session_state.get(f"topo2_iniref_{exp_id}", _rangos.get("topo2_inicio_ref"))
-        _rangos["topo2_ini_mm"] = int(st.session_state.get(f"topo2_inimm_{exp_id}", _rangos.get("topo2_ini_mm", 0)))
-        _rangos["topo2_fin_ref"] = st.session_state.get(f"topo2_finref_{exp_id}", _rangos.get("topo2_fin_ref"))
-        _rangos["topo2_fin_mm"] = int(st.session_state.get(f"topo2_finmm_{exp_id}", _rangos.get("topo2_fin_mm", 400)))
-
-        _exp["inicio_ref"] = _rangos["inicio_ref"]
-        _exp["ini_mm"] = _rangos["ini_mm"]
-        _exp["fin_ref"] = _rangos["fin_ref"]
-        _exp["fin_mm"] = _rangos["fin_mm"]
-        _exp["topo1_inicio_ref"] = _rangos["topo1_inicio_ref"]
-        _exp["topo1_ini_mm"] = _rangos["topo1_ini_mm"]
-        _exp["topo1_fin_ref"] = _rangos["topo1_fin_ref"]
-        _exp["topo1_fin_mm"] = _rangos["topo1_fin_mm"]
-        _exp["topo2_inicio_ref"] = _rangos["topo2_inicio_ref"]
-        _exp["topo2_ini_mm"] = _rangos["topo2_ini_mm"]
-        _exp["topo2_fin_ref"] = _rangos["topo2_fin_ref"]
-        _exp["topo2_fin_mm"] = _rangos["topo2_fin_mm"]
-
-    def _guardar_widget_rango(exp_id, clave_widget, campo_rango):
-        _exp = _buscar_exploracion_adq(exp_id)
-        if not _exp or _exp.get("tipo") != "adquisicion":
-            return
-        _rangos = _asegurar_rangos_exploracion(_exp)
-        _valor = st.session_state.get(clave_widget, _rangos.get(campo_rango))
-        if campo_rango.endswith("_mm"):
-            try:
-                _valor = int(_valor)
-            except Exception:
-                _valor = int(_rangos.get(campo_rango, 0))
-        _rangos[campo_rango] = _valor
-        _exp[campo_rango] = _valor
 
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [
@@ -2315,18 +2021,8 @@ with tab2:
             _crear_exploracion_adq(1),
         ]
 
-    for _exp_boot in st.session_state.get("exploraciones_adq", []):
-        if _exp_boot.get("tipo") == "adquisicion":
-            _asegurar_rangos_exploracion(_exp_boot)
-
     if "exploracion_adq_activa" not in st.session_state:
         st.session_state["exploracion_adq_activa"] = "topograma"
-
-    if "exploracion_adq_previa" not in st.session_state:
-        st.session_state["exploracion_adq_previa"] = st.session_state["exploracion_adq_activa"]
-
-    if "exploracion_adq_widgets_cargados" not in st.session_state:
-        st.session_state["exploracion_adq_widgets_cargados"] = None
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2383,8 +2079,7 @@ with tab2:
             _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
             _icono = "📡" if _exp.get("tipo") == "topograma" else "⚡"
             _nombre_base = _exp.get("nombre", "Exploración")
-            _orden_base = _exp.get("orden", "")
-            _label = f"{_icono} Exploración {_orden_base}" if _exp.get("tipo") == "adquisicion" else f"{_icono} {_nombre_base}"
+            _label = f"{_icono} {_nombre_base}"
             if _exp.get("tipo") == "adquisicion":
                 _tipo_resumen = _exp.get("tipo_exp", "HELICOIDAL")
                 _voz_resumen = _exp.get("voz", "NINGUNA")
@@ -2397,25 +2092,16 @@ with tab2:
                 use_container_width=True,
                 type="primary" if _activa else "secondary",
             ):
-                _previa = st.session_state.get("exploracion_adq_activa")
-                if _previa and _previa != _exp["id"]:
-                    _guardar_rangos_desde_widgets(_previa)
                 st.session_state["exploracion_adq_activa"] = _exp["id"]
-                st.session_state["exploracion_adq_widgets_cargados"] = None
-                st.rerun()
             st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq", type="secondary"):
-            _guardar_rangos_desde_widgets(st.session_state.get("exploracion_adq_activa"))
             _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
             _numero = len(_existentes) + 1
-            _nueva_exp = _crear_exploracion_adq(_numero)
-            st.session_state["exploraciones_adq"].append(_nueva_exp)
-            st.session_state["rangos_por_exploracion_adq"][_nueva_exp["id"]] = _valores_rango_por_defecto(_nueva_exp)
+            st.session_state["exploraciones_adq"].append(_crear_exploracion_adq(_numero))
             _reindexar_exploraciones_adq()
-            st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][-1]["id"]
-            st.session_state["exploracion_adq_widgets_cargados"] = None
+            st.session_state["exploracion_adq_activa"] = f"exp_{_numero}"
             st.rerun()
 
         _exp_activa_nav = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
@@ -2425,31 +2111,14 @@ with tab2:
         _c1, _c2 = st.columns(2)
         with _c1:
             if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
-                _guardar_rangos_desde_widgets(st.session_state.get("exploracion_adq_activa"))
                 _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
                 _nuevo_numero = len(_existentes) + 1
                 _copia = dict(_exp_activa_nav)
-                _copia["id"] = f"exp_{st.session_state['exploracion_adq_counter']}"
-                st.session_state["exploracion_adq_counter"] += 1
-                _copia["orden"] = _nuevo_numero
-                _copia["nombre"] = "SIN CONTRASTE"
-                _copia["inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
-                _copia["ini_mm"] = 0
-                _copia["fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
-                _copia["fin_mm"] = 400
-                _copia["topo1_inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
-                _copia["topo1_ini_mm"] = 0
-                _copia["topo1_fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
-                _copia["topo1_fin_mm"] = 400
-                _copia["topo2_inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
-                _copia["topo2_ini_mm"] = 0
-                _copia["topo2_fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
-                _copia["topo2_fin_mm"] = 400
+                _copia["id"] = f"exp_{_nuevo_numero}"
+                _copia["nombre"] = f"Exploración {_nuevo_numero}"
                 st.session_state["exploraciones_adq"].append(_copia)
-                st.session_state["rangos_por_exploracion_adq"][_copia["id"]] = _valores_rango_por_defecto(_copia)
                 _reindexar_exploraciones_adq()
-                st.session_state["exploracion_adq_activa"] = _copia["id"]
-                st.session_state["exploracion_adq_widgets_cargados"] = None
+                st.session_state["exploracion_adq_activa"] = f"exp_{_nuevo_numero}"
                 st.rerun()
         with _c2:
             if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
@@ -2458,10 +2127,8 @@ with tab2:
                     e for e in st.session_state["exploraciones_adq"]
                     if e.get("id") != _id_eliminar
                 ]
-                st.session_state.get("rangos_por_exploracion_adq", {}).pop(_id_eliminar, None)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = "topograma"
-                st.session_state["exploracion_adq_widgets_cargados"] = None
                 st.rerun()
 
     with col_det:
@@ -2545,144 +2212,15 @@ with tab2:
 
         else:
             _exp_id = _actual["id"]
-            _forzar_carga_widgets = st.session_state.get("exploracion_adq_widgets_cargados") != _exp_id
-            _cargar_rangos_en_widgets(_actual, forzar=_forzar_carga_widgets)
-            st.session_state["exploracion_adq_widgets_cargados"] = _exp_id
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
-            _opciones_nombre_exp = [
-                "SIN CONTRASTE",
-                "ARTERIAL",
-                "ANGIOGRÁFICA",
-                "BOLUS TEST O BOLUS TRACKING",
-                "VENOSA",
-                "TARDÍA",
-            ]
-            _nombre_actual = _actual.get("nombre", _opciones_nombre_exp[0])
-            _nombre_idx = _opciones_nombre_exp.index(_nombre_actual) if _nombre_actual in _opciones_nombre_exp else 0
-            _actual["nombre"] = st.selectbox(
+            _actual["nombre"] = st.text_input(
                 "Nombre de la exploración",
-                _opciones_nombre_exp,
-                index=_nombre_idx,
+                value=_actual.get("nombre", "Exploración"),
                 key=f"nombre_{_exp_id}",
             )
 
-            _hay_topo1_adq = st.session_state.get("topograma_iniciado", False)
-            _hay_topo2_adq = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
-            _topos_adq = []
-            _errores_topos_adq = []
-
-            if _hay_topo1_adq:
-                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("posicion", ""),
-                    st.session_state.get("entrada", ""),
-                    st.session_state.get("t1pt", ""),
-                )
-                if _img_adq_1 is not None:
-                    _topos_adq.append({
-                        "titulo": "✅ Topograma 1",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
-                            f"{st.session_state.get('t1l', '—')} mm · "
-                            f"{st.session_state.get('t1kv', '—')} kV · "
-                            f"{st.session_state.get('t1ma', '—')} mA"
-                        ),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_1),
-                    })
-                else:
-                    _errores_topos_adq.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
-
-            if _hay_topo2_adq:
-                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("t2_posicion_paciente", ""),
-                    st.session_state.get("t2_entrada", ""),
-                    st.session_state.get("t2pt", ""),
-                )
-                if _img_adq_2 is not None:
-                    _topos_adq.append({
-                        "titulo": "✅ Topograma 2",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
-                            f"{st.session_state.get('t2l', '—')} mm · "
-                            f"{st.session_state.get('t2kv', '—')} kV · "
-                            f"{st.session_state.get('t2ma', '—')} mA"
-                        ),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_2),
-                    })
-                else:
-                    _errores_topos_adq.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
-
-            _refs_ini_adq = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
-            _refs_fin_adq = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
-
-            if _topos_adq:
-                if len(_topos_adq) >= 1:
-                    _topos_adq[0]["inicio_ref"] = st.session_state.get(f"topo1_iniref_{_exp_id}", _actual.get("topo1_inicio_ref", _refs_ini_adq[0]))
-                    _topos_adq[0]["fin_ref"] = st.session_state.get(f"topo1_finref_{_exp_id}", _actual.get("topo1_fin_ref", _refs_fin_adq[0]))
-                if len(_topos_adq) >= 2:
-                    _topos_adq[1]["inicio_ref"] = st.session_state.get(f"topo2_iniref_{_exp_id}", _actual.get("topo2_inicio_ref", _refs_ini_adq[0]))
-                    _topos_adq[1]["fin_ref"] = st.session_state.get(f"topo2_finref_{_exp_id}", _actual.get("topo2_fin_ref", _refs_fin_adq[0]))
-
-                _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq)
-                if _html_topos_adq:
-                    st.components.v1.html(_html_topos_adq, height=575 if len(_topos_adq) > 1 else 690)
-                    st.markdown("<div style='margin-top:-10px; margin-bottom:0.1rem;'></div>", unsafe_allow_html=True)
-                else:
-                    st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
-
-            for _err_topo_adq in _errores_topos_adq:
-                if _err_topo_adq:
-                    st.warning(_err_topo_adq)
-
-            if _topos_adq:
-                st.markdown('<div class="section-header">🎯 Rangos independientes de topograma en esta adquisición</div>', unsafe_allow_html=True)
-                if len(_topos_adq) == 1:
-                    _c_topo = st.columns(1)[0]
-                    with _c_topo:
-                        st.caption("Topograma 1")
-                        _c11, _c12 = st.columns(2)
-                        with _c11:
-                            _v = st.session_state.get(f"topo1_iniref_{_exp_id}", _actual.get("topo1_inicio_ref", _refs_ini_adq[0]))
-                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_iniref_{_exp_id}", "topo1_inicio_ref"))
-                            st.number_input("mm inicio Topograma 1", value=int(st.session_state.get(f"topo1_inimm_{_exp_id}", _actual.get("topo1_ini_mm", 0))), step=10, key=f"topo1_inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_inimm_{_exp_id}", "topo1_ini_mm"))
-                        with _c12:
-                            _v = st.session_state.get(f"topo1_finref_{_exp_id}", _actual.get("topo1_fin_ref", _refs_fin_adq[0]))
-                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finref_{_exp_id}", "topo1_fin_ref"))
-                            st.number_input("mm fin Topograma 1", value=int(st.session_state.get(f"topo1_finmm_{_exp_id}", _actual.get("topo1_fin_mm", 400))), step=10, key=f"topo1_finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finmm_{_exp_id}", "topo1_fin_mm"))
-                else:
-                    _tc1, _tc2 = st.columns(2, gap="small")
-                    with _tc1:
-                        st.caption("Topograma 1")
-                        _c11, _c12 = st.columns(2)
-                        with _c11:
-                            _v = st.session_state.get(f"topo1_iniref_{_exp_id}", _actual.get("topo1_inicio_ref", _refs_ini_adq[0]))
-                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_iniref_{_exp_id}", "topo1_inicio_ref"))
-                            st.number_input("mm inicio Topograma 1", value=int(st.session_state.get(f"topo1_inimm_{_exp_id}", _actual.get("topo1_ini_mm", 0))), step=10, key=f"topo1_inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_inimm_{_exp_id}", "topo1_ini_mm"))
-                        with _c12:
-                            _v = st.session_state.get(f"topo1_finref_{_exp_id}", _actual.get("topo1_fin_ref", _refs_fin_adq[0]))
-                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finref_{_exp_id}", "topo1_fin_ref"))
-                            st.number_input("mm fin Topograma 1", value=int(st.session_state.get(f"topo1_finmm_{_exp_id}", _actual.get("topo1_fin_mm", 400))), step=10, key=f"topo1_finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finmm_{_exp_id}", "topo1_fin_mm"))
-                    with _tc2:
-                        st.caption("Topograma 2")
-                        _c21, _c22 = st.columns(2)
-                        with _c21:
-                            _v = st.session_state.get(f"topo2_iniref_{_exp_id}", _actual.get("topo2_inicio_ref", _refs_ini_adq[0]))
-                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_iniref_{_exp_id}", "topo2_inicio_ref"))
-                            st.number_input("mm inicio Topograma 2", value=int(st.session_state.get(f"topo2_inimm_{_exp_id}", _actual.get("topo2_ini_mm", 0))), step=10, key=f"topo2_inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_inimm_{_exp_id}", "topo2_ini_mm"))
-                        with _c22:
-                            _v = st.session_state.get(f"topo2_finref_{_exp_id}", _actual.get("topo2_fin_ref", _refs_fin_adq[0]))
-                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_finref_{_exp_id}", "topo2_fin_ref"))
-                            st.number_input("mm fin Topograma 2", value=int(st.session_state.get(f"topo2_finmm_{_exp_id}", _actual.get("topo2_fin_mm", 400))), step=10, key=f"topo2_finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_finmm_{_exp_id}", "topo2_fin_mm"))
-
-            col_adq1, col_adq2 = st.columns([1, 1], gap="small")
+            col_adq1, col_adq2 = st.columns([1, 1])
 
             with col_adq1:
                 st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
@@ -2776,18 +2314,15 @@ with tab2:
 
                 _col_ini, _col_fin = st.columns(2)
                 with _col_ini:
-                    _ini_ref_actual = st.session_state.get(f"iniref_{_exp_id}", _actual.get("inicio_ref", _refs_ini[0]))
+                    _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
                     _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
-                    st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"iniref_{_exp_id}", "inicio_ref"))
-                    st.number_input("mm inicio", value=int(st.session_state.get(f"inimm_{_exp_id}", _actual.get("ini_mm", 0))), step=10, key=f"inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"inimm_{_exp_id}", "ini_mm"))
+                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
+                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
                 with _col_fin:
-                    _fin_ref_actual = st.session_state.get(f"finref_{_exp_id}", _actual.get("fin_ref", _refs_fin_lista[0]))
+                    _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
                     _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
-                    st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"finref_{_exp_id}", "fin_ref"))
-                    st.number_input("mm fin", value=int(st.session_state.get(f"finmm_{_exp_id}", _actual.get("fin_mm", 400))), step=10, key=f"finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"finmm_{_exp_id}", "fin_mm"))
-
-            _guardar_rangos_desde_widgets(_exp_id)
-            _actual = _buscar_exploracion_adq(_exp_id) or _actual
+                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
+                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
 
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
