@@ -2172,21 +2172,21 @@ with tab2:
             "orden": numero,
             "tipo": "adquisicion",
             "nombre": "SIN CONTRASTE",
-            "tipo_exp": st.session_state.get("tipo_exp", TIPOS_EXPLORACION[0]),
-            "doble_muestreo": st.session_state.get("doble_muestreo", "NO"),
-            "voz_adq": st.session_state.get("voz_adq", INSTRUCCIONES_VOZ[0]),
-            "mod_corriente": st.session_state.get("mod_corriente", MODULACION_CORRIENTE[0]),
-            "kvp": st.session_state.get("kvp", 120),
-            "mas_val": st.session_state.get("mas_val", 200),
-            "ind_cal": st.session_state.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0]),
-            "ind_ruido": st.session_state.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0]),
-            "rango_ma": st.session_state.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0]),
-            "conf_det": st.session_state.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0]),
-            "sfov": st.session_state.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0]),
-            "grosor_prosp": str(st.session_state.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0])),
-            "pitch": st.session_state.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0]),
-            "rot_tubo": st.session_state.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0]),
-            "retardo": st.session_state.get("retardo", RETARDOS[0]),
+            "tipo_exp": TIPOS_EXPLORACION[0],
+            "doble_muestreo": "NO",
+            "voz_adq": INSTRUCCIONES_VOZ[0],
+            "mod_corriente": MODULACION_CORRIENTE[0],
+            "kvp": 120,
+            "mas_val": 200,
+            "ind_cal": INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0],
+            "ind_ruido": INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0],
+            "rango_ma": RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0],
+            "conf_det": CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0],
+            "sfov": SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0],
+            "grosor_prosp": str(GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]),
+            "pitch": PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0],
+            "rot_tubo": ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0],
+            "retardo": RETARDOS[0],
             "inicio_ref": REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0],
             "ini_mm": 0,
             "fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
@@ -2337,26 +2337,10 @@ with tab2:
             if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
                 _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
                 _nuevo_numero = len(_existentes) + 1
-                _copia = dict(_exp_activa_nav)
-                _copia["id"] = f"exp_{st.session_state['exploracion_adq_counter']}"
-                st.session_state["exploracion_adq_counter"] += 1
-                _copia["orden"] = _nuevo_numero
-                _copia["nombre"] = "SIN CONTRASTE"
-                _copia["inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
-                _copia["ini_mm"] = 0
-                _copia["fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
-                _copia["fin_mm"] = 400
-                _copia["topo1_inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
-                _copia["topo1_ini_mm"] = 0
-                _copia["topo1_fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
-                _copia["topo1_fin_mm"] = 400
-                _copia["topo2_inicio_ref"] = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]
-                _copia["topo2_ini_mm"] = 0
-                _copia["topo2_fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
-                _copia["topo2_fin_mm"] = 400
-                st.session_state["exploraciones_adq"].append(_copia)
+                _nueva_exp = _crear_exploracion_adq(_nuevo_numero)
+                st.session_state["exploraciones_adq"].append(_nueva_exp)
                 _reindexar_exploraciones_adq()
-                st.session_state["exploracion_adq_activa"] = _copia["id"]
+                st.session_state["exploracion_adq_activa"] = _nueva_exp["id"]
                 st.rerun()
         with _c2:
             if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
