@@ -2037,47 +2037,6 @@ with tab2:
     st.markdown("---")
 
     # ── Topograma interactivo al inicio ─────────────────────────────────────
-    st.markdown('<div class="section-header">📡 Topograma de planificación</div>', unsafe_allow_html=True)
-    _region_topo  = st.session_state.get("region_anat", "CUERPO")
-    _examen_topo  = st.session_state.get("examen", "")
-    _pos_tubo_t1  = st.session_state.get("t1pt", "ARRIBA 0°")
-
-    # La imagen cambia según posición del tubo seleccionada en el topograma
-    # ARRIBA 0° / ABAJO 180° → proyección AP  |  DERECHA/IZQUIERDA 90° → lateral
-    def _tubo_to_proy(pos_tubo, region, examen):
-        if not pos_tubo:
-            return IMG_ABDOMEN_B64, "AP"
-        pos = pos_tubo.upper()
-        if "DERECHA" in pos or "IZQUIERDA" in pos:
-            # Lateral — para cabeza usamos la imagen lateral real
-            if region == "CABEZA":
-                return IMG_CEREBRO_B64, "Lateral"
-            else:
-                return IMG_ABDOMEN_B64, "Lateral (AP disponible)"
-        else:
-            # AP / PA
-            if region == "CABEZA":
-                return IMG_CEREBRO_B64, "AP (usando lateral disponible)"
-            elif region in ("CUERPO", "ANGIO") or any(x in examen.upper() for x in ["ABDOMEN","PELVIS","TORAX"]):
-                return IMG_ABDOMEN_B64, "AP"
-            else:
-                return IMG_ABDOMEN_B64, "AP"
-
-    _img_b64_t, _proy_t = _tubo_to_proy(_pos_tubo_t1, _region_topo, _examen_topo)
-    _ini_ref_t = st.session_state.get("inicio_ref",
-                    REFS_INICIO.get(_region_topo, ["—"])[0])
-    _fin_ref_t = st.session_state.get("fin_ref",
-                    REFS_FIN.get(_region_topo, ["—"])[0])
-
-    if _img_b64_t:
-        topo_html = render_topogram_interactivo(
-            _img_b64_t, _ini_ref_t, _fin_ref_t, _proy_t, width=700)
-        st.components.v1.html(topo_html, height=620)
-        st.caption(f"Proyección: {_proy_t} · Posición tubo: {_pos_tubo_t1} · "
-                   f"Las líneas se actualizan al cambiar inicio/fin en los parámetros.")
-    else:
-        st.info("Selecciona una región anatómica con imagen disponible (Cabeza o Abdomen/Pelvis).")
-
     st.markdown("---")
     col_adq1, col_adq2 = st.columns([1, 1])
 
