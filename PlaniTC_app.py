@@ -1120,7 +1120,7 @@ def render_topogramas_independientes_interactivos(topos, width=760):
     html = f"""
 <div style="text-align:center; margin:0 0 0 0;">
   <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;">
-    Arrastra las líneas para ajustar el rango de exploración. Cada imagen se mueve de forma independiente.
+    Arrastra las líneas como referencia visual. Los rangos guardados abajo son independientes por imagen y por adquisición.
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;">
     {''.join(cols_html)}
@@ -2251,6 +2251,26 @@ with tab2:
 
     _sanear_exploraciones_adq()
 
+    st.session_state.setdefault("rangos_adq_por_id", {})
+    for _exp in st.session_state["exploraciones_adq"]:
+        _eid = _exp.get("id")
+        if not _eid:
+            continue
+        st.session_state["rangos_adq_por_id"].setdefault(_eid, {
+            "inicio_ref": _exp.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "ini_mm": int(_exp.get("ini_mm", 0)),
+            "fin_ref": _exp.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "fin_mm": int(_exp.get("fin_mm", 400)),
+            "topo1_inicio_ref": _exp.get("topo1_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "topo1_ini_mm": int(_exp.get("topo1_ini_mm", 0)),
+            "topo1_fin_ref": _exp.get("topo1_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "topo1_fin_mm": int(_exp.get("topo1_fin_mm", 400)),
+            "topo2_inicio_ref": _exp.get("topo2_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "topo2_ini_mm": int(_exp.get("topo2_ini_mm", 0)),
+            "topo2_fin_ref": _exp.get("topo2_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "topo2_fin_mm": int(_exp.get("topo2_fin_mm", 400)),
+        })
+
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
         st.session_state["exploracion_adq_activa"] = ids_validos[0]
@@ -2357,6 +2377,25 @@ with tab2:
     with col_det:
         _actual = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
 
+        if _actual is not None:
+            _exp_id_actual = _actual.get("id")
+            _rangos_actual = st.session_state["rangos_adq_por_id"].setdefault(_exp_id_actual, {
+                "inicio_ref": _actual.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+                "ini_mm": int(_actual.get("ini_mm", 0)),
+                "fin_ref": _actual.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+                "fin_mm": int(_actual.get("fin_mm", 400)),
+                "topo1_inicio_ref": _actual.get("topo1_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+                "topo1_ini_mm": int(_actual.get("topo1_ini_mm", 0)),
+                "topo1_fin_ref": _actual.get("topo1_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+                "topo1_fin_mm": int(_actual.get("topo1_fin_mm", 400)),
+                "topo2_inicio_ref": _actual.get("topo2_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+                "topo2_ini_mm": int(_actual.get("topo2_ini_mm", 0)),
+                "topo2_fin_ref": _actual.get("topo2_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+                "topo2_fin_mm": int(_actual.get("topo2_fin_mm", 400)),
+            })
+            for _k, _v in _rangos_actual.items():
+                _actual[_k] = _v
+
         if _actual is None:
             st.warning("No se pudo cargar la exploración seleccionada.")
 
@@ -2433,11 +2472,11 @@ with tab2:
 
             if _topos_adq:
                 if len(_topos_adq) >= 1:
-                    _topos_adq[0]["inicio_ref"] = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
-                    _topos_adq[0]["fin_ref"] = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[0]["inicio_ref"] = _rangos_actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                    _topos_adq[0]["fin_ref"] = _rangos_actual.get("topo1_fin_ref", _refs_fin_adq[0])
                 if len(_topos_adq) >= 2:
-                    _topos_adq[1]["inicio_ref"] = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
-                    _topos_adq[1]["fin_ref"] = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[1]["inicio_ref"] = _rangos_actual.get("topo2_inicio_ref", _refs_ini_adq[0])
+                    _topos_adq[1]["fin_ref"] = _rangos_actual.get("topo2_fin_ref", _refs_fin_adq[0])
 
                 _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq)
                 if _html_topos_adq:
@@ -2458,43 +2497,55 @@ with tab2:
                         st.caption("Topograma 1")
                         _c11, _c12 = st.columns(2)
                         with _c11:
-                            _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                            _v = _rangos_actual.get("topo1_inicio_ref", _refs_ini_adq[0])
                             _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
-                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                            _rangos_actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
+                            _actual["topo1_inicio_ref"] = _rangos_actual["topo1_inicio_ref"]
+                            _rangos_actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_rangos_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                            _actual["topo1_ini_mm"] = _rangos_actual["topo1_ini_mm"]
                         with _c12:
-                            _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                            _v = _rangos_actual.get("topo1_fin_ref", _refs_fin_adq[0])
                             _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
-                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+                            _rangos_actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
+                            _actual["topo1_fin_ref"] = _rangos_actual["topo1_fin_ref"]
+                            _rangos_actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_rangos_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+                            _actual["topo1_fin_mm"] = _rangos_actual["topo1_fin_mm"]
                 else:
                     _tc1, _tc2 = st.columns(2, gap="small")
                     with _tc1:
                         st.caption("Topograma 1")
                         _c11, _c12 = st.columns(2)
                         with _c11:
-                            _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                            _v = _rangos_actual.get("topo1_inicio_ref", _refs_ini_adq[0])
                             _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
-                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                            _rangos_actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
+                            _actual["topo1_inicio_ref"] = _rangos_actual["topo1_inicio_ref"]
+                            _rangos_actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_rangos_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                            _actual["topo1_ini_mm"] = _rangos_actual["topo1_ini_mm"]
                         with _c12:
-                            _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                            _v = _rangos_actual.get("topo1_fin_ref", _refs_fin_adq[0])
                             _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
-                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+                            _rangos_actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
+                            _actual["topo1_fin_ref"] = _rangos_actual["topo1_fin_ref"]
+                            _rangos_actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_rangos_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+                            _actual["topo1_fin_mm"] = _rangos_actual["topo1_fin_mm"]
                     with _tc2:
                         st.caption("Topograma 2")
                         _c21, _c22 = st.columns(2)
                         with _c21:
-                            _v = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
+                            _v = _rangos_actual.get("topo2_inicio_ref", _refs_ini_adq[0])
                             _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            _actual["topo2_inicio_ref"] = st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}")
-                            _actual["topo2_ini_mm"] = st.number_input("mm inicio Topograma 2", value=int(_actual.get("topo2_ini_mm", 0)), step=10, key=f"topo2_inimm_{_exp_id}")
+                            _rangos_actual["topo2_inicio_ref"] = st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}")
+                            _actual["topo2_inicio_ref"] = _rangos_actual["topo2_inicio_ref"]
+                            _rangos_actual["topo2_ini_mm"] = st.number_input("mm inicio Topograma 2", value=int(_rangos_actual.get("topo2_ini_mm", 0)), step=10, key=f"topo2_inimm_{_exp_id}")
+                            _actual["topo2_ini_mm"] = _rangos_actual["topo2_ini_mm"]
                         with _c22:
-                            _v = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
+                            _v = _rangos_actual.get("topo2_fin_ref", _refs_fin_adq[0])
                             _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            _actual["topo2_fin_ref"] = st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}")
-                            _actual["topo2_fin_mm"] = st.number_input("mm fin Topograma 2", value=int(_actual.get("topo2_fin_mm", 400)), step=10, key=f"topo2_finmm_{_exp_id}")
+                            _rangos_actual["topo2_fin_ref"] = st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}")
+                            _actual["topo2_fin_ref"] = _rangos_actual["topo2_fin_ref"]
+                            _rangos_actual["topo2_fin_mm"] = st.number_input("mm fin Topograma 2", value=int(_rangos_actual.get("topo2_fin_mm", 400)), step=10, key=f"topo2_finmm_{_exp_id}")
+                            _actual["topo2_fin_mm"] = _rangos_actual["topo2_fin_mm"]
 
             col_adq1, col_adq2 = st.columns([1, 1], gap="small")
 
@@ -2590,23 +2641,27 @@ with tab2:
 
                 _col_ini, _col_fin = st.columns(2)
                 with _col_ini:
-                    _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
+                    _ini_ref_actual = _rangos_actual.get("inicio_ref", _refs_ini[0])
                     _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
-                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
-                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
+                    _rangos_actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
+                    _actual["inicio_ref"] = _rangos_actual["inicio_ref"]
+                    _rangos_actual["ini_mm"] = st.number_input("mm inicio", value=int(_rangos_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
+                    _actual["ini_mm"] = _rangos_actual["ini_mm"]
                 with _col_fin:
-                    _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
+                    _fin_ref_actual = _rangos_actual.get("fin_ref", _refs_fin_lista[0])
                     _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
-                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
-                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
+                    _rangos_actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
+                    _actual["fin_ref"] = _rangos_actual["fin_ref"]
+                    _rangos_actual["fin_mm"] = st.number_input("mm fin", value=int(_rangos_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
+                    _actual["fin_mm"] = _rangos_actual["fin_mm"]
 
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
             _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
             _pitch = _actual.get("pitch", 1.0)
             _rot_tubo = _actual.get("rot_tubo", ROT_TUBO[0])
-            _ini_mm = _actual.get("ini_mm", 0)
-            _fin_mm = _actual.get("fin_mm", 400)
+            _ini_mm = _rangos_actual.get("ini_mm", 0)
+            _fin_mm = _rangos_actual.get("fin_mm", 400)
             _grosor_float = float(str(_actual.get("grosor_prosp", 1.0)).replace(",", ".")) if _actual.get("grosor_prosp") is not None else 1.0
 
             _cob = calcular_cobertura_helical(_conf_det, _pitch)
