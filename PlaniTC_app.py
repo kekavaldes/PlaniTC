@@ -1567,54 +1567,57 @@ with tab1b:
 
     with col_topo_cfg:
         st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente</div>', unsafe_allow_html=True)
-        col_pos_topo, col_ent_topo = st.columns(2)
-        with col_pos_topo:
-            posicion = st.selectbox(
-                "Posición paciente",
-                [None] + POSICIONES_PACIENTE,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="posicion_topo"
-            )
-            st.session_state["posicion"] = posicion if posicion else ""
-        with col_ent_topo:
-            entrada = st.selectbox(
-                "Entrada",
-                [None] + ENTRADAS_PACIENTE,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="entrada_topo"
-            )
-            st.session_state["entrada"] = entrada if entrada else ""
+        col_pos_fields, col_pos_preview = st.columns([1.45, 0.85])
 
-        col_tubo, col_extremidades = st.columns(2)
-        with col_tubo:
-            topo1_pos = st.selectbox(
-                "Posición tubo",
-                [None] + POS_TUBO,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="t1pt"
-            )
-        with col_extremidades:
-            posicion_extremidades = st.selectbox(
-                "Posición extremidades",
-                [
-                    "Seleccionar",
-                    "brazos arriba",
-                    "brazos abajo",
-                    "eleva brazo derecho",
-                    "eleva brazo izquierdo",
-                    "flexión extremidad inferior derecha",
-                    "flexión extremidad inferior izquierda"
-                ],
-                key="pos_extremidades"
-            )
+        with col_pos_fields:
+            col_pos_topo, col_ent_topo = st.columns(2)
+            with col_pos_topo:
+                posicion = st.selectbox(
+                    "Posición paciente",
+                    [None] + POSICIONES_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="posicion_topo"
+                )
+                st.session_state["posicion"] = posicion if posicion else ""
+            with col_ent_topo:
+                entrada = st.selectbox(
+                    "Entrada",
+                    [None] + ENTRADAS_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="entrada_topo"
+                )
+                st.session_state["entrada"] = entrada if entrada else ""
 
-        with col_topo_img:
+            col_tubo, col_extremidades = st.columns(2)
+            with col_tubo:
+                topo1_pos = st.selectbox(
+                    "Posición tubo",
+                    [None] + POS_TUBO,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t1pt"
+                )
+            with col_extremidades:
+                posicion_extremidades = st.selectbox(
+                    "Posición extremidades",
+                    [
+                        "Seleccionar",
+                        "brazos arriba",
+                        "brazos abajo",
+                        "eleva brazo derecho",
+                        "eleva brazo izquierdo",
+                        "flexión extremidad inferior derecha",
+                        "flexión extremidad inferior izquierda"
+                    ],
+                    key="pos_extremidades"
+                )
+
+        with col_pos_preview:
             st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado</div>', unsafe_allow_html=True)
             imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
                 st.session_state.get("posicion", ""),
@@ -1622,7 +1625,7 @@ with tab1b:
                 st.session_state.get("t1pt", None),
             )
             if imagen_posicionamiento is not None:
-                st.image(str(imagen_posicionamiento), use_container_width=True)
+                st.image(str(imagen_posicionamiento), width=250)
             else:
                 st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
@@ -1792,49 +1795,64 @@ with tab1b:
 
         with col_t2_cfg:
             st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente — Topograma 2</div>', unsafe_allow_html=True)
-            col_t2e, col_t2f = st.columns(2)
-            with col_t2e:
-                topo2_posicion = st.selectbox(
-                    "Posición paciente",
-                    [None] + POSICIONES_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2_posicion_paciente"
+            col_t2_fields, col_t2_preview = st.columns([1.45, 0.85])
+
+            with col_t2_fields:
+                col_t2e, col_t2f = st.columns(2)
+                with col_t2e:
+                    topo2_posicion = st.selectbox(
+                        "Posición paciente",
+                        [None] + POSICIONES_PACIENTE,
+                        index=0,
+                        format_func=lambda x: "Seleccionar" if x is None else x,
+                        placeholder="Seleccionar",
+                        key="t2_posicion_paciente"
+                    )
+                with col_t2f:
+                    topo2_entrada = st.selectbox(
+                        "Entrada",
+                        [None] + ENTRADAS_PACIENTE,
+                        index=0,
+                        format_func=lambda x: "Seleccionar" if x is None else x,
+                        placeholder="Seleccionar",
+                        key="t2_entrada"
+                    )
+                col_t2g, col_t2h = st.columns(2)
+                with col_t2g:
+                    topo2_pos = st.selectbox(
+                        "Posición tubo",
+                        [None] + POS_TUBO,
+                        index=0,
+                        format_func=lambda x: "Seleccionar" if x is None else x,
+                        placeholder="Seleccionar",
+                        key="t2pt"
+                    )
+                with col_t2h:
+                    topo2_extremidades = st.selectbox(
+                        "Posición extremidades",
+                        [
+                            "Seleccionar",
+                            "brazos arriba",
+                            "brazos abajo",
+                            "eleva brazo derecho",
+                            "eleva brazo izquierdo",
+                            "flexión extremidad inferior derecha",
+                            "flexión extremidad inferior izquierda"
+                        ],
+                        key="t2_pos_extremidades"
+                    )
+
+            with col_t2_preview:
+                st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado — Topograma 2</div>', unsafe_allow_html=True)
+                imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
+                    topo2_posicion if topo2_posicion else "",
+                    topo2_entrada if topo2_entrada else "",
+                    st.session_state.get("t2pt", None),
                 )
-            with col_t2f:
-                topo2_entrada = st.selectbox(
-                    "Entrada",
-                    [None] + ENTRADAS_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2_entrada"
-                )
-            col_t2g, col_t2h = st.columns(2)
-            with col_t2g:
-                topo2_pos = st.selectbox(
-                    "Posición tubo",
-                    [None] + POS_TUBO,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2pt"
-                )
-            with col_t2h:
-                topo2_extremidades = st.selectbox(
-                    "Posición extremidades",
-                    [
-                        "Seleccionar",
-                        "brazos arriba",
-                        "brazos abajo",
-                        "eleva brazo derecho",
-                        "eleva brazo izquierdo",
-                        "flexión extremidad inferior derecha",
-                        "flexión extremidad inferior izquierda"
-                    ],
-                    key="t2_pos_extremidades"
-                )
+                if imagen_posicionamiento_t2 is not None:
+                    st.image(str(imagen_posicionamiento_t2), width=250)
+                else:
+                    st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
             st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
             col_t2a, col_t2b = st.columns(2)
@@ -1896,17 +1914,6 @@ with tab1b:
                     st.rerun()
 
         with col_t2_img:
-            st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado — Topograma 2</div>', unsafe_allow_html=True)
-            imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
-                topo2_posicion if topo2_posicion else "",
-                topo2_entrada if topo2_entrada else "",
-                st.session_state.get("t2pt", None),
-            )
-            if imagen_posicionamiento_t2 is not None:
-                st.image(str(imagen_posicionamiento_t2), use_container_width=True)
-            else:
-                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
-
             st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
             def _tubo_to_proy_prev_t2(pos_tubo):
