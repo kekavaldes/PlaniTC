@@ -2020,19 +2020,69 @@ with tab2:
         st.markdown('<div class="section-header">📋 Exploraciones</div>', unsafe_allow_html=True)
         st.caption("Selecciona una exploración para editar sus parámetros.")
 
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] button[kind="secondary"] {
+            background: #1b1b1b !important;
+            color: #ffffff !important;
+            border: 1px solid #3a3a3a !important;
+            border-radius: 14px !important;
+            min-height: 54px !important;
+            font-size: 1.05rem !important;
+            font-weight: 600 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            padding-left: 16px !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stButton"] button[kind="secondary"]:hover {
+            background: #262626 !important;
+            border-color: #5a5a5a !important;
+            color: #ffffff !important;
+        }
+        div[data-testid="stButton"] button[kind="primary"] {
+            background: linear-gradient(180deg, #0d2f5c 0%, #0a2340 100%) !important;
+            color: #ffffff !important;
+            border: 1px solid #4da3ff !important;
+            border-radius: 14px !important;
+            min-height: 58px !important;
+            font-size: 1.08rem !important;
+            font-weight: 700 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            padding-left: 16px !important;
+            box-shadow: 0 0 0 1px rgba(77,163,255,0.15) inset !important;
+        }
+        div[data-testid="stButton"] button[kind="primary"]:hover {
+            background: linear-gradient(180deg, #123e77 0%, #0d2f5c 100%) !important;
+            color: #ffffff !important;
+            border-color: #79b8ff !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         for _exp in st.session_state["exploraciones_adq"]:
             _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
             _icono = "📡" if _exp.get("tipo") == "topograma" else "⚡"
-            _label = f"{_icono} {_exp.get('nombre', 'Exploración')}"
-            if _activa:
-                st.markdown(
-                    f'<div style="padding:6px 10px;border-radius:10px;background:#1f6feb22;border:1px solid #1f6feb;margin-bottom:6px;"><b>{_label}</b></div>',
-                    unsafe_allow_html=True,
-                )
-            if st.button(_label, key=f"btn_sel_{_exp['id']}", use_container_width=True):
+            _nombre_base = _exp.get("nombre", "Exploración")
+            _label = f"{_icono} {_nombre_base}"
+            if _exp.get("tipo") == "adquisicion":
+                _tipo_resumen = _exp.get("tipo_exp", "HELICOIDAL")
+                _voz_resumen = _exp.get("voz", "NINGUNA")
+                st.caption(f"{_nombre_base} · {_tipo_resumen} · Voz: {_voz_resumen}")
+            else:
+                st.caption("Topogramas programados del estudio")
+            if st.button(
+                _label,
+                key=f"btn_sel_{_exp['id']}",
+                use_container_width=True,
+                type="primary" if _activa else "secondary",
+            ):
                 st.session_state["exploracion_adq_activa"] = _exp["id"]
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
-        if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq"):
+        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+        if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq", type="secondary"):
             _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
             _numero = len(_existentes) + 1
             st.session_state["exploraciones_adq"].append(_crear_exploracion_adq(_numero))
@@ -2043,9 +2093,10 @@ with tab2:
         _exp_activa_nav = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
         _es_adq_activa = _exp_activa_nav is not None and _exp_activa_nav.get("tipo") == "adquisicion"
 
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
         _c1, _c2 = st.columns(2)
         with _c1:
-            if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa):
+            if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
                 _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
                 _nuevo_numero = len(_existentes) + 1
                 _copia = dict(_exp_activa_nav)
@@ -2056,7 +2107,7 @@ with tab2:
                 st.session_state["exploracion_adq_activa"] = f"exp_{_nuevo_numero}"
                 st.rerun()
         with _c2:
-            if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa):
+            if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
                 _id_eliminar = st.session_state["exploracion_adq_activa"]
                 st.session_state["exploraciones_adq"] = [
                     e for e in st.session_state["exploraciones_adq"]
