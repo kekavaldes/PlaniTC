@@ -14,6 +14,7 @@ import unicodedata
 import pandas as pd
 from PIL import Image
 from datetime import date, datetime
+import uuid
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -544,7 +545,7 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
 TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"]
 
 MODULACION_CORRIENTE = ["MANUAL", "AUTO mA", "CARE DOSE 4D"]
-NOMBRES_EXPLORACION = ["SIN CONTRASTE", "ARTERIAL", "ANGIOGRÁFICA", "BOLUS TEST O BOLUS TRACKING", "VENOSA", "TARDÍA"]
+NOMBRES_EXPLORACION = ["SIN CONTRASTE", "ANGIOGRÁFICA", "BOLUS TEST O BOLUS TRACKING", "VENOSA", "TARDÍA"]
 
 KVP_OPCIONES = [70, 80, 90, 100, 110, 120, 140]
 
@@ -1093,9 +1094,9 @@ def _pil_to_b64_jpeg(img, max_width=900):
 
 def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width=760):
     """
-    Renderiza uno o dos topogramas programados con líneas móviles independientes.
-    Las imágenes se muestran arriba, con el mismo tamaño y más pequeñas para que
-    entren mejor en pantalla sin recortarse.
+    Renderiza uno o dos topogramas programados con líneas móviles sincronizadas.
+    Si hay dos topogramas, al mover una línea en cualquiera, se actualizan ambos.
+    Ajusta el tamaño sin recortar la imagen y conserva su proporción.
     """
     if not topos:
         return None
@@ -1103,31 +1104,22 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     y_ini = get_y_position(inicio_ref)
     y_fin = get_y_position(fin_ref)
     multiple = len(topos) > 1
-    canvas_css_width = 240 if multiple else 340
-    min_col_width = 240 if multiple else 340
+    canvas_css_width = 360 if multiple else 500
+    min_col_width = 320 if multiple else 540
 
     cols_html = []
-    topo_js = []
     for i, topo in enumerate(topos):
         img_b64 = topo.get("img_b64")
         if not img_b64:
             continue
         titulo = topo.get("titulo", f"Topograma {i+1}")
         subtitulo = topo.get("subtitulo", "")
-        inicio_lbl = topo.get("inicio_ref", inicio_ref)
-        fin_lbl = topo.get("fin_ref", fin_ref)
-        topo_js.append({"img_b64": img_b64, "inicio_ref": inicio_lbl, "fin_ref": fin_lbl})
         cols_html.append(f"""
-        <div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">
-          <div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 8px 0; text-align:center;">{titulo}</div>
+        <div style="flex:0 1 {canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width + 30}px;">
+          <div style="font-size:18px;font-weight:700;color:#fff;margin:0 0 8px 0;">{titulo}</div>
           <canvas id="topoCanvas{i}" width="500" height="900"
-            style="width:{canvas_css_width}px; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
-          <div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;">{subtitulo}</div>
-          <div style="margin-top:6px; font-size:12px; color:#fff; text-align:center; line-height:1.5;">
-            <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioSync{i}">{inicio_lbl}</b><br>
-            <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinSync{i}">{fin_lbl}</b><br>
-            Longitud: <b id="lblLongSync{i}">—</b> mm
-          </div>
+            style="width:{canvas_css_width}px; max-width:100%; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
+          <div style="margin-top:6px; font-size:12px; color:#ccc;">{subtitulo}</div>
         </div>
         """)
 
@@ -1135,59 +1127,58 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
         return None
 
     html = f"""
-<div style="text-align:center; margin: 0.15rem 0 0.2rem 0;">
-  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:4px;">
-    Arrastra las líneas de cada imagen para ajustar su rango de exploración de forma independiente.
+<div style="text-align:center; margin: 0.5rem 0;">
+  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:10px;">
+    Arrastra las líneas para ajustar el rango de exploración.
+    {'Ambos topogramas se mueven simultáneamente.' if len(cols_html) > 1 else ''}
   </div>
-  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; justify-content:center;">
+  <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; justify-content:center;">
     {''.join(cols_html)}
+  </div>
+  <div style="margin-top:8px; font-size:13px; color:#fff;">
+    <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioSync">{inicio_ref}</b>
+    &nbsp;&nbsp;
+    <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinSync">{fin_ref}</b>
+    &nbsp;&nbsp;|&nbsp;&nbsp;
+    Longitud: <b id="lblLongSync">—</b> mm
   </div>
 </div>
 <script>
 (function() {{
-  var topoData = {str(topo_js).replace("'", '"')};
+  var topoData = {str([{"img_b64": t.get("img_b64", "")} for t in topos]).replace("'", '"')};
   var canvases = topoData.map(function(_, idx) {{
     return document.getElementById('topoCanvas' + idx);
   }}).filter(Boolean);
 
   if (!canvases.length) return;
 
+  var yIni = {y_ini};
+  var yFin = {y_fin};
+  var dragging = null;
+  var activeCanvas = null;
   var dragThresh = 12;
   var imgs = [];
-  var dragging = null;
-  var activeIdx = null;
-  var positions = topoData.map(function() {{
-    return {{ yIni: {y_ini}, yFin: {y_fin} }};
-  }});
 
   function syncCanvasSize(canvas, img) {{
     if (!canvas || !img || !img.width || !img.height) return;
     var cssW = parseFloat(canvas.style.width) || canvas.clientWidth || 500;
     var ratio = img.height / img.width;
     var cssH = Math.round(cssW * ratio);
-    canvas.width = Math.max(180, Math.round(cssW));
-    canvas.height = Math.max(260, cssH);
+    canvas.width = Math.max(200, Math.round(cssW));
+    canvas.height = Math.max(300, cssH);
   }}
 
-  function updateLabels(idx) {{
-    var pos = positions[idx];
-    var pct = Math.abs(pos.yFin - pos.yIni);
-    var longMm = Math.round(pct * 600);
-    var el = document.getElementById('lblLongSync' + idx);
-    if(el) el.textContent = longMm;
-  }}
-
-  function drawCanvas(canvas, img, idx) {{
+  function drawCanvas(canvas, img) {{
     if(!canvas || !img) return;
     syncCanvasSize(canvas, img);
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
-    var pos = positions[idx];
     ctx.clearRect(0,0,W,H);
     ctx.drawImage(img, 0, 0, W, H);
 
-    var yi = Math.round(pos.yIni * H);
-    var yf = Math.round(pos.yFin * H);
+    var yi = Math.round(yIni * H);
+    var yf = Math.round(yFin * H);
+
     var y1 = Math.min(yi, yf), y2 = Math.max(yi, yf);
     ctx.fillStyle = 'rgba(100,180,255,0.12)';
     ctx.fillRect(0, y1, W, y2-y1);
@@ -1212,8 +1203,14 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     ctx.setLineDash([]);
     ctx.fillStyle = '#FF4444';
     ctx.fillText('FIN', 6, yf - 5);
+  }}
 
-    updateLabels(idx);
+  function drawAll() {{
+    canvases.forEach(function(canvas, idx) {{ drawCanvas(canvas, imgs[idx]); }});
+    var pct = Math.abs(yFin - yIni);
+    var longMm = Math.round(pct * 600);
+    var el = document.getElementById('lblLongSync');
+    if(el) el.textContent = longMm;
   }}
 
   function getMouseY(canvas, e) {{
@@ -1222,59 +1219,61 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     return (e.clientY - rect.top) * scaleY;
   }}
 
-  canvases.forEach(function(canvas, idx) {{
+  canvases.forEach(function(canvas) {{
     canvas.addEventListener('mousedown', function(e) {{
       var my = getMouseY(canvas, e);
-      var pos = positions[idx];
-      var yi = pos.yIni * canvas.height, yf = pos.yFin * canvas.height;
-      if(Math.abs(my - yi) < dragThresh) {{ dragging = 'ini'; activeIdx = idx; }}
-      else if(Math.abs(my - yf) < dragThresh) {{ dragging = 'fin'; activeIdx = idx; }}
+      var yi = yIni * canvas.height, yf = yFin * canvas.height;
+      if(Math.abs(my - yi) < dragThresh) {{ dragging = 'ini'; activeCanvas = canvas; }}
+      else if(Math.abs(my - yf) < dragThresh) {{ dragging = 'fin'; activeCanvas = canvas; }}
     }});
 
     canvas.addEventListener('mousemove', function(e) {{
       var my = getMouseY(canvas, e);
-      var pos = positions[idx];
-      var yi = pos.yIni * canvas.height, yf = pos.yFin * canvas.height;
-      canvas.style.cursor = (Math.abs(my-yi)<dragThresh || Math.abs(my-yf)<dragThresh || activeIdx===idx) ? 'ns-resize' : 'default';
-      if(!dragging || activeIdx !== idx) return;
+      var yi = yIni * canvas.height, yf = yFin * canvas.height;
+      canvas.style.cursor = (Math.abs(my-yi)<dragThresh || Math.abs(my-yf)<dragThresh || activeCanvas===canvas) ? 'ns-resize' : 'default';
+      if(!dragging || activeCanvas !== canvas) return;
       var newY = Math.max(0.01, Math.min(0.99, my/canvas.height));
-      if(dragging === 'ini') positions[idx].yIni = newY;
-      else positions[idx].yFin = newY;
-      drawCanvas(canvas, imgs[idx], idx);
+      if(dragging === 'ini') yIni = newY;
+      else yFin = newY;
+      drawAll();
     }});
 
-    canvas.addEventListener('mouseup', function() {{ dragging = null; activeIdx = null; }});
-    canvas.addEventListener('mouseleave', function() {{ dragging = null; activeIdx = null; }});
+    canvas.addEventListener('mouseup', function() {{ dragging = null; activeCanvas = null; }});
+    canvas.addEventListener('mouseleave', function() {{ dragging = null; activeCanvas = null; }});
 
     canvas.addEventListener('touchstart', function(e) {{
       e.preventDefault();
       var t = e.touches[0];
       var rect = canvas.getBoundingClientRect();
       var my = (t.clientY - rect.top) * (canvas.height / rect.height);
-      var pos = positions[idx];
-      if(Math.abs(my - pos.yIni*canvas.height) < dragThresh*2) {{ dragging = 'ini'; activeIdx = idx; }}
-      else if(Math.abs(my - pos.yFin*canvas.height) < dragThresh*2) {{ dragging = 'fin'; activeIdx = idx; }}
+      if(Math.abs(my - yIni*canvas.height) < dragThresh*2) {{ dragging = 'ini'; activeCanvas = canvas; }}
+      else if(Math.abs(my - yFin*canvas.height) < dragThresh*2) {{ dragging = 'fin'; activeCanvas = canvas; }}
     }}, {{passive:false}});
 
     canvas.addEventListener('touchmove', function(e) {{
       e.preventDefault();
-      if(!dragging || activeIdx !== idx) return;
+      if(!dragging || activeCanvas !== canvas) return;
       var t = e.touches[0];
       var rect = canvas.getBoundingClientRect();
       var my = (t.clientY - rect.top) * (canvas.height / rect.height);
       var newY = Math.max(0.01, Math.min(0.99, my/canvas.height));
-      if(dragging === 'ini') positions[idx].yIni = newY;
-      else positions[idx].yFin = newY;
-      drawCanvas(canvas, imgs[idx], idx);
+      if(dragging === 'ini') yIni = newY;
+      else yFin = newY;
+      drawAll();
     }}, {{passive:false}});
 
-    canvas.addEventListener('touchend', function() {{ dragging = null; activeIdx = null; }});
+    canvas.addEventListener('touchend', function() {{ dragging = null; activeCanvas = null; }});
   }});
 
+  var loaded = 0;
   topoData.forEach(function(item, idx) {{
     var img = new Image();
     imgs[idx] = img;
-    img.onload = function() {{ drawCanvas(canvases[idx], img, idx); }};
+    img.onload = function() {{
+      loaded += 1;
+      if (loaded >= topoData.length) drawAll();
+      else drawCanvas(canvases[idx], img);
+    }};
     img.src = 'data:image/jpeg;base64,' + item.img_b64;
   }});
 }})();
@@ -1985,31 +1984,30 @@ with tab2:
     region_anat = st.session_state.get("region_anat", "CUERPO")
 
     def _crear_exploracion_adq(numero):
-        _refs_ini_default = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
-        _refs_fin_default = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
         return {
             "id": f"exp_{numero}",
+            "uid": uuid.uuid4().hex,
             "tipo": "adquisicion",
-            "nombre": NOMBRES_EXPLORACION[0],
-            "tipo_exp": TIPOS_EXPLORACION[0],
-            "doble_muestreo": "NO",
-            "voz_adq": INSTRUCCIONES_VOZ[0],
-            "mod_corriente": MODULACION_CORRIENTE[0],
-            "kvp": 120,
-            "mas_val": 200,
-            "ind_cal": INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0],
-            "ind_ruido": INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0],
-            "rango_ma": RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0],
-            "conf_det": CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0],
-            "sfov": SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0],
-            "grosor_prosp": str(GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]),
-            "pitch": PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0],
-            "rot_tubo": ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0],
-            "retardo": RETARDOS[0],
-            "inicio_ref": _refs_ini_default[0],
-            "ini_mm": 0,
-            "fin_ref": _refs_fin_default[0],
-            "fin_mm": 400,
+            "nombre": st.session_state.get("nombre_exploracion", NOMBRES_EXPLORACION[0]),
+            "tipo_exp": st.session_state.get("tipo_exp", TIPOS_EXPLORACION[0]),
+            "doble_muestreo": st.session_state.get("doble_muestreo", "NO"),
+            "voz_adq": st.session_state.get("voz_adq", INSTRUCCIONES_VOZ[0]),
+            "mod_corriente": st.session_state.get("mod_corriente", MODULACION_CORRIENTE[0]),
+            "kvp": st.session_state.get("kvp", 120),
+            "mas_val": st.session_state.get("mas_val", 200),
+            "ind_cal": st.session_state.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0]),
+            "ind_ruido": st.session_state.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0]),
+            "rango_ma": st.session_state.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0]),
+            "conf_det": st.session_state.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0]),
+            "sfov": st.session_state.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0]),
+            "grosor_prosp": str(st.session_state.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0])),
+            "pitch": st.session_state.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0]),
+            "rot_tubo": st.session_state.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0]),
+            "retardo": st.session_state.get("retardo", RETARDOS[0]),
+            "inicio_ref": st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "ini_mm": int(st.session_state.get("ini_mm", 0)),
+            "fin_ref": st.session_state.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "fin_mm": int(st.session_state.get("fin_mm", 400)),
         }
 
     def _reindexar_exploraciones_adq():
@@ -2017,22 +2015,22 @@ with tab2:
         for _exp in st.session_state["exploraciones_adq"]:
             if _exp.get("tipo") == "adquisicion":
                 _exp["id"] = f"exp_{_contador}"
-                _exp["nombre"] = f"Exploración {_contador}"
+                if not _exp.get("uid"):
+                    _exp["uid"] = uuid.uuid4().hex
                 _contador += 1
 
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [
+            {"id": "topograma", "tipo": "topograma", "nombre": "Topograma"},
             _crear_exploracion_adq(1),
         ]
 
-    # Compatibilidad con sesiones anteriores: eliminar la vista especial de topograma
-    st.session_state["exploraciones_adq"] = [
-        e for e in st.session_state["exploraciones_adq"]
-        if e.get("tipo") == "adquisicion"
-    ] or [_crear_exploracion_adq(1)]
+    if "exploracion_adq_activa" not in st.session_state:
+        st.session_state["exploracion_adq_activa"] = "topograma"
 
-    if "exploracion_adq_activa" not in st.session_state or st.session_state["exploracion_adq_activa"] == "topograma":
-        st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][0]["id"]
+    for _exp in st.session_state["exploraciones_adq"]:
+        if _exp.get("tipo") == "adquisicion" and not _exp.get("uid"):
+            _exp["uid"] = uuid.uuid4().hex
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2087,7 +2085,7 @@ with tab2:
 
         for _exp in st.session_state["exploraciones_adq"]:
             _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
-            _icono = "⚡"
+            _icono = "📡" if _exp.get("tipo") == "topograma" else "⚡"
             _nombre_base = _exp.get("nombre", "Exploración")
             _label = f"{_icono} {_nombre_base}"
             if _exp.get("tipo") == "adquisicion":
@@ -2125,7 +2123,7 @@ with tab2:
                 _nuevo_numero = len(_existentes) + 1
                 _copia = dict(_exp_activa_nav)
                 _copia["id"] = f"exp_{_nuevo_numero}"
-                _copia["nombre"] = f"Exploración {_nuevo_numero}"
+                _copia["uid"] = uuid.uuid4().hex
                 st.session_state["exploraciones_adq"].append(_copia)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = f"exp_{_nuevo_numero}"
@@ -2138,8 +2136,7 @@ with tab2:
                     if e.get("id") != _id_eliminar
                 ]
                 _reindexar_exploraciones_adq()
-                _ids_restantes = [e.get("id") for e in st.session_state["exploraciones_adq"]]
-                st.session_state["exploracion_adq_activa"] = _ids_restantes[0] if _ids_restantes else _crear_exploracion_adq(1)["id"]
+                st.session_state["exploracion_adq_activa"] = "topograma"
                 st.rerun()
 
     with col_det:
@@ -2148,110 +2145,111 @@ with tab2:
         if _actual is None:
             st.warning("No se pudo cargar la exploración seleccionada.")
 
+        elif _actual.get("tipo") == "topograma":
+            st.markdown('<div class="section-header">🖼️ Topograma(s) programado(s)</div>', unsafe_allow_html=True)
+            _hay_topo1 = st.session_state.get("topograma_iniciado", False)
+            _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
+
+            if _hay_topo1 or _hay_topo2:
+                _topos_programados = []
+                _errores_topos = []
+
+                if _hay_topo1:
+                    _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
+                        st.session_state.get("examen", ""),
+                        st.session_state.get("posicion", ""),
+                        st.session_state.get("entrada", ""),
+                        st.session_state.get("t1pt", ""),
+                    )
+                    if _img_adq_1 is not None:
+                        _topos_programados.append({
+                            "titulo": "✅ Topograma 1 programado",
+                            "subtitulo": (
+                                f"Tubo: {st.session_state.get('t1pt', '—')} · "
+                                f"{st.session_state.get('t1l', '—')} mm · "
+                                f"{st.session_state.get('t1kv', '—')} kV · "
+                                f"{st.session_state.get('t1ma', '—')} mA"
+                            ),
+                            "img_b64": _pil_to_b64_jpeg(_img_adq_1),
+                        })
+                    else:
+                        _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
+
+                if _hay_topo2:
+                    _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
+                        st.session_state.get("examen", ""),
+                        st.session_state.get("t2_posicion_paciente", ""),
+                        st.session_state.get("t2_entrada", ""),
+                        st.session_state.get("t2pt", ""),
+                    )
+                    if _img_adq_2 is not None:
+                        _topos_programados.append({
+                            "titulo": "✅ Topograma 2 programado",
+                            "subtitulo": (
+                                f"Tubo: {st.session_state.get('t2pt', '—')} · "
+                                f"{st.session_state.get('t2l', '—')} mm · "
+                                f"{st.session_state.get('t2kv', '—')} kV · "
+                                f"{st.session_state.get('t2ma', '—')} mA"
+                            ),
+                            "img_b64": _pil_to_b64_jpeg(_img_adq_2),
+                        })
+                    else:
+                        _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
+
+                _ini_ref_prog = st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0])
+                _fin_ref_prog = st.session_state.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0])
+
+                if _topos_programados:
+                    _html_topos_prog = render_topogramas_programados_interactivos(
+                        _topos_programados,
+                        _ini_ref_prog,
+                        _fin_ref_prog,
+                    )
+                    if _html_topos_prog:
+                        st.components.v1.html(_html_topos_prog, height=820 if len(_topos_programados) > 1 else 980)
+                        if len(_topos_programados) > 1:
+                            st.caption("Las líneas de Topograma 1 y Topograma 2 están sincronizadas en esta vista.")
+                    else:
+                        st.warning("No se pudieron renderizar los topogramas programados.")
+
+                for _err in _errores_topos:
+                    if _err:
+                        st.warning(_err)
+            else:
+                st.info("Aún no hay topogramas programados. Inicia Topograma 1 o Topograma 2 en la pestaña de Topograma.")
+
         else:
             _exp_id = _actual["id"]
+            _widget_id = _actual.get("uid", _exp_id)
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
-            _key_nombre = f"nombre_{_exp_id}"
-            if _key_nombre not in st.session_state:
-                st.session_state[_key_nombre] = _actual.get("nombre", NOMBRES_EXPLORACION[0])
-            _nombre_idx = NOMBRES_EXPLORACION.index(st.session_state[_key_nombre]) if st.session_state[_key_nombre] in NOMBRES_EXPLORACION else 0
-            st.selectbox(
+            _nombre_idx = NOMBRES_EXPLORACION.index(_actual.get("nombre", NOMBRES_EXPLORACION[0])) if _actual.get("nombre", NOMBRES_EXPLORACION[0]) in NOMBRES_EXPLORACION else 0
+            _actual["nombre"] = st.selectbox(
                 "Nombre de la exploración",
                 NOMBRES_EXPLORACION,
                 index=_nombre_idx,
-                key=_key_nombre,
+                key=f"nombre_{_widget_id}",
             )
-            _actual["nombre"] = st.session_state[_key_nombre]
-
-            st.markdown('<div class="section-header">🖼️ Topograma(s) en esta adquisición</div>', unsafe_allow_html=True)
-            _hay_topo1 = st.session_state.get("topograma_iniciado", False)
-            _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
-            _topos_programados = []
-            _errores_topos = []
-
-            if _hay_topo1:
-                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("posicion", ""),
-                    st.session_state.get("entrada", ""),
-                    st.session_state.get("t1pt", ""),
-                )
-                if _img_adq_1 is not None:
-                    _topos_programados.append({
-                        "titulo": "✅ Topograma 1 programado",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
-                            f"{st.session_state.get('t1l', '—')} mm · "
-                            f"{st.session_state.get('t1kv', '—')} kV · "
-                            f"{st.session_state.get('t1ma', '—')} mA"
-                        ),
-                        "inicio_ref": _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
-                        "fin_ref": _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_1),
-                    })
-                else:
-                    _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
-
-            if _hay_topo2:
-                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("t2_posicion_paciente", ""),
-                    st.session_state.get("t2_entrada", ""),
-                    st.session_state.get("t2pt", ""),
-                )
-                if _img_adq_2 is not None:
-                    _topos_programados.append({
-                        "titulo": "✅ Topograma 2 programado",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
-                            f"{st.session_state.get('t2l', '—')} mm · "
-                            f"{st.session_state.get('t2kv', '—')} kV · "
-                            f"{st.session_state.get('t2ma', '—')} mA"
-                        ),
-                        "inicio_ref": _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
-                        "fin_ref": _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_2),
-                    })
-                else:
-                    _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
-
-            if _topos_programados:
-                _html_topos_prog = render_topogramas_programados_interactivos(
-                    _topos_programados,
-                    _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
-                    _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
-                )
-                if _html_topos_prog:
-                    st.components.v1.html(_html_topos_prog, height=500 if len(_topos_programados) > 1 else 650)
-                else:
-                    st.warning("No se pudieron renderizar los topogramas programados en esta adquisición.")
-            else:
-                st.info("Aún no hay topogramas iniciados en la pestaña Topograma.")
-
-            for _err in _errores_topos:
-                if _err:
-                    st.warning(_err)
 
             col_adq1, col_adq2 = st.columns([1, 1])
 
             with col_adq1:
                 st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
                 _tipo_idx = TIPOS_EXPLORACION.index(_actual.get("tipo_exp", TIPOS_EXPLORACION[0])) if _actual.get("tipo_exp", TIPOS_EXPLORACION[0]) in TIPOS_EXPLORACION else 0
-                _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_exp_id}")
+                _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_widget_id}")
 
                 if _actual["tipo_exp"] == "HELICOIDAL":
                     _dm_idx = ["NO", "SI"].index(_actual.get("doble_muestreo", "NO")) if _actual.get("doble_muestreo", "NO") in ["NO", "SI"] else 0
-                    _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_exp_id}")
+                    _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_widget_id}")
                 else:
                     _actual["doble_muestreo"] = "NO"
 
                 _voz_idx = INSTRUCCIONES_VOZ.index(_actual.get("voz_adq", INSTRUCCIONES_VOZ[0])) if _actual.get("voz_adq", INSTRUCCIONES_VOZ[0]) in INSTRUCCIONES_VOZ else 0
-                _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_exp_id}")
+                _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_widget_id}")
 
                 st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
                 _mod_idx = MODULACION_CORRIENTE.index(_actual.get("mod_corriente", MODULACION_CORRIENTE[0])) if _actual.get("mod_corriente", MODULACION_CORRIENTE[0]) in MODULACION_CORRIENTE else 0
-                _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_exp_id}")
+                _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_widget_id}")
 
                 _col_kv, _col_mas = st.columns(2)
                 with _col_kv:
@@ -2262,97 +2260,80 @@ with tab2:
                         _label_kv = "CARE kV"
                     elif _actual["mod_corriente"] == "AUTO mA":
                         _label_kv = "AUTO kV"
-                    _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_exp_id}")
+                    _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_widget_id}")
 
                 with _col_mas:
                     if _actual["mod_corriente"] == "CARE DOSE 4D":
                         _mas_base = _actual.get("mas_val", 200)
                         _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                        _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_exp_id}")
+                        _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_widget_id}")
                         _ind_cal = _actual.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0])
                         _ind_cal_idx = INDICE_CALIDAD.index(_ind_cal) if _ind_cal in INDICE_CALIDAD else (4 if len(INDICE_CALIDAD) > 4 else 0)
-                        _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_exp_id}")
+                        _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_widget_id}")
                     elif _actual["mod_corriente"] == "AUTO mA":
                         _rango_ma = _actual.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0])
                         _rango_idx = RANGO_MA.index(_rango_ma) if _rango_ma in RANGO_MA else (2 if len(RANGO_MA) > 2 else 0)
-                        _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_exp_id}")
+                        _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_widget_id}")
                         try:
                             _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
                         except Exception:
                             _actual["mas_val"] = 200
                         _ind_ruido = _actual.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0])
                         _ind_ruido_idx = INDICE_RUIDO.index(_ind_ruido) if _ind_ruido in INDICE_RUIDO else (2 if len(INDICE_RUIDO) > 2 else 0)
-                        _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_exp_id}")
+                        _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_widget_id}")
                     else:
                         _mas_base = _actual.get("mas_val", 200)
                         _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                        _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_exp_id}")
+                        _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_widget_id}")
 
             with col_adq2:
                 st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
                 _conf_actual = _actual.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0])
                 _conf_idx = CONF_DETECTORES.index(_conf_actual) if _conf_actual in CONF_DETECTORES else (4 if len(CONF_DETECTORES) > 4 else 0)
-                _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_exp_id}")
+                _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_widget_id}")
 
                 _sfov_actual = _actual.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0])
                 _sfov_idx = SFOV_OPCIONES.index(_sfov_actual) if _sfov_actual in SFOV_OPCIONES else (2 if len(SFOV_OPCIONES) > 2 else 0)
-                _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_exp_id}")
+                _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_widget_id}")
 
                 _grosor_actual = str(_actual.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]))
                 _grosor_opciones = [str(g) for g in GROSOR_PROSP]
                 _grosor_idx = _grosor_opciones.index(_grosor_actual) if _grosor_actual in _grosor_opciones else (2 if len(_grosor_opciones) > 2 else 0)
-                _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_exp_id}")
+                _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_widget_id}")
 
                 _col_p, _col_r = st.columns(2)
                 with _col_p:
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         _pitch_actual = _actual.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0])
                         _pitch_idx = PITCH_OPCIONES.index(_pitch_actual) if _pitch_actual in PITCH_OPCIONES else (6 if len(PITCH_OPCIONES) > 6 else 0)
-                        _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_exp_id}")
+                        _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_widget_id}")
                     else:
                         _actual["pitch"] = 1.0
                         st.info("Pitch no aplica")
                 with _col_r:
                     _rot_actual = _actual.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0])
                     _rot_idx = ROT_TUBO.index(_rot_actual) if _rot_actual in ROT_TUBO else (1 if len(ROT_TUBO) > 1 else 0)
-                    _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_exp_id}")
+                    _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_widget_id}")
 
                 _ret_actual = _actual.get("retardo", RETARDOS[0])
                 _ret_idx = RETARDOS.index(_ret_actual) if _ret_actual in RETARDOS else 0
-                _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_exp_id}")
+                _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_widget_id}")
 
                 st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
                 _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
                 _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
 
-                _key_ini_ref = f"iniref_{_exp_id}"
-                _key_ini_mm = f"inimm_{_exp_id}"
-                _key_fin_ref = f"finref_{_exp_id}"
-                _key_fin_mm = f"finmm_{_exp_id}"
-
-                if _key_ini_ref not in st.session_state:
-                    st.session_state[_key_ini_ref] = _actual.get("inicio_ref", _refs_ini[0]) if _actual.get("inicio_ref", _refs_ini[0]) in _refs_ini else _refs_ini[0]
-                if _key_ini_mm not in st.session_state:
-                    st.session_state[_key_ini_mm] = int(_actual.get("ini_mm", 0))
-                if _key_fin_ref not in st.session_state:
-                    st.session_state[_key_fin_ref] = _actual.get("fin_ref", _refs_fin_lista[0]) if _actual.get("fin_ref", _refs_fin_lista[0]) in _refs_fin_lista else _refs_fin_lista[0]
-                if _key_fin_mm not in st.session_state:
-                    st.session_state[_key_fin_mm] = int(_actual.get("fin_mm", 400))
-
                 _col_ini, _col_fin = st.columns(2)
                 with _col_ini:
-                    _ini_ref_idx = _refs_ini.index(st.session_state[_key_ini_ref]) if st.session_state[_key_ini_ref] in _refs_ini else 0
-                    st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=_key_ini_ref)
-                    st.number_input("mm inicio", step=10, key=_key_ini_mm)
+                    _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
+                    _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
+                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_widget_id}")
+                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_widget_id}")
                 with _col_fin:
-                    _fin_ref_idx = _refs_fin_lista.index(st.session_state[_key_fin_ref]) if st.session_state[_key_fin_ref] in _refs_fin_lista else 0
-                    st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=_key_fin_ref)
-                    st.number_input("mm fin", step=10, key=_key_fin_mm)
-
-                _actual["inicio_ref"] = st.session_state[_key_ini_ref]
-                _actual["ini_mm"] = int(st.session_state[_key_ini_mm])
-                _actual["fin_ref"] = st.session_state[_key_fin_ref]
-                _actual["fin_mm"] = int(st.session_state[_key_fin_mm])
+                    _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
+                    _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
+                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_widget_id}")
+                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_widget_id}")
 
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
