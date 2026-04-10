@@ -2377,76 +2377,263 @@ with tab2:
 # TAB 3: RECONSTRUCCIÓN
 # ───────────────────────────────────────────────────────────────
 with tab3:
-    col_r1, col_r2 = st.columns([1, 1])
+    region_anat_r = st.session_state.get("region_anat", "CUERPO")
 
-    with col_r1:
-        st.markdown('<div class="section-header">🔄 Parámetros de Reconstrucción</div>', unsafe_allow_html=True)
-        fase_recons = st.selectbox("Fase a reconstruir", FASES_RECONS)
-        st.session_state["fase_recons"] = fase_recons
+    def _crear_reconstruccion_base(exp_id, numero):
+        _ventana_def = list(VENTANAS.keys())[0] if len(VENTANAS) > 0 else "Personalizada"
+        _ww_def = VENTANAS[_ventana_def]["ww"] if _ventana_def in VENTANAS else 400
+        _wl_def = VENTANAS[_ventana_def]["wl"] if _ventana_def in VENTANAS else 40
+        _refs_ini_local = REFS_INICIO.get(region_anat_r, REFS_INICIO["CUERPO"])
+        _refs_fin_local = REFS_FIN.get(region_anat_r, REFS_FIN["CUERPO"])
+        _tipo_recons_def = TIPOS_RECONS[0] if len(TIPOS_RECONS) > 0 else "FILTRO"
+        _algoritmo_def = ALGORITMOS_ITERATIVOS[0] if len(ALGORITMOS_ITERATIVOS) > 0 else "—"
+        _niveles_def = NIVEL_ITERATIVO.get(_algoritmo_def, [1])
+        return {
+            "id": f"{exp_id}_rec_{numero}",
+            "nombre": f"Reconstrucción {numero}",
+            "fase_recons": st.session_state.get("fase_recons", FASES_RECONS[0] if len(FASES_RECONS) > 0 else "—"),
+            "tipo_recons": st.session_state.get("tipo_recons", _tipo_recons_def),
+            "algoritmo_iter": st.session_state.get("algoritmo_iter", _algoritmo_def),
+            "nivel_iter": st.session_state.get("nivel_iter", _niveles_def[0] if len(_niveles_def) > 0 else "—"),
+            "kernel_sel": st.session_state.get("kernel_sel", KERNELS[1] if len(KERNELS) > 1 else KERNELS[0]),
+            "grosor_recons": st.session_state.get("grosor_recons", GROSORES_RECONS[6] if len(GROSORES_RECONS) > 6 else GROSORES_RECONS[0]),
+            "incremento": st.session_state.get("incremento", INCREMENTOS_RECONS[4] if len(INCREMENTOS_RECONS) > 4 else INCREMENTOS_RECONS[0]),
+            "ventana_preset": st.session_state.get("ventana_preset", _ventana_def),
+            "ww_val": int(st.session_state.get("ww_val", _ww_def)),
+            "wl_val": int(st.session_state.get("wl_val", _wl_def)),
+            "dfov": st.session_state.get("dfov", DFOV_OPCIONES[2] if len(DFOV_OPCIONES) > 2 else DFOV_OPCIONES[0]),
+            "inicio_recons": st.session_state.get("inicio_recons", _refs_ini_local[0]),
+            "fin_recons": st.session_state.get("fin_recons", _refs_fin_local[0]),
+        }
 
-        tipo_recons = st.selectbox("Tipo de reconstrucción", TIPOS_RECONS)
+    def _reindexar_reconstrucciones(exp_id):
+        _lista_local = st.session_state["reconstrucciones_por_exp"].get(exp_id, [])
+        for _idx_local, _rec_local in enumerate(_lista_local, start=1):
+            _rec_local["id"] = f"{exp_id}_rec_{_idx_local}"
+            _rec_local["nombre"] = f"Reconstrucción {_idx_local}"
 
-        if tipo_recons == "RECONS. ITERATIVA":
-            algoritmo_iter = st.selectbox("Algoritmo iterativo", ALGORITMOS_ITERATIVOS)
-            niveles_disp = NIVEL_ITERATIVO.get(algoritmo_iter, [1])
-            nivel_iter = st.selectbox("Nivel / Porcentaje / Modo", niveles_disp)
+    _adquisiciones_validas = [e for e in st.session_state.get("exploraciones_adq", []) if e.get("tipo") == "adquisicion"]
+
+    if "reconstrucciones_por_exp" not in st.session_state:
+        st.session_state["reconstrucciones_por_exp"] = {}
+    if "recon_activa_por_exp" not in st.session_state:
+        st.session_state["recon_activa_por_exp"] = {}
+
+    _ids_adq_validos = [e.get("id") for e in _adquisiciones_validas]
+
+    # Sincronizar adquisiciones con reconstrucciones
+    for _exp in _adquisiciones_validas:
+        _exp_id = _exp.get("id")
+        if _exp_id not in st.session_state["reconstrucciones_por_exp"] or not st.session_state["reconstrucciones_por_exp"][_exp_id]:
+            st.session_state["reconstrucciones_por_exp"][_exp_id] = [_crear_reconstruccion_base(_exp_id, 1)]
+        _reindexar_reconstrucciones(_exp_id)
+        _ids_rec = [r.get("id") for r in st.session_state["reconstrucciones_por_exp"][_exp_id]]
+        if st.session_state["recon_activa_por_exp"].get(_exp_id) not in _ids_rec:
+            st.session_state["recon_activa_por_exp"][_exp_id] = _ids_rec[0]
+
+    # Eliminar adquisiciones obsoletas
+    for _exp_id_existente in list(st.session_state["reconstrucciones_por_exp"].keys()):
+        if _exp_id_existente not in _ids_adq_validos:
+            st.session_state["reconstrucciones_por_exp"].pop(_exp_id_existente, None)
+            st.session_state["recon_activa_por_exp"].pop(_exp_id_existente, None)
+
+    if "exploracion_rec_activa" not in st.session_state:
+        st.session_state["exploracion_rec_activa"] = _ids_adq_validos[0] if len(_ids_adq_validos) > 0 else None
+
+    if st.session_state.get("exploracion_rec_activa") not in _ids_adq_validos:
+        st.session_state["exploracion_rec_activa"] = _ids_adq_validos[0] if len(_ids_adq_validos) > 0 else None
+
+    col_nav_rec, col_det_rec = st.columns([0.95, 2.4])
+
+    with col_nav_rec:
+        st.markdown('<div class="section-header">🧩 Adquisiciones</div>', unsafe_allow_html=True)
+        st.caption("Selecciona una adquisición para programar sus reconstrucciones.")
+
+        if len(_adquisiciones_validas) == 0:
+            st.info("Primero agrega al menos una exploración en la pestaña Adquisición.")
         else:
-            algoritmo_iter = "—"
-            nivel_iter = "—"
+            for _exp in _adquisiciones_validas:
+                _exp_id = _exp.get("id")
+                _activa = st.session_state.get("exploracion_rec_activa") == _exp_id
+                _n_rec = len(st.session_state["reconstrucciones_por_exp"].get(_exp_id, []))
+                _label = f"⚡ {_exp.get('nombre', _exp_id)}"
+                st.caption(f"{_exp.get('tipo_exp', 'HELICOIDAL')} · {_n_rec} reconstrucción(es)")
+                if st.button(
+                    _label,
+                    key=f"btn_rec_sel_{_exp_id}",
+                    use_container_width=True,
+                    type="primary" if _activa else "secondary",
+                ):
+                    st.session_state["exploracion_rec_activa"] = _exp_id
+                    st.rerun()
+                st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
-        kernel_sel = st.selectbox("Algoritmo (Kernel)", KERNELS, index=1)
-        st.session_state["kernel_sel"] = kernel_sel
+    with col_det_rec:
+        if len(_adquisiciones_validas) == 0 or st.session_state.get("exploracion_rec_activa") is None:
+            st.warning("No hay adquisiciones disponibles para reconstruir.")
+        else:
+            _exp_activa = next((e for e in _adquisiciones_validas if e.get("id") == st.session_state.get("exploracion_rec_activa")), None)
 
-        col_gr, col_inc = st.columns(2)
-        with col_gr:
-            grosor_recons = st.selectbox("Grosor reconstrucción", GROSORES_RECONS, index=6)
-            st.session_state["grosor_recons"] = grosor_recons
-        with col_inc:
-            incremento = st.selectbox("Incremento", INCREMENTOS_RECONS, index=4)
+            if _exp_activa is None:
+                st.warning("No se pudo cargar la adquisición seleccionada.")
+            else:
+                _exp_id = _exp_activa.get("id")
+                _recs_exp = st.session_state["reconstrucciones_por_exp"].get(_exp_id, [])
+                _rec_activa_id = st.session_state["recon_activa_por_exp"].get(_exp_id, _recs_exp[0]["id"])
+                _rec_actual = next((r for r in _recs_exp if r.get("id") == _rec_activa_id), _recs_exp[0])
+                st.session_state["recon_activa_por_exp"][_exp_id] = _rec_actual.get("id")
 
-    with col_r2:
-        st.markdown('<div class="section-header">🪟 Ventana de Visualización</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="section-header">🔄 Reconstrucciones de {_exp_activa.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
+                st.caption("Puedes programar una o más reconstrucciones para esta adquisición.")
 
-        ventana_preset = st.selectbox("Ventana preset", list(VENTANAS.keys()))
-        ww_default = VENTANAS[ventana_preset]["ww"]
-        wl_default = VENTANAS[ventana_preset]["wl"]
+                _cols_rec_nav = st.columns([1, 1, 1, 0.8, 0.8, 0.8])
+                _boton_cols = _cols_rec_nav[:3]
+                for _idx_btn, _rec_btn in enumerate(_recs_exp[:3]):
+                    with _boton_cols[_idx_btn]:
+                        if st.button(
+                            f"🧱 {_rec_btn.get('nombre', 'Reconstrucción')}",
+                            key=f"btn_rec_item_{_rec_btn['id']}",
+                            use_container_width=True,
+                            type="primary" if _rec_btn.get("id") == _rec_actual.get("id") else "secondary",
+                        ):
+                            st.session_state["recon_activa_por_exp"][_exp_id] = _rec_btn.get("id")
+                            st.rerun()
 
-        col_ww, col_wl = st.columns(2)
-        with col_ww:
-            ww_val = st.number_input("WW (Ancho)", min_value=1, max_value=4000,
-                                      value=ww_default, key="ww_input")
-        with col_wl:
-            wl_val = st.number_input("WL / Nivel", min_value=-1500, max_value=3000,
-                                      value=wl_default, key="wl_input")
+                # Si hay más de 3 reconstrucciones, mostrarlas debajo
+                if len(_recs_exp) > 3:
+                    _cols_extra = st.columns(min(len(_recs_exp) - 3, 4))
+                    for _idx_extra, _rec_btn in enumerate(_recs_exp[3:7]):
+                        with _cols_extra[_idx_extra]:
+                            if st.button(
+                                f"🧱 {_rec_btn.get('nombre', 'Reconstrucción')}",
+                                key=f"btn_rec_item_extra_{_rec_btn['id']}",
+                                use_container_width=True,
+                                type="primary" if _rec_btn.get("id") == _rec_actual.get("id") else "secondary",
+                            ):
+                                st.session_state["recon_activa_por_exp"][_exp_id] = _rec_btn.get("id")
+                                st.rerun()
 
-        st.session_state["ww_val"] = ww_val
-        st.session_state["wl_val"] = wl_val
+                _c_add, _c_dup, _c_del = st.columns([1, 1, 1])
+                with _c_add:
+                    if st.button("➕ Agregar reconstrucción", use_container_width=True, key=f"add_rec_{_exp_id}", type="secondary"):
+                        _nuevo_num = len(_recs_exp) + 1
+                        st.session_state["reconstrucciones_por_exp"][_exp_id].append(_crear_reconstruccion_base(_exp_id, _nuevo_num))
+                        _reindexar_reconstrucciones(_exp_id)
+                        st.session_state["recon_activa_por_exp"][_exp_id] = f"{_exp_id}_rec_{_nuevo_num}"
+                        st.rerun()
+                with _c_dup:
+                    if st.button("📄 Duplicar reconstrucción", use_container_width=True, key=f"dup_rec_{_exp_id}", type="secondary"):
+                        _copia_rec = dict(_rec_actual)
+                        st.session_state["reconstrucciones_por_exp"][_exp_id].append(_copia_rec)
+                        _reindexar_reconstrucciones(_exp_id)
+                        _nuevo_id = st.session_state["reconstrucciones_por_exp"][_exp_id][-1]["id"]
+                        st.session_state["recon_activa_por_exp"][_exp_id] = _nuevo_id
+                        st.rerun()
+                with _c_del:
+                    _deshabilitar_del = len(_recs_exp) <= 1
+                    if st.button("🗑️ Eliminar reconstrucción", use_container_width=True, key=f"del_rec_{_exp_id}", type="secondary", disabled=_deshabilitar_del):
+                        st.session_state["reconstrucciones_por_exp"][_exp_id] = [
+                            r for r in st.session_state["reconstrucciones_por_exp"][_exp_id]
+                            if r.get("id") != _rec_actual.get("id")
+                        ]
+                        _reindexar_reconstrucciones(_exp_id)
+                        _primer_id = st.session_state["reconstrucciones_por_exp"][_exp_id][0]["id"]
+                        st.session_state["recon_activa_por_exp"][_exp_id] = _primer_id
+                        st.rerun()
 
-        dfov = st.selectbox("DFOV", DFOV_OPCIONES, index=2)
+                st.markdown("---")
+                col_r1, col_r2 = st.columns([1, 1])
 
-        st.markdown('<div class="section-header">📍 Rango de Reconstrucción</div>', unsafe_allow_html=True)
-        region_anat_r = st.session_state.get("region_anat", "CUERPO")
-        refs_ini_r = REFS_INICIO.get(region_anat_r, REFS_INICIO["CUERPO"])
-        refs_fin_r = REFS_FIN.get(region_anat_r, REFS_FIN["CUERPO"])
+                with col_r1:
+                    st.markdown('<div class="section-header">🔄 Parámetros de Reconstrucción</div>', unsafe_allow_html=True)
 
-        col_ir, col_fr = st.columns(2)
-        with col_ir:
-            inicio_recons = st.selectbox("Inicio reconstrucción", refs_ini_r, key="ini_rec")
-        with col_fr:
-            fin_recons = st.selectbox("Fin reconstrucción", refs_fin_r, key="fin_rec")
+                    _fase_actual = _rec_actual.get("fase_recons", FASES_RECONS[0] if len(FASES_RECONS) > 0 else "—")
+                    _fase_idx = FASES_RECONS.index(_fase_actual) if _fase_actual in FASES_RECONS else 0
+                    _rec_actual["fase_recons"] = st.selectbox("Fase a reconstruir", FASES_RECONS, index=_fase_idx, key=f"fase_recons_{_rec_actual['id']}")
 
-    st.markdown("---")
-    st.markdown('<div class="param-summary">', unsafe_allow_html=True)
-    st.markdown(f"""
-**Resumen de reconstrucción:**
-- Fase: `{fase_recons}` | Tipo: `{tipo_recons}`
-- Algoritmo iterativo: `{algoritmo_iter}` — Nivel: `{nivel_iter}`
-- Kernel: `{kernel_sel}` | Grosor: `{grosor_recons}` | Incremento: `{incremento}`
-- Ventana: WW `{ww_val}` / WL `{wl_val}` | DFOV: `{dfov}`
-- Reconstrucción: de `{inicio_recons}` a `{fin_recons}`
+                    _tipo_actual = _rec_actual.get("tipo_recons", TIPOS_RECONS[0] if len(TIPOS_RECONS) > 0 else "FILTRO")
+                    _tipo_idx = TIPOS_RECONS.index(_tipo_actual) if _tipo_actual in TIPOS_RECONS else 0
+                    _rec_actual["tipo_recons"] = st.selectbox("Tipo de reconstrucción", TIPOS_RECONS, index=_tipo_idx, key=f"tipo_recons_{_rec_actual['id']}")
+
+                    if _rec_actual["tipo_recons"] == "RECONS. ITERATIVA":
+                        _alg_actual = _rec_actual.get("algoritmo_iter", ALGORITMOS_ITERATIVOS[0] if len(ALGORITMOS_ITERATIVOS) > 0 else "—")
+                        _alg_idx = ALGORITMOS_ITERATIVOS.index(_alg_actual) if _alg_actual in ALGORITMOS_ITERATIVOS else 0
+                        _rec_actual["algoritmo_iter"] = st.selectbox("Algoritmo iterativo", ALGORITMOS_ITERATIVOS, index=_alg_idx, key=f"alg_iter_{_rec_actual['id']}")
+                        _niveles_disp = NIVEL_ITERATIVO.get(_rec_actual["algoritmo_iter"], [1])
+                        _nivel_actual = _rec_actual.get("nivel_iter", _niveles_disp[0] if len(_niveles_disp) > 0 else "—")
+                        _nivel_idx = _niveles_disp.index(_nivel_actual) if _nivel_actual in _niveles_disp else 0
+                        _rec_actual["nivel_iter"] = st.selectbox("Nivel / Porcentaje / Modo", _niveles_disp, index=_nivel_idx, key=f"nivel_iter_{_rec_actual['id']}")
+                    else:
+                        _rec_actual["algoritmo_iter"] = "—"
+                        _rec_actual["nivel_iter"] = "—"
+
+                    _kernel_actual = _rec_actual.get("kernel_sel", KERNELS[1] if len(KERNELS) > 1 else KERNELS[0])
+                    _kernel_idx = KERNELS.index(_kernel_actual) if _kernel_actual in KERNELS else (1 if len(KERNELS) > 1 else 0)
+                    _rec_actual["kernel_sel"] = st.selectbox("Algoritmo (Kernel)", KERNELS, index=_kernel_idx, key=f"kernel_sel_{_rec_actual['id']}")
+
+                    col_gr, col_inc = st.columns(2)
+                    with col_gr:
+                        _grosor_actual = _rec_actual.get("grosor_recons", GROSORES_RECONS[6] if len(GROSORES_RECONS) > 6 else GROSORES_RECONS[0])
+                        _grosor_idx = GROSORES_RECONS.index(_grosor_actual) if _grosor_actual in GROSORES_RECONS else (6 if len(GROSORES_RECONS) > 6 else 0)
+                        _rec_actual["grosor_recons"] = st.selectbox("Grosor reconstrucción", GROSORES_RECONS, index=_grosor_idx, key=f"grosor_recons_{_rec_actual['id']}")
+                    with col_inc:
+                        _inc_actual = _rec_actual.get("incremento", INCREMENTOS_RECONS[4] if len(INCREMENTOS_RECONS) > 4 else INCREMENTOS_RECONS[0])
+                        _inc_idx = INCREMENTOS_RECONS.index(_inc_actual) if _inc_actual in INCREMENTOS_RECONS else (4 if len(INCREMENTOS_RECONS) > 4 else 0)
+                        _rec_actual["incremento"] = st.selectbox("Incremento", INCREMENTOS_RECONS, index=_inc_idx, key=f"incremento_{_rec_actual['id']}")
+
+                with col_r2:
+                    st.markdown('<div class="section-header">🪟 Ventana de Visualización</div>', unsafe_allow_html=True)
+
+                    _ventanas_disp = list(VENTANAS.keys())
+                    _preset_actual = _rec_actual.get("ventana_preset", _ventanas_disp[0])
+                    _preset_idx = _ventanas_disp.index(_preset_actual) if _preset_actual in _ventanas_disp else 0
+                    _rec_actual["ventana_preset"] = st.selectbox("Ventana preset", _ventanas_disp, index=_preset_idx, key=f"preset_{_rec_actual['id']}")
+
+                    _ww_default = VENTANAS[_rec_actual["ventana_preset"]]["ww"]
+                    _wl_default = VENTANAS[_rec_actual["ventana_preset"]]["wl"]
+
+                    col_ww, col_wl = st.columns(2)
+                    with col_ww:
+                        _rec_actual["ww_val"] = st.number_input(
+                            "WW (Ancho)", min_value=1, max_value=4000,
+                            value=int(_rec_actual.get("ww_val", _ww_default)), key=f"ww_{_rec_actual['id']}"
+                        )
+                    with col_wl:
+                        _rec_actual["wl_val"] = st.number_input(
+                            "WL / Nivel", min_value=-1500, max_value=3000,
+                            value=int(_rec_actual.get("wl_val", _wl_default)), key=f"wl_{_rec_actual['id']}"
+                        )
+
+                    _dfov_actual = _rec_actual.get("dfov", DFOV_OPCIONES[2] if len(DFOV_OPCIONES) > 2 else DFOV_OPCIONES[0])
+                    _dfov_idx = DFOV_OPCIONES.index(_dfov_actual) if _dfov_actual in DFOV_OPCIONES else (2 if len(DFOV_OPCIONES) > 2 else 0)
+                    _rec_actual["dfov"] = st.selectbox("DFOV", DFOV_OPCIONES, index=_dfov_idx, key=f"dfov_{_rec_actual['id']}")
+
+                    st.markdown('<div class="section-header">📍 Rango de Reconstrucción</div>', unsafe_allow_html=True)
+                    refs_ini_r = REFS_INICIO.get(region_anat_r, REFS_INICIO["CUERPO"])
+                    refs_fin_r = REFS_FIN.get(region_anat_r, REFS_FIN["CUERPO"])
+
+                    col_ir, col_fr = st.columns(2)
+                    with col_ir:
+                        _ini_actual = _rec_actual.get("inicio_recons", refs_ini_r[0])
+                        _ini_idx = refs_ini_r.index(_ini_actual) if _ini_actual in refs_ini_r else 0
+                        _rec_actual["inicio_recons"] = st.selectbox("Inicio reconstrucción", refs_ini_r, index=_ini_idx, key=f"ini_rec_{_rec_actual['id']}")
+                    with col_fr:
+                        _fin_actual = _rec_actual.get("fin_recons", refs_fin_r[0])
+                        _fin_idx = refs_fin_r.index(_fin_actual) if _fin_actual in refs_fin_r else 0
+                        _rec_actual["fin_recons"] = st.selectbox("Fin reconstrucción", refs_fin_r, index=_fin_idx, key=f"fin_rec_{_rec_actual['id']}")
+
+                st.markdown("---")
+                st.markdown('<div class="param-summary">', unsafe_allow_html=True)
+                st.markdown(f"""
+**Resumen de reconstrucción activa:**
+- Adquisición base: `{_exp_activa.get('nombre', '—')}` | Tipo adquisición: `{_exp_activa.get('tipo_exp', '—')}`
+- Nombre reconstrucción: `{_rec_actual.get('nombre', '—')}` | Fase: `{_rec_actual.get('fase_recons', '—')}`
+- Tipo: `{_rec_actual.get('tipo_recons', '—')}` | Algoritmo iterativo: `{_rec_actual.get('algoritmo_iter', '—')}` | Nivel: `{_rec_actual.get('nivel_iter', '—')}`
+- Kernel: `{_rec_actual.get('kernel_sel', '—')}` | Grosor: `{_rec_actual.get('grosor_recons', '—')}` | Incremento: `{_rec_actual.get('incremento', '—')}`
+- Ventana: `{_rec_actual.get('ventana_preset', '—')}` | WW/WL: `{_rec_actual.get('ww_val', '—')}` / `{_rec_actual.get('wl_val', '—')}` | DFOV: `{_rec_actual.get('dfov', '—')}`
+- Reconstrucción: de `{_rec_actual.get('inicio_recons', '—')}` a `{_rec_actual.get('fin_recons', '—')}`
 """)
-    st.markdown('</div>', unsafe_allow_html=True)
-
+                st.markdown('</div>', unsafe_allow_html=True)
 # ───────────────────────────────────────────────────────────────
 # TAB 4: JERINGA INYECTORA
 # ───────────────────────────────────────────────────────────────
