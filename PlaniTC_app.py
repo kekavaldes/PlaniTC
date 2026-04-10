@@ -1106,6 +1106,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         {"stroke": "#14B8A6", "fill": "rgba(20, 184, 166, 0.16)", "handle": "#FDE68A", "label": "Turquesa"},
     ]
 
+    color_index = sum(ord(ch) for ch in storage_key) % len(palette)
+    color_cfg = palette[color_index]
+
     canvas_css_width = 227 if len(topos) > 1 else 307
     canvas_css_height = 333 if len(topos) > 1 else 387
     canvas_width = 420
@@ -1136,26 +1139,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         rect_x = 0.22
         rect_w = 0.56
         line_y = max(0.04, min(0.96, (y_ini + y_fin) / 2 if (y_ini is not None and y_fin is not None) else 0.5))
-        color_cfg = palette[i % len(palette)]
-
-        if es_linea:
-            info_html = f"""
-          <div style=\"margin-top:4px; font-size:13px; color:#fff; text-align:center; line-height:1.45;\">
-            Corte único: <b id=\"lblLinePosInd{i}\">—</b>
-          </div>
-            """
-        else:
-            info_html = f"""
-          <div style=\"margin-top:4px; font-size:13px; color:#fff; text-align:center; line-height:1.45;\">
-            Campo: <b id=\"lblSizeInd{i}\">—</b>
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            Centro: <b id=\"lblCenterInd{i}\">—</b>
-            <br>
-            Alto aprox.: <b id=\"lblHeightInd{i}\">—</b> mm
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            Ancho aprox.: <b id=\"lblWidthInd{i}\">—</b> %
-          </div>
-            """
+        info_html = ""
 
         cols_html.append(f"""
         <div style=\"flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;\">
@@ -2802,7 +2786,8 @@ with tab2:
                 "SIN CONTRASTE",
                 "ARTERIAL",
                 "ANGIOGRÁFICA",
-                "BOLUS TEST O BOLUS TRACKING",
+                "BOLUS TEST",
+                "BOLUS TRACKING",
                 "VENOSA",
                 "TARDÍA",
             ]
