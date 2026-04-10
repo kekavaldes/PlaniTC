@@ -1713,26 +1713,27 @@ with tab1b:
         _posicion_prev = st.session_state.get("posicion", "")
         _entrada_prev  = st.session_state.get("entrada", "")
 
-        # Se eliminó la vista previa de la imagen resultante según posición / entrada.
+        _ruta_topograma_plan, _nombre_topograma_plan = obtener_imagen_topograma_plan(
+            _examen_prev,
+            _posicion_prev,
+            _entrada_prev,
+            _pos_tubo_prev,
+        )
 
-        def _tubo_to_proy_prev(pos_tubo, region, examen):
-            if not pos_tubo:
-                return IMG_ABDOMEN_B64, "AP"
-            pos = str(pos_tubo).upper()
-            if "DERECHA" in pos or "IZQUIERDA" in pos:
-                return (IMG_CEREBRO_B64, "Lateral") if region == "CABEZA" else (IMG_ABDOMEN_B64, "Lateral")
-            else:
-                if region == "CABEZA":
-                    return IMG_CEREBRO_B64, "Lateral"
-                elif region in ("CUERPO","ANGIO") or any(x in examen.upper() for x in ["ABDOMEN","PELVIS","TORAX"]):
-                    return IMG_ABDOMEN_B64, "AP"
-                else:
-                    return IMG_ABDOMEN_B64, "AP"
+        def _proyeccion_desde_nombre(nombre_imagen, pos_tubo):
+            nombre_norm = normalizar_nombre_imagen_topograma_plan(nombre_imagen or "")
+            tubo_norm = normalizar_tubo_topograma_plan(pos_tubo)
+            if "lateral" in nombre_norm:
+                return "Lateral"
+            if "frontal" in nombre_norm:
+                return "AP"
+            if "derecha" in tubo_norm or "izquierda" in tubo_norm:
+                return "Lateral"
+            return "AP"
 
-        _img_b64_prev, _proy_prev = _tubo_to_proy_prev(_pos_tubo_prev, _region_prev, _examen_prev)
+        _proy_prev = _proyeccion_desde_nombre(_nombre_topograma_plan, _pos_tubo_prev)
 
         if not st.session_state.get("topograma_iniciado", False):
-            # Estado de espera — mostrar pantalla oscura con instrucción
             st.markdown('<div class="section-header">🖼️ Topograma</div>', unsafe_allow_html=True)
             st.markdown(f"""
             <div style="
@@ -1748,24 +1749,20 @@ with tab1b:
             </div>
             """, unsafe_allow_html=True)
         else:
-            # Topograma adquirido
             st.markdown('<div class="section-header">✅ Topograma adquirido</div>', unsafe_allow_html=True)
-            if _img_b64_prev:
+            if _ruta_topograma_plan is not None and Path(_ruta_topograma_plan).exists():
+                st.image(str(_ruta_topograma_plan), use_container_width=True)
                 st.markdown(f"""
-                <div style="text-align:center;">
-                  <img src="data:image/jpeg;base64,{_img_b64_prev}"
-                       style="width:100%; border-radius:6px; border:1px solid #FFD700;">
-                  <div style="font-size:11px; color:#888; margin-top:6px;">
+                <div style="font-size:11px; color:#888; margin-top:6px; text-align:center;">
                     Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
                     · {topo1_long} mm · {topo1_kv} kV · {topo1_ma} mA
-                  </div>
                 </div>
                 """, unsafe_allow_html=True)
                 st.markdown("""<div class="alert-info">
                 ✅ Topograma adquirido correctamente. Continúa a <b>⚡ Adquisición</b>.
                 </div>""", unsafe_allow_html=True)
             else:
-                st.info("Imagen no disponible para esta región.")
+                st.info("No se encontró una imagen de topograma para esta combinación de examen, posición, entrada y posición del tubo.")
 
     if aplica_topo2:
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
