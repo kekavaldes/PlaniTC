@@ -1654,6 +1654,48 @@ with tab1b:
                             format_func=lambda x: "Seleccionar" if x is None else x,
                             placeholder="Seleccionar", key="t2vz")
 
+            st.markdown("---")
+
+            _topo2_campos_completos = all([
+                topo2_kv is not None,
+                topo2_ma is not None,
+                topo2_pos is not None,
+                topo2_long is not None,
+                topo2_dir is not None,
+                topo2_voz is not None,
+                topo2_posicion is not None,
+                topo2_entrada is not None,
+            ])
+
+            if not _topo2_campos_completos:
+                _campos_faltantes_t2 = []
+                if topo2_posicion is None: _campos_faltantes_t2.append("Posición paciente")
+                if topo2_entrada  is None: _campos_faltantes_t2.append("Entrada")
+                if topo2_kv       is None: _campos_faltantes_t2.append("kV")
+                if topo2_ma       is None: _campos_faltantes_t2.append("mA")
+                if topo2_pos      is None: _campos_faltantes_t2.append("Posición tubo")
+                if topo2_long     is None: _campos_faltantes_t2.append("Longitud")
+                if topo2_dir      is None: _campos_faltantes_t2.append("Dirección")
+                if topo2_voz      is None: _campos_faltantes_t2.append("Instrucción de voz")
+                st.markdown(f"""
+                <div style="background:#1A1100; border:1px solid #554400; border-radius:8px;
+                            padding:0.6rem 1rem; margin-bottom:0.5rem; font-size:0.82rem; color:#FFAA00;">
+                    ⚠️ Completa todos los campos de Topograma 2 antes de iniciar:<br>
+                    <span style="color:#FF8800;">{'  ·  '.join(_campos_faltantes_t2)}</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown('<div class="btn-iniciar">', unsafe_allow_html=True)
+            if st.button("☢️  INICIAR TOPOGRAMA 2", key="btn_iniciar_topo2",
+                         use_container_width=True, disabled=not _topo2_campos_completos):
+                st.session_state["topograma2_iniciado"] = True
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            if st.session_state.get("topograma2_iniciado", False):
+                if st.button("↺  Repetir topograma 2", key="btn_reset_topo2", use_container_width=True):
+                    st.session_state["topograma2_iniciado"] = False
+                    st.rerun()
+
         with col_t2_img:
             st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado — Topograma 2</div>', unsafe_allow_html=True)
             imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
@@ -1665,6 +1707,55 @@ with tab1b:
                 st.image(str(imagen_posicionamiento_t2), use_container_width=True)
             else:
                 st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
+
+            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+
+            def _tubo_to_proy_prev_t2(pos_tubo):
+                if not pos_tubo:
+                    return "AP"
+                pos = str(pos_tubo).upper()
+                if "DERECHA" in pos or "IZQUIERDA" in pos:
+                    return "Lateral"
+                return "AP"
+
+            _proy_prev_t2 = _tubo_to_proy_prev_t2(st.session_state.get("t2pt", "ARRIBA 0°"))
+
+            if not st.session_state.get("topograma2_iniciado", False):
+                st.markdown('<div class="section-header">🖼️ Topograma 2</div>', unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="
+                    border: 1px solid #333; border-radius: 8px;
+                    background: #0A0A0A; height: 380px;
+                    display: flex; flex-direction: column;
+                    align-items: center; justify-content: center;
+                    text-align: center; gap: 16px;">
+                    <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
+                    <div style="color:#333; font-size:0.8rem;">
+                        Proyección: {_proy_prev_t2} · Tubo: {st.session_state.get("t2pt", "ARRIBA 0°")}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="section-header">✅ Topograma 2 adquirido</div>', unsafe_allow_html=True)
+                _img_topo_t2, _err_topo_t2 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    topo2_posicion if topo2_posicion else "",
+                    topo2_entrada if topo2_entrada else "",
+                    st.session_state.get("t2pt", ""),
+                )
+                if _img_topo_t2 is not None:
+                    st.image(_img_topo_t2, use_container_width=True)
+                    st.markdown(f"""
+                    <div style="font-size:11px; color:#888; margin-top:6px; text-align:center;">
+                        Proyección: {_proy_prev_t2} · Tubo: {st.session_state.get("t2pt", "ARRIBA 0°")}
+                        · {topo2_long} mm · {topo2_kv} kV · {topo2_ma} mA
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown("""<div class="alert-info">
+                    ✅ Topograma 2 adquirido correctamente.
+                    </div>""", unsafe_allow_html=True)
+                else:
+                    st.warning(_err_topo_t2 or "No se encontró una imagen de topograma para esta combinación.")
 
 # ───────────────────────────────────────────────────────────────
 # TAB 2: ADQUISICIÓN
