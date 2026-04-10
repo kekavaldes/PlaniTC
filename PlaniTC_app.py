@@ -544,6 +544,7 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
 TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"]
 
 MODULACION_CORRIENTE = ["MANUAL", "AUTO mA", "CARE DOSE 4D"]
+NOMBRES_EXPLORACION = ["SIN CONTRASTE", "ANGIOGRÁFICA", "BOLUS TEST O BOLUS TRACKING", "VENOSA", "TARDÍA"]
 
 KVP_OPCIONES = [70, 80, 90, 100, 110, 120, 140]
 
@@ -1985,7 +1986,7 @@ with tab2:
         return {
             "id": f"exp_{numero}",
             "tipo": "adquisicion",
-            "nombre": f"Exploración {numero}",
+            "nombre": st.session_state.get("nombre_exploracion", NOMBRES_EXPLORACION[0]),
             "tipo_exp": st.session_state.get("tipo_exp", TIPOS_EXPLORACION[0]),
             "doble_muestreo": st.session_state.get("doble_muestreo", "NO"),
             "voz_adq": st.session_state.get("voz_adq", INSTRUCCIONES_VOZ[0]),
@@ -2214,9 +2215,11 @@ with tab2:
             _exp_id = _actual["id"]
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
-            _actual["nombre"] = st.text_input(
+            _nombre_idx = NOMBRES_EXPLORACION.index(_actual.get("nombre", NOMBRES_EXPLORACION[0])) if _actual.get("nombre", NOMBRES_EXPLORACION[0]) in NOMBRES_EXPLORACION else 0
+            _actual["nombre"] = st.selectbox(
                 "Nombre de la exploración",
-                value=_actual.get("nombre", "Exploración"),
+                NOMBRES_EXPLORACION,
+                index=_nombre_idx,
                 key=f"nombre_{_exp_id}",
             )
 
