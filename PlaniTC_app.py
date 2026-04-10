@@ -8,6 +8,10 @@ import streamlit as st
 import numpy as np
 import math
 import zipfile
+import base64
+import pandas as pd
+import unicodedata
+import re
 from datetime import date, datetime
 from pathlib import Path
 
@@ -243,6 +247,326 @@ DIR_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA"
 ZIP_IMAGENES_TOPO_POS = BASE_DIR / "IMAGENES POSICIONAMIENTO TOPOGRAMA.zip"
 CACHE_IMAGENES_TOPO_POS = BASE_DIR / "_cache_imagenes_topograma"
 
+# Excel e imágenes del topograma de planificación
+EXCEL_TOPOGRAMA_PLAN = BASE_DIR / "imagenes topograma.xlsx"
+DIR_IMAGENES_TOPO_PLAN = BASE_DIR / "IMAGENES TOPOGRAMA-2"
+ZIP_IMAGENES_TOPO_PLAN = BASE_DIR / "IMAGENES TOPOGRAMA-2.zip"
+CACHE_IMAGENES_TOPO_PLAN = BASE_DIR / "_cache_imagenes_topograma_plan"
+
+
+
+def normalizar_texto_topograma(valor) -> str:
+    valor = "" if valor is None else str(valor)
+    valor = unicodedata.normalize("NFKD", valor).encode("ascii", "ignore").decode("ascii")
+    valor = valor.lower().strip()
+    valor = valor.replace("-", " ").replace("_", " ").replace("/", " ")
+    valor = re.sub(r"\s+", " ", valor)
+    return valor
+
+
+def normalizar_examen_topograma_plan(examen: str) -> str:
+    examen_norm = normalizar_texto_topograma(examen)
+
+    aliases_exactos = {
+        "atc torax abdomen pelvis": "atc torax abdomen pelvis",
+        "atctorax abdomen pelvis": "atc torax abdomen pelvis",
+        "torax abdomen pelvis": "torax abdomen pelvis",
+        "abdomen pelvis": "abdomen pelvis",
+        "atc abdomen pelvis": "atc abdomen pelvis",
+        "atc cerebro cuello": "atc cerebro cuello",
+        "atc eess derecha": "atc eess derecha",
+        "eess derecha": "atc eess derecha",
+        "atc eess izquierda": "atc eess izquierda",
+        "eess izquierda": "atc eess izquierda",
+        "atc eeii": "atc eeii",
+        "eeii": "atc eeii",
+        "spn": "spn",
+        "oidos": "oidos",
+        "orbitas": "orbitas",
+        "pielotac": "pielotac",
+        "torax": "torax",
+        "abdomen": "abdomen",
+        "pelvis": "pelvis",
+        "cuello": "cuello",
+        "cerebro": "cerebro",
+        "cervical": "cervical",
+        "dorsal": "dorsal",
+        "lumbar": "lumbar",
+        "hombro": "hombro",
+        "brazo": "brazo",
+        "codo": "codo",
+        "antebrazo": "antebrazo",
+        "muneca": "muneca",
+        "mano": "mano",
+        "cadera": "cadera",
+        "muslo": "muslo",
+        "rodilla": "rodilla",
+        "tobillo": "tobillo",
+        "pie": "pie",
+        "maxilofacial": "maxilofacial",
+    }
+    if examen_norm in aliases_exactos:
+        return aliases_exactos[examen_norm]
+
+    if "cerebro cuello" in examen_norm and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc cerebro cuello"
+    if "torax abdomen pelvis" in examen_norm and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc torax abdomen pelvis"
+    if "abdomen pelvis" in examen_norm and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc abdomen pelvis"
+    if ("extremidad superior derecha" in examen_norm or "eess derecha" in examen_norm) and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc eess derecha"
+    if ("extremidad superior izquierda" in examen_norm or "eess izquierda" in examen_norm) and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc eess izquierda"
+    if ("extremidad inferior" in examen_norm or "eeii" in examen_norm) and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc eeii"
+    if "cerebro" in examen_norm and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc cerebro"
+    if "cuello" in examen_norm and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc cuello"
+    if "torax" in examen_norm and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc torax"
+    if "abdomen" in examen_norm and ("atc" in examen_norm or "angio" in examen_norm):
+        return "atc abdomen"
+    if "abdomen pelvis" in examen_norm:
+        return "abdomen pelvis"
+
+    return examen_norm
+
+
+def normalizar_posicion_topograma_plan(posicion: str) -> str:
+    posicion_norm = normalizar_texto_topograma(posicion)
+    if "prono" in posicion_norm:
+        return "decubito prono"
+    if "lateral derecho" in posicion_norm:
+        return "lateral derecho"
+    if "lateral izquierdo" in posicion_norm or "lateral izquerdo" in posicion_norm:
+        return "lateral izquierdo"
+    if "supino" in posicion_norm:
+        return "decubito supino"
+    return posicion_norm
+
+
+def normalizar_entrada_topograma_plan(entrada: str) -> str:
+    entrada_norm = normalizar_texto_topograma(entrada)
+    if "cabeza" in entrada_norm:
+        return "cabeza primero"
+    if "pies" in entrada_norm:
+        return "pies primero"
+    return entrada_norm
+
+
+def normalizar_tubo_topograma_plan(pos_tubo: str) -> str:
+    tubo_norm = normalizar_texto_topograma(pos_tubo)
+    if "arriba" in tubo_norm:
+        return "arriba 0"
+    if "abajo" in tubo_norm:
+        return "abajo 180"
+    if "derecha" in tubo_norm:
+        return "derecha 90"
+    if "izquierda" in tubo_norm:
+        return "izquierda 90"
+    return tubo_norm
+
+
+def normalizar_nombre_imagen_topograma_plan(nombre: str) -> str:
+    nombre_norm = normalizar_texto_topograma(nombre)
+    nombre_norm = re.sub(r"\bmano muneca\b", "munaeca", nombre_norm)
+    nombre_norm = re.sub(r"\by pelvis\b", "", nombre_norm)
+    nombre_norm = re.sub(r"\bateral\b", "lateral", nombre_norm)
+    nombre_norm = re.sub(r"\brontal\b", "frontal", nombre_norm)
+    nombre_norm = re.sub(r"\bmuneca\b", "munaeca", nombre_norm)
+    nombre_norm = re.sub(r"\bizquierdo\b", "izquierda", nombre_norm)
+    nombre_norm = re.sub(r"\bizquerdo\b", "izquierda", nombre_norm)
+    nombre_norm = re.sub(r"\bfangiotac\b", "angiotac", nombre_norm)
+    nombre_norm = re.sub(r"\s+", " ", nombre_norm).strip()
+    return nombre_norm
+
+
+def preparar_fuentes_imagenes_topograma_plan():
+    fuentes = []
+
+    try:
+        if DIR_IMAGENES_TOPO_PLAN.exists():
+            fuentes.append(DIR_IMAGENES_TOPO_PLAN)
+
+        if ZIP_IMAGENES_TOPO_PLAN.exists():
+            CACHE_IMAGENES_TOPO_PLAN.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(ZIP_IMAGENES_TOPO_PLAN, "r") as zf:
+                zf.extractall(CACHE_IMAGENES_TOPO_PLAN)
+
+            internas = [
+                CACHE_IMAGENES_TOPO_PLAN / "IMAGENES TOPOGRAMA-2",
+                CACHE_IMAGENES_TOPO_PLAN / "IMAGENES TOPOGRAMA 2",
+            ]
+            encontrada = False
+            for interna in internas:
+                if interna.exists():
+                    fuentes.append(interna)
+                    encontrada = True
+            if not encontrada:
+                fuentes.append(CACHE_IMAGENES_TOPO_PLAN)
+    except Exception:
+        pass
+
+    fuentes_limpias = []
+    vistos = set()
+    for fuente in fuentes:
+        try:
+            clave = str(fuente.resolve())
+        except Exception:
+            clave = str(fuente)
+        if clave not in vistos:
+            vistos.add(clave)
+            fuentes_limpias.append(fuente)
+
+    return fuentes_limpias
+
+
+@st.cache_data
+def cargar_tabla_topograma_plan():
+    if not EXCEL_TOPOGRAMA_PLAN.exists():
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_excel(EXCEL_TOPOGRAMA_PLAN)
+    except Exception:
+        return pd.DataFrame()
+
+    df = df.dropna(how="all").copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    columnas_originales = {normalizar_texto_topograma(c): c for c in df.columns}
+    mapa_columnas = {
+        "entrada del paciente": "entrada",
+        "posicion paciente": "posicion_paciente",
+        "posicion tubo": "posicion_tubo",
+        "examen": "examen",
+        "nombre exacto de la imagen": "nombre_imagen",
+    }
+
+    renombrar = {}
+    for clave_norm, nombre_nuevo in mapa_columnas.items():
+        if clave_norm in columnas_originales:
+            renombrar[columnas_originales[clave_norm]] = nombre_nuevo
+
+    df = df.rename(columns=renombrar)
+
+    columnas_necesarias = ["entrada", "posicion_paciente", "posicion_tubo", "examen", "nombre_imagen"]
+    for col in columnas_necesarias:
+        if col not in df.columns:
+            df[col] = ""
+
+    df["entrada_norm"] = df["entrada"].apply(normalizar_entrada_topograma_plan)
+    df["posicion_norm"] = df["posicion_paciente"].apply(normalizar_posicion_topograma_plan)
+    df["tubo_norm"] = df["posicion_tubo"].apply(normalizar_tubo_topograma_plan)
+    df["examen_norm"] = df["examen"].apply(normalizar_examen_topograma_plan)
+    df["nombre_imagen_norm"] = df["nombre_imagen"].apply(normalizar_nombre_imagen_topograma_plan)
+
+    return df
+
+
+@st.cache_data
+def construir_indice_imagenes_topograma_plan():
+    indice = {}
+    extensiones = {".png", ".jpg", ".jpeg", ".webp"}
+
+    for fuente in preparar_fuentes_imagenes_topograma_plan():
+        if not fuente.exists():
+            continue
+
+        for ruta in fuente.rglob("*"):
+            if not ruta.is_file():
+                continue
+            if ruta.suffix.lower() not in extensiones:
+                continue
+            nombre_lower = ruta.name.lower()
+            if "__macosx" in nombre_lower or ruta.name.startswith("._") or ruta.name == ".DS_Store":
+                continue
+
+            clave = normalizar_nombre_imagen_topograma_plan(ruta.stem)
+            if clave and clave not in indice:
+                indice[clave] = str(ruta)
+
+    return indice
+
+
+def resolver_ruta_imagen_topograma_plan(nombre_imagen: str):
+    if not nombre_imagen:
+        return None
+
+    indice = construir_indice_imagenes_topograma_plan()
+    candidatos = []
+    base = normalizar_nombre_imagen_topograma_plan(nombre_imagen)
+    candidatos.append(base)
+
+    variantes = {
+        base.replace("ateral", "lateral"),
+        base.replace("rontal", "frontal"),
+        base.replace(" pelvis ", "pelvis "),
+        base.replace("munaeca", "muneca"),
+        base.replace("muneca", "munaeca"),
+        base.replace("mano munaeca", "munaeca"),
+        base.replace("izquierdo", "izquierda"),
+        base.replace("izquerdo", "izquierda"),
+        base.replace("fangiotac", "angiotac"),
+    }
+    candidatos.extend([v for v in variantes if v])
+
+    for cand in candidatos:
+        ruta = indice.get(cand)
+        if ruta:
+            return Path(ruta)
+
+    for clave, ruta in indice.items():
+        if clave == base:
+            return Path(ruta)
+
+    return None
+
+
+def obtener_imagen_topograma_plan(examen: str, posicion: str, entrada: str, pos_tubo: str):
+    df = cargar_tabla_topograma_plan()
+    if df.empty:
+        return None, None
+
+    entrada_norm = normalizar_entrada_topograma_plan(entrada)
+    posicion_norm = normalizar_posicion_topograma_plan(posicion)
+    tubo_norm = normalizar_tubo_topograma_plan(pos_tubo)
+    examen_norm = normalizar_examen_topograma_plan(examen)
+
+    resultado = df[
+        (df["entrada_norm"] == entrada_norm) &
+        (df["posicion_norm"] == posicion_norm) &
+        (df["tubo_norm"] == tubo_norm) &
+        (df["examen_norm"] == examen_norm)
+    ]
+
+    if resultado.empty:
+        resultado = df[
+            (df["tubo_norm"] == tubo_norm) &
+            (df["examen_norm"] == examen_norm)
+        ]
+
+    if resultado.empty:
+        return None, None
+
+    nombre_imagen = str(resultado.iloc[0]["nombre_imagen"]).strip()
+    ruta = resolver_ruta_imagen_topograma_plan(nombre_imagen)
+    return ruta, nombre_imagen
+
+
+@st.cache_data
+def imagen_a_base64(ruta_imagen: str):
+    ruta = Path(ruta_imagen)
+    if not ruta.exists():
+        return None
+
+    try:
+        return base64.b64encode(ruta.read_bytes()).decode("utf-8")
+    except Exception:
+        return None
 
 def preparar_fuentes_imagenes_topograma():
     """
@@ -1533,29 +1857,36 @@ with tab2:
     _region_topo  = st.session_state.get("region_anat", "CUERPO")
     _examen_topo  = st.session_state.get("examen", "")
     _pos_tubo_t1  = st.session_state.get("t1pt", "ARRIBA 0°")
+    _pos_paciente_topo = st.session_state.get("posicion", "")
+    _entrada_topo = st.session_state.get("entrada", "")
 
-    # La imagen cambia según posición del tubo seleccionada en el topograma
-    # ARRIBA 0° / ABAJO 180° → proyección AP  |  DERECHA/IZQUIERDA 90° → lateral
+    # La imagen del área "Topograma" se toma desde el Excel + carpeta de imágenes.
+    # Si no encuentra coincidencia, usa la lógica de respaldo previa.
     def _tubo_to_proy(pos_tubo, region, examen):
         if not pos_tubo:
             return IMG_ABDOMEN_B64, "AP"
         pos = pos_tubo.upper()
         if "DERECHA" in pos or "IZQUIERDA" in pos:
-            # Lateral — para cabeza usamos la imagen lateral real
             if region == "CABEZA":
                 return IMG_CEREBRO_B64, "Lateral"
-            else:
-                return IMG_ABDOMEN_B64, "Lateral (AP disponible)"
-        else:
-            # AP / PA
-            if region == "CABEZA":
-                return IMG_CEREBRO_B64, "AP (usando lateral disponible)"
-            elif region in ("CUERPO", "ANGIO") or any(x in examen.upper() for x in ["ABDOMEN","PELVIS","TORAX"]):
-                return IMG_ABDOMEN_B64, "AP"
-            else:
-                return IMG_ABDOMEN_B64, "AP"
+            return IMG_ABDOMEN_B64, "Lateral"
+        if region == "CABEZA":
+            return IMG_CEREBRO_B64, "AP"
+        return IMG_ABDOMEN_B64, "AP"
 
-    _img_b64_t, _proy_t = _tubo_to_proy(_pos_tubo_t1, _region_topo, _examen_topo)
+    _ruta_topograma_plan, _nombre_topograma_plan = obtener_imagen_topograma_plan(
+        _examen_topo,
+        _pos_paciente_topo,
+        _entrada_topo,
+        _pos_tubo_t1,
+    )
+
+    if _ruta_topograma_plan is not None:
+        _img_b64_t = imagen_a_base64(str(_ruta_topograma_plan))
+        _proy_t = "Lateral" if "lateral" in normalizar_nombre_imagen_topograma_plan(_nombre_topograma_plan or "") else "AP"
+    else:
+        _img_b64_t, _proy_t = _tubo_to_proy(_pos_tubo_t1, _region_topo, _examen_topo)
+
     _ini_ref_t = st.session_state.get("inicio_ref",
                     REFS_INICIO.get(_region_topo, ["—"])[0])
     _fin_ref_t = st.session_state.get("fin_ref",
@@ -1565,10 +1896,18 @@ with tab2:
         topo_html = render_topogram_interactivo(
             _img_b64_t, _ini_ref_t, _fin_ref_t, _proy_t, width=700)
         st.components.v1.html(topo_html, height=620)
-        st.caption(f"Proyección: {_proy_t} · Posición tubo: {_pos_tubo_t1} · "
-                   f"Las líneas se actualizan al cambiar inicio/fin en los parámetros.")
+        if _ruta_topograma_plan is not None:
+            st.caption(
+                f"Imagen topograma: {_ruta_topograma_plan.name} · Proyección: {_proy_t} · "
+                f"Posición paciente: {_pos_paciente_topo or '—'} · Entrada: {_entrada_topo or '—'} · Posición tubo: {_pos_tubo_t1}"
+            )
+        else:
+            st.caption(
+                f"Proyección: {_proy_t} · Posición tubo: {_pos_tubo_t1} · "
+                f"Las líneas se actualizan al cambiar inicio/fin en los parámetros."
+            )
     else:
-        st.info("Selecciona una región anatómica con imagen disponible (Cabeza o Abdomen/Pelvis).")
+        st.info("No se encontró una imagen para esa combinación de topograma.")
 
     st.markdown("---")
     col_adq1, col_adq2 = st.columns([1, 1])
