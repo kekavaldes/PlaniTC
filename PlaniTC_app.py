@@ -2213,7 +2213,7 @@ with tab2:
                 return _exp
         return None
 
-    def _cargar_rangos_en_widgets(exp):
+    def _cargar_rangos_en_widgets(exp, forzar=False):
         if not exp or exp.get("tipo") != "adquisicion":
             return
         _exp_id = exp.get("id")
@@ -2232,7 +2232,8 @@ with tab2:
             f"topo2_finmm_{_exp_id}": int(exp.get("topo2_fin_mm", 400)),
         }
         for _k, _v in _mapa.items():
-            st.session_state[_k] = _v
+            if forzar or _k not in st.session_state:
+                st.session_state[_k] = _v
 
     def _guardar_rangos_desde_widgets(exp_id):
         _exp = _buscar_exploracion_adq(exp_id)
@@ -2259,6 +2260,9 @@ with tab2:
 
     if "exploracion_adq_activa" not in st.session_state:
         st.session_state["exploracion_adq_activa"] = "topograma"
+
+    if "exploracion_adq_previa" not in st.session_state:
+        st.session_state["exploracion_adq_previa"] = st.session_state["exploracion_adq_activa"]
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2329,16 +2333,23 @@ with tab2:
                 use_container_width=True,
                 type="primary" if _activa else "secondary",
             ):
+                _previa = st.session_state.get("exploracion_adq_activa")
+                if _previa and _previa != _exp["id"]:
+                    _guardar_rangos_desde_widgets(_previa)
                 st.session_state["exploracion_adq_activa"] = _exp["id"]
+                st.session_state["exploracion_adq_previa"] = _exp["id"]
+                st.rerun()
             st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq", type="secondary"):
+            _guardar_rangos_desde_widgets(st.session_state.get("exploracion_adq_activa"))
             _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
             _numero = len(_existentes) + 1
             st.session_state["exploraciones_adq"].append(_crear_exploracion_adq(_numero))
             _reindexar_exploraciones_adq()
             st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][-1]["id"]
+            st.session_state["exploracion_adq_previa"] = st.session_state["exploraciones_adq"][-1]["id"]
             st.rerun()
 
         _exp_activa_nav = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
@@ -2348,6 +2359,7 @@ with tab2:
         _c1, _c2 = st.columns(2)
         with _c1:
             if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
+                _guardar_rangos_desde_widgets(st.session_state.get("exploracion_adq_activa"))
                 _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
                 _nuevo_numero = len(_existentes) + 1
                 _copia = dict(_exp_activa_nav)
@@ -2370,6 +2382,7 @@ with tab2:
                 st.session_state["exploraciones_adq"].append(_copia)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = _copia["id"]
+                st.session_state["exploracion_adq_previa"] = _copia["id"]
                 st.rerun()
         with _c2:
             if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
@@ -2380,6 +2393,7 @@ with tab2:
                 ]
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = "topograma"
+                st.session_state["exploracion_adq_previa"] = "topograma"
                 st.rerun()
 
     with col_det:
@@ -2463,7 +2477,11 @@ with tab2:
 
         else:
             _exp_id = _actual["id"]
-            _cargar_rangos_en_widgets(_actual)
+            if st.session_state.get("exploracion_adq_previa") != _exp_id:
+                _cargar_rangos_en_widgets(_actual, forzar=True)
+                st.session_state["exploracion_adq_previa"] = _exp_id
+            else:
+                _cargar_rangos_en_widgets(_actual, forzar=False)
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
             _opciones_nombre_exp = [
