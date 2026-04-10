@@ -1080,8 +1080,8 @@ def render_topogramas_independientes_interactivos(topos, width=760):
     if not topos:
         return None
 
-    canvas_css_width = 300 if len(topos) > 1 else 420
-    canvas_css_height = 460 if len(topos) > 1 else 540
+    canvas_css_width = 340 if len(topos) > 1 else 460
+    canvas_css_height = 500 if len(topos) > 1 else 580
     canvas_width = 420
     canvas_height = 640
     min_col_width = canvas_css_width
@@ -2207,17 +2207,48 @@ with tab2:
                 _exp["orden"] = _contador
                 _contador += 1
 
+    def _sanear_exploraciones_adq():
+        _originales = st.session_state.get("exploraciones_adq", [])
+        _solo_adq = []
+        _ids_vistos = set()
+        for _exp in _originales:
+            if _exp.get("tipo") != "adquisicion":
+                continue
+            _nuevo = dict(_exp)
+            _exp_id = _nuevo.get("id")
+            if not _exp_id or _exp_id in _ids_vistos:
+                _exp_id = f"exp_{st.session_state['exploracion_adq_counter']}"
+                st.session_state["exploracion_adq_counter"] += 1
+            _nuevo["id"] = _exp_id
+            _ids_vistos.add(_exp_id)
+            _solo_adq.append(_nuevo)
+
+        if not _solo_adq:
+            _solo_adq = [_crear_exploracion_adq(1)]
+
+        st.session_state["exploraciones_adq"] = _solo_adq
+        _reindexar_exploraciones_adq()
+
+        _ids_validos = {_exp["id"] for _exp in _solo_adq}
+        if st.session_state.get("exploracion_adq_activa") not in _ids_validos:
+            st.session_state["exploracion_adq_activa"] = _solo_adq[0]["id"]
+
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [_crear_exploracion_adq(1)]
+
     else:
         st.session_state["exploraciones_adq"] = [
             e for e in st.session_state["exploraciones_adq"]
             if e.get("tipo") == "adquisicion"
-        ] or [_crear_exploracion_adq(1)]
+        ]
+        if not st.session_state["exploraciones_adq"]:
+            st.session_state["exploraciones_adq"] = [_crear_exploracion_adq(1)]
         _reindexar_exploraciones_adq()
 
     if "exploracion_adq_activa" not in st.session_state:
         st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][0]["id"]
+
+    _sanear_exploraciones_adq()
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2272,11 +2303,12 @@ with tab2:
 
         for _exp in st.session_state["exploraciones_adq"]:
             _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
+            _icono = "⚡"
             _nombre_base = _exp.get("nombre", "Exploración")
             _orden_base = _exp.get("orden", "")
-            _label = f"⚡ Exploración {_orden_base}"
+            _label = f"{_icono} Exploración {_orden_base}"
             _tipo_resumen = _exp.get("tipo_exp", "HELICOIDAL")
-            _voz_resumen = _exp.get("voz", "NINGUNA")
+            _voz_resumen = _exp.get("voz_adq", _exp.get("voz", "NINGUNA"))
             st.caption(f"{_nombre_base} · {_tipo_resumen} · Voz: {_voz_resumen}")
             if st.button(
                 _label,
@@ -2334,7 +2366,8 @@ with tab2:
                     if e.get("id") != _id_eliminar
                 ]
                 _reindexar_exploraciones_adq()
-                st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][0]["id"] if st.session_state["exploraciones_adq"] else _crear_exploracion_adq(1)["id"]
+                if st.session_state["exploraciones_adq"]:
+                    st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][0]["id"]
                 st.rerun()
 
     with col_det:
@@ -2424,8 +2457,8 @@ with tab2:
 
                 _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq)
                 if _html_topos_adq:
-                    st.components.v1.html(_html_topos_adq, height=575 if len(_topos_adq) > 1 else 690)
-                    st.markdown("<div style='margin-top:-10px; margin-bottom:0.1rem;'></div>", unsafe_allow_html=True)
+                    st.components.v1.html(_html_topos_adq, height=620 if len(_topos_adq) > 1 else 700)
+                    st.markdown("<div style='margin-top:-6px; margin-bottom:0.15rem;'></div>", unsafe_allow_html=True)
                 else:
                     st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
 
@@ -2434,7 +2467,7 @@ with tab2:
                     st.warning(_err_topo_adq)
 
             if _topos_adq:
-                st.markdown('<div class="section-header">🎯 Rangos independientes de topograma en esta adquisición</div>', unsafe_allow_html=True)
+                st.markdown('<div class="section-header">🎯 Rangos de topograma de esta adquisición</div>', unsafe_allow_html=True)
                 if len(_topos_adq) == 1:
                     _c_topo = st.columns(1)[0]
                     with _c_topo:
