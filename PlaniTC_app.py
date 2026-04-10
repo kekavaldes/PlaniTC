@@ -1084,7 +1084,7 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
 
 
 
-def render_topogramas_independientes_interactivos(topos, width=760, modo="rect"):
+def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key="global"):
     """
     Renderiza uno o dos topogramas con interacción independiente por imagen.
     - modo="rect": muestra un rectángulo movible y redimensionable.
@@ -1095,6 +1095,16 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
 
     modo = "line" if str(modo).lower() == "line" else "rect"
     es_linea = modo == "line"
+    storage_key = str(storage_key or "global")
+
+    palette = [
+        {"stroke": "#00D2FF", "fill": "rgba(0, 210, 255, 0.14)", "handle": "#FFD700", "label": "Celeste"},
+        {"stroke": "#8B5CF6", "fill": "rgba(139, 92, 246, 0.16)", "handle": "#F59E0B", "label": "Violeta"},
+        {"stroke": "#22C55E", "fill": "rgba(34, 197, 94, 0.16)", "handle": "#FACC15", "label": "Verde"},
+        {"stroke": "#FF6B6B", "fill": "rgba(255, 107, 107, 0.16)", "handle": "#FFE066", "label": "Coral"},
+        {"stroke": "#F97316", "fill": "rgba(249, 115, 22, 0.16)", "handle": "#FDE047", "label": "Naranja"},
+        {"stroke": "#14B8A6", "fill": "rgba(20, 184, 166, 0.16)", "handle": "#FDE68A", "label": "Turquesa"},
+    ]
 
     canvas_css_width = 227 if len(topos) > 1 else 307
     canvas_css_height = 333 if len(topos) > 1 else 387
@@ -1126,6 +1136,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
         rect_x = 0.22
         rect_w = 0.56
         line_y = max(0.04, min(0.96, (y_ini + y_fin) / 2 if (y_ini is not None and y_fin is not None) else 0.5))
+        color_cfg = palette[i % len(palette)]
 
         if es_linea:
             info_html = f"""
@@ -1163,6 +1174,10 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
             "rect_w": rect_w,
             "rect_h": rect_h,
             "line_y": line_y,
+            "stroke": color_cfg["stroke"],
+            "fill": color_cfg["fill"],
+            "handle": color_cfg["handle"],
+            "color_label": color_cfg["label"],
         })
 
     if not cols_html:
@@ -1187,6 +1202,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
 (function() {{
   var topoData = {json.dumps(topo_payload)};
   var mode = {json.dumps(modo)};
+  var storageKey = {json.dumps(storage_key)};
 
   topoData.forEach(function(data, idx) {{
     var canvas = document.getElementById('topoCanvasInd' + idx);
@@ -1201,6 +1217,12 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
       h: data.rect_h
     }};
     var lineState = {{ y: data.line_y }};
+    var styleState = {{
+      stroke: data.stroke,
+      fill: data.fill,
+      handle: data.handle
+    }};
+    var persistKey = 'planitc_topograma_' + storageKey + '_' + idx + '_' + mode;
 
     var dragMode = null;
     var dragOffsetX = 0;
@@ -1210,6 +1232,42 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
     var minH = 0.10;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
+
+    function loadPersistedState() {{
+      try {{
+        var raw = window.localStorage.getItem(persistKey);
+        if (!raw) return;
+        var saved = JSON.parse(raw);
+        if (mode === 'line') {{
+          if (typeof saved.line_y === 'number') lineState.y = saved.line_y;
+        }} else {{
+          if (typeof saved.rect_x === 'number') rectState.x = saved.rect_x;
+          if (typeof saved.rect_y === 'number') rectState.y = saved.rect_y;
+          if (typeof saved.rect_w === 'number') rectState.w = saved.rect_w;
+          if (typeof saved.rect_h === 'number') rectState.h = saved.rect_h;
+        }}
+      }} catch (err) {{
+        console.warn('No se pudo recuperar estado del topograma', err);
+      }}
+    }}
+
+    function savePersistedState() {{
+      try {{
+        var payload = mode === 'line'
+          ? {{ line_y: lineState.y }}
+          : {{
+              rect_x: rectState.x,
+              rect_y: rectState.y,
+              rect_w: rectState.w,
+              rect_h: rectState.h
+            }};
+        window.localStorage.setItem(persistKey, JSON.stringify(payload));
+      }} catch (err) {{
+        console.warn('No se pudo guardar estado del topograma', err);
+      }}
+    }}
+
+    loadPersistedState();
 
     function clampRect() {{
       rectState.w = Math.max(minW, Math.min(0.92, rectState.w));
@@ -1291,7 +1349,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
 
       if (mode === 'line') {{
         var lineY = getLinePx();
-        ctx.strokeStyle = '#00D2FF';
+        ctx.strokeStyle = styleState.stroke;
         ctx.lineWidth = 4;
         ctx.setLineDash([12, 7]);
         ctx.beginPath();
@@ -1300,7 +1358,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = '#00D2FF';
+        ctx.fillStyle = styleState.stroke;
         ctx.font = 'bold 12px sans-serif';
         ctx.fillText('CORTE', W * 0.12 + 6, Math.max(18, lineY - 8));
 
@@ -1315,20 +1373,20 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
 
       var rp = getRectPx();
 
-      ctx.fillStyle = 'rgba(0, 210, 255, 0.14)';
+      ctx.fillStyle = styleState.fill;
       ctx.fillRect(rp.x, rp.y, rp.w, rp.h);
 
-      ctx.strokeStyle = '#00D2FF';
+      ctx.strokeStyle = styleState.stroke;
       ctx.lineWidth = 3;
       ctx.setLineDash([10, 6]);
       ctx.strokeRect(rp.x, rp.y, rp.w, rp.h);
       ctx.setLineDash([]);
 
-      ctx.fillStyle = '#00D2FF';
+      ctx.fillStyle = styleState.stroke;
       ctx.font = 'bold 12px sans-serif';
       ctx.fillText('SFOV / DFOV', rp.x + 8, Math.max(16, rp.y + 16));
 
-      ctx.fillStyle = '#FFD700';
+      ctx.fillStyle = styleState.handle;
       ctx.fillRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
       ctx.strokeStyle = '#111';
       ctx.lineWidth = 1.5;
@@ -1392,6 +1450,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
         lineState.y = pos.y / H;
         clampLine();
         draw();
+        savePersistedState();
         return;
       }}
 
@@ -1405,6 +1464,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
 
       clampRect();
       draw();
+      savePersistedState();
     }});
 
     function endDrag() {{
@@ -1446,6 +1506,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
         lineState.y = pos.y / H;
         clampLine();
         draw();
+        savePersistedState();
         return;
       }}
 
@@ -1459,6 +1520,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect")
 
       clampRect();
       draw();
+      savePersistedState();
     }}, {{passive:false}});
 
     canvas.addEventListener('touchend', endDrag);
@@ -2842,7 +2904,7 @@ with tab2:
                     _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
 
                 _modo_topograma_adq = "line" if "BOLUS TEST" in str(_actual.get("nombre", "")).upper() or "BOLUS TRACKING" in str(_actual.get("nombre", "")).upper() else "rect"
-                _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq, modo=_modo_topograma_adq)
+                _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq, modo=_modo_topograma_adq, storage_key=_exp_id)
                 if _html_topos_adq:
                     st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
                     st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
