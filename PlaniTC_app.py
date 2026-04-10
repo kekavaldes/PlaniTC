@@ -2234,6 +2234,136 @@ with tab2:
         if st.session_state.get("exploracion_adq_activa") not in _ids_validos:
             st.session_state["exploracion_adq_activa"] = _solo_adq[0]["id"]
 
+    CAMPOS_ADQ_PERSISTENTES = [
+        "nombre", "tipo_exp", "doble_muestreo", "voz_adq", "mod_corriente",
+        "kvp", "mas_val", "ind_cal", "ind_ruido", "rango_ma", "conf_det",
+        "sfov", "grosor_prosp", "pitch", "rot_tubo", "retardo",
+        "inicio_ref", "ini_mm", "fin_ref", "fin_mm",
+        "topo1_inicio_ref", "topo1_ini_mm", "topo1_fin_ref", "topo1_fin_mm",
+        "topo2_inicio_ref", "topo2_ini_mm", "topo2_fin_ref", "topo2_fin_mm",
+    ]
+
+    def _asegurar_store_adq():
+        if "adq_store" not in st.session_state or not isinstance(st.session_state["adq_store"], dict):
+            st.session_state["adq_store"] = {}
+        for _exp in st.session_state.get("exploraciones_adq", []):
+            if _exp.get("tipo") != "adquisicion":
+                continue
+            _eid = _exp.get("id")
+            if not _eid:
+                continue
+            if _eid not in st.session_state["adq_store"]:
+                st.session_state["adq_store"][_eid] = {k: _exp.get(k) for k in CAMPOS_ADQ_PERSISTENTES}
+            else:
+                for k in CAMPOS_ADQ_PERSISTENTES:
+                    if k not in st.session_state["adq_store"][_eid]:
+                        st.session_state["adq_store"][_eid][k] = _exp.get(k)
+
+        _ids_validos = {e.get("id") for e in st.session_state.get("exploraciones_adq", []) if e.get("tipo") == "adquisicion"}
+        for _eid in list(st.session_state["adq_store"].keys()):
+            if _eid not in _ids_validos:
+                del st.session_state["adq_store"][_eid]
+
+    def _sincronizar_desde_store(_exp):
+        _eid = _exp.get("id")
+        if not _eid:
+            return
+        _store = st.session_state.get("adq_store", {}).get(_eid, {})
+        for k in CAMPOS_ADQ_PERSISTENTES:
+            if k in _store:
+                _exp[k] = _store[k]
+
+    def _guardar_en_store(_exp):
+        _eid = _exp.get("id")
+        if not _eid:
+            return
+        if "adq_store" not in st.session_state or not isinstance(st.session_state["adq_store"], dict):
+            st.session_state["adq_store"] = {}
+        if _eid not in st.session_state["adq_store"]:
+            st.session_state["adq_store"][_eid] = {}
+        for k in CAMPOS_ADQ_PERSISTENTES:
+            st.session_state["adq_store"][_eid][k] = _exp.get(k)
+
+    def _cargar_widgets_desde_store(_exp):
+        _eid = _exp.get("id")
+        if not _eid:
+            return
+        _store = st.session_state.get("adq_store", {}).get(_eid, {})
+        _mapa = {
+            f"nombre_{_eid}": "nombre",
+            f"tipoexp_{_eid}": "tipo_exp",
+            f"dm_{_eid}": "doble_muestreo",
+            f"voz_{_eid}": "voz_adq",
+            f"mod_{_eid}": "mod_corriente",
+            f"kv_{_eid}": "kvp",
+            f"mas_{_eid}": "mas_val",
+            f"masref_{_eid}": "mas_val",
+            f"indcal_{_eid}": "ind_cal",
+            f"rangoma_{_eid}": "rango_ma",
+            f"indruido_{_eid}": "ind_ruido",
+            f"confdet_{_eid}": "conf_det",
+            f"sfov_{_eid}": "sfov",
+            f"gpros_{_eid}": "grosor_prosp",
+            f"pitch_{_eid}": "pitch",
+            f"rot_{_eid}": "rot_tubo",
+            f"delay_{_eid}": "retardo",
+            f"iniref_{_eid}": "inicio_ref",
+            f"inimm_{_eid}": "ini_mm",
+            f"finref_{_eid}": "fin_ref",
+            f"finmm_{_eid}": "fin_mm",
+            f"topo1_iniref_{_eid}": "topo1_inicio_ref",
+            f"topo1_inimm_{_eid}": "topo1_ini_mm",
+            f"topo1_finref_{_eid}": "topo1_fin_ref",
+            f"topo1_finmm_{_eid}": "topo1_fin_mm",
+            f"topo2_iniref_{_eid}": "topo2_inicio_ref",
+            f"topo2_inimm_{_eid}": "topo2_ini_mm",
+            f"topo2_finref_{_eid}": "topo2_fin_ref",
+            f"topo2_finmm_{_eid}": "topo2_fin_mm",
+        }
+        for _wkey, _campo in _mapa.items():
+            if _campo in _store:
+                st.session_state[_wkey] = _store[_campo]
+
+    def _guardar_widgets_en_store(_exp):
+        _eid = _exp.get("id")
+        if not _eid:
+            return
+        _mapa = {
+            f"nombre_{_eid}": "nombre",
+            f"tipoexp_{_eid}": "tipo_exp",
+            f"dm_{_eid}": "doble_muestreo",
+            f"voz_{_eid}": "voz_adq",
+            f"mod_{_eid}": "mod_corriente",
+            f"kv_{_eid}": "kvp",
+            f"mas_{_eid}": "mas_val",
+            f"masref_{_eid}": "mas_val",
+            f"indcal_{_eid}": "ind_cal",
+            f"rangoma_{_eid}": "rango_ma",
+            f"indruido_{_eid}": "ind_ruido",
+            f"confdet_{_eid}": "conf_det",
+            f"sfov_{_eid}": "sfov",
+            f"gpros_{_eid}": "grosor_prosp",
+            f"pitch_{_eid}": "pitch",
+            f"rot_{_eid}": "rot_tubo",
+            f"delay_{_eid}": "retardo",
+            f"iniref_{_eid}": "inicio_ref",
+            f"inimm_{_eid}": "ini_mm",
+            f"finref_{_eid}": "fin_ref",
+            f"finmm_{_eid}": "fin_mm",
+            f"topo1_iniref_{_eid}": "topo1_inicio_ref",
+            f"topo1_inimm_{_eid}": "topo1_ini_mm",
+            f"topo1_finref_{_eid}": "topo1_fin_ref",
+            f"topo1_finmm_{_eid}": "topo1_fin_mm",
+            f"topo2_iniref_{_eid}": "topo2_inicio_ref",
+            f"topo2_inimm_{_eid}": "topo2_ini_mm",
+            f"topo2_finref_{_eid}": "topo2_fin_ref",
+            f"topo2_finmm_{_eid}": "topo2_fin_mm",
+        }
+        for _wkey, _campo in _mapa.items():
+            if _wkey in st.session_state:
+                _exp[_campo] = st.session_state[_wkey]
+        _guardar_en_store(_exp)
+
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [_crear_exploracion_adq(1)]
 
@@ -2250,6 +2380,7 @@ with tab2:
         st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][0]["id"]
 
     _sanear_exploraciones_adq()
+    _asegurar_store_adq()
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2316,11 +2447,21 @@ with tab2:
                 use_container_width=True,
                 type="primary" if _activa else "secondary",
             ):
+                _prev_id = st.session_state.get("exploracion_adq_activa")
+                if _prev_id:
+                    _prev_exp = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == _prev_id), None)
+                    if _prev_exp is not None:
+                        _guardar_widgets_en_store(_prev_exp)
                 st.session_state["exploracion_adq_activa"] = _exp["id"]
+                _sincronizar_desde_store(_exp)
+                _cargar_widgets_desde_store(_exp)
             st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq", type="secondary"):
+            _actual_prev = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state.get("exploracion_adq_activa")), None)
+            if _actual_prev is not None:
+                _guardar_widgets_en_store(_actual_prev)
             _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
             _numero = len(_existentes) + 1
             st.session_state["exploraciones_adq"].append(_crear_exploracion_adq(_numero))
@@ -2335,6 +2476,8 @@ with tab2:
         _c1, _c2 = st.columns(2)
         with _c1:
             if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
+                if _exp_activa_nav is not None:
+                    _guardar_widgets_en_store(_exp_activa_nav)
                 _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
                 _nuevo_numero = len(_existentes) + 1
                 _nueva_exp = _crear_exploracion_adq(_nuevo_numero)
@@ -2344,6 +2487,8 @@ with tab2:
                 st.rerun()
         with _c2:
             if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
+                if _exp_activa_nav is not None:
+                    _guardar_widgets_en_store(_exp_activa_nav)
                 _id_eliminar = st.session_state["exploracion_adq_activa"]
                 st.session_state["exploraciones_adq"] = [
                     e for e in st.session_state["exploraciones_adq"]
@@ -2361,7 +2506,11 @@ with tab2:
             st.warning("No se pudo cargar la exploración seleccionada.")
 
         else:
+            _sincronizar_desde_store(_actual)
             _exp_id = _actual["id"]
+            if st.session_state.get("_ultimo_exp_cargado") != _exp_id:
+                _cargar_widgets_desde_store(_actual)
+                st.session_state["_ultimo_exp_cargado"] = _exp_id
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
             _opciones_nombre_exp = [
@@ -2712,6 +2861,10 @@ with tab3:
         for _idx_local, _rec_local in enumerate(_lista_local, start=1):
             _rec_local["id"] = f"{exp_id}_rec_{_idx_local}"
             _rec_local["nombre"] = f"Reconstrucción {_idx_local}"
+
+    _actual_guardar = next((e for e in st.session_state.get("exploraciones_adq", []) if e.get("id") == st.session_state.get("exploracion_adq_activa")), None)
+    if _actual_guardar is not None:
+        _guardar_widgets_en_store(_actual_guardar)
 
     _adquisiciones_validas = [e for e in st.session_state.get("exploraciones_adq", []) if e.get("tipo") == "adquisicion"]
 
