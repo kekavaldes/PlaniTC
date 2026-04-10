@@ -2213,23 +2213,52 @@ with tab2:
                 return _exp
         return None
 
+    if "rangos_por_exploracion_adq" not in st.session_state:
+        st.session_state["rangos_por_exploracion_adq"] = {}
+
+    def _valores_rango_por_defecto(exp):
+        return {
+            "inicio_ref": exp.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "ini_mm": int(exp.get("ini_mm", 0)),
+            "fin_ref": exp.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "fin_mm": int(exp.get("fin_mm", 400)),
+            "topo1_inicio_ref": exp.get("topo1_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "topo1_ini_mm": int(exp.get("topo1_ini_mm", 0)),
+            "topo1_fin_ref": exp.get("topo1_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "topo1_fin_mm": int(exp.get("topo1_fin_mm", 400)),
+            "topo2_inicio_ref": exp.get("topo2_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
+            "topo2_ini_mm": int(exp.get("topo2_ini_mm", 0)),
+            "topo2_fin_ref": exp.get("topo2_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
+            "topo2_fin_mm": int(exp.get("topo2_fin_mm", 400)),
+        }
+
+    def _asegurar_rangos_exploracion(exp):
+        if not exp or exp.get("tipo") != "adquisicion":
+            return {}
+        _exp_id = exp.get("id")
+        _store = st.session_state["rangos_por_exploracion_adq"]
+        if _exp_id not in _store:
+            _store[_exp_id] = _valores_rango_por_defecto(exp)
+        return _store[_exp_id]
+
     def _cargar_rangos_en_widgets(exp, forzar=False):
         if not exp or exp.get("tipo") != "adquisicion":
             return
         _exp_id = exp.get("id")
+        _rangos = _asegurar_rangos_exploracion(exp)
         _mapa = {
-            f"iniref_{_exp_id}": exp.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
-            f"inimm_{_exp_id}": int(exp.get("ini_mm", 0)),
-            f"finref_{_exp_id}": exp.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
-            f"finmm_{_exp_id}": int(exp.get("fin_mm", 400)),
-            f"topo1_iniref_{_exp_id}": exp.get("topo1_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
-            f"topo1_inimm_{_exp_id}": int(exp.get("topo1_ini_mm", 0)),
-            f"topo1_finref_{_exp_id}": exp.get("topo1_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
-            f"topo1_finmm_{_exp_id}": int(exp.get("topo1_fin_mm", 400)),
-            f"topo2_iniref_{_exp_id}": exp.get("topo2_inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
-            f"topo2_inimm_{_exp_id}": int(exp.get("topo2_ini_mm", 0)),
-            f"topo2_finref_{_exp_id}": exp.get("topo2_fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
-            f"topo2_finmm_{_exp_id}": int(exp.get("topo2_fin_mm", 400)),
+            f"iniref_{_exp_id}": _rangos["inicio_ref"],
+            f"inimm_{_exp_id}": int(_rangos["ini_mm"]),
+            f"finref_{_exp_id}": _rangos["fin_ref"],
+            f"finmm_{_exp_id}": int(_rangos["fin_mm"]),
+            f"topo1_iniref_{_exp_id}": _rangos["topo1_inicio_ref"],
+            f"topo1_inimm_{_exp_id}": int(_rangos["topo1_ini_mm"]),
+            f"topo1_finref_{_exp_id}": _rangos["topo1_fin_ref"],
+            f"topo1_finmm_{_exp_id}": int(_rangos["topo1_fin_mm"]),
+            f"topo2_iniref_{_exp_id}": _rangos["topo2_inicio_ref"],
+            f"topo2_inimm_{_exp_id}": int(_rangos["topo2_ini_mm"]),
+            f"topo2_finref_{_exp_id}": _rangos["topo2_fin_ref"],
+            f"topo2_finmm_{_exp_id}": int(_rangos["topo2_fin_mm"]),
         }
         for _k, _v in _mapa.items():
             if forzar or _k not in st.session_state:
@@ -2239,24 +2268,42 @@ with tab2:
         _exp = _buscar_exploracion_adq(exp_id)
         if not _exp or _exp.get("tipo") != "adquisicion":
             return
-        _exp["inicio_ref"] = st.session_state.get(f"iniref_{exp_id}", _exp.get("inicio_ref"))
-        _exp["ini_mm"] = int(st.session_state.get(f"inimm_{exp_id}", _exp.get("ini_mm", 0)))
-        _exp["fin_ref"] = st.session_state.get(f"finref_{exp_id}", _exp.get("fin_ref"))
-        _exp["fin_mm"] = int(st.session_state.get(f"finmm_{exp_id}", _exp.get("fin_mm", 400)))
-        _exp["topo1_inicio_ref"] = st.session_state.get(f"topo1_iniref_{exp_id}", _exp.get("topo1_inicio_ref"))
-        _exp["topo1_ini_mm"] = int(st.session_state.get(f"topo1_inimm_{exp_id}", _exp.get("topo1_ini_mm", 0)))
-        _exp["topo1_fin_ref"] = st.session_state.get(f"topo1_finref_{exp_id}", _exp.get("topo1_fin_ref"))
-        _exp["topo1_fin_mm"] = int(st.session_state.get(f"topo1_finmm_{exp_id}", _exp.get("topo1_fin_mm", 400)))
-        _exp["topo2_inicio_ref"] = st.session_state.get(f"topo2_iniref_{exp_id}", _exp.get("topo2_inicio_ref"))
-        _exp["topo2_ini_mm"] = int(st.session_state.get(f"topo2_inimm_{exp_id}", _exp.get("topo2_ini_mm", 0)))
-        _exp["topo2_fin_ref"] = st.session_state.get(f"topo2_finref_{exp_id}", _exp.get("topo2_fin_ref"))
-        _exp["topo2_fin_mm"] = int(st.session_state.get(f"topo2_finmm_{exp_id}", _exp.get("topo2_fin_mm", 400)))
+        _rangos = _asegurar_rangos_exploracion(_exp)
+        _rangos["inicio_ref"] = st.session_state.get(f"iniref_{exp_id}", _rangos.get("inicio_ref"))
+        _rangos["ini_mm"] = int(st.session_state.get(f"inimm_{exp_id}", _rangos.get("ini_mm", 0)))
+        _rangos["fin_ref"] = st.session_state.get(f"finref_{exp_id}", _rangos.get("fin_ref"))
+        _rangos["fin_mm"] = int(st.session_state.get(f"finmm_{exp_id}", _rangos.get("fin_mm", 400)))
+        _rangos["topo1_inicio_ref"] = st.session_state.get(f"topo1_iniref_{exp_id}", _rangos.get("topo1_inicio_ref"))
+        _rangos["topo1_ini_mm"] = int(st.session_state.get(f"topo1_inimm_{exp_id}", _rangos.get("topo1_ini_mm", 0)))
+        _rangos["topo1_fin_ref"] = st.session_state.get(f"topo1_finref_{exp_id}", _rangos.get("topo1_fin_ref"))
+        _rangos["topo1_fin_mm"] = int(st.session_state.get(f"topo1_finmm_{exp_id}", _rangos.get("topo1_fin_mm", 400)))
+        _rangos["topo2_inicio_ref"] = st.session_state.get(f"topo2_iniref_{exp_id}", _rangos.get("topo2_inicio_ref"))
+        _rangos["topo2_ini_mm"] = int(st.session_state.get(f"topo2_inimm_{exp_id}", _rangos.get("topo2_ini_mm", 0)))
+        _rangos["topo2_fin_ref"] = st.session_state.get(f"topo2_finref_{exp_id}", _rangos.get("topo2_fin_ref"))
+        _rangos["topo2_fin_mm"] = int(st.session_state.get(f"topo2_finmm_{exp_id}", _rangos.get("topo2_fin_mm", 400)))
+
+        _exp["inicio_ref"] = _rangos["inicio_ref"]
+        _exp["ini_mm"] = _rangos["ini_mm"]
+        _exp["fin_ref"] = _rangos["fin_ref"]
+        _exp["fin_mm"] = _rangos["fin_mm"]
+        _exp["topo1_inicio_ref"] = _rangos["topo1_inicio_ref"]
+        _exp["topo1_ini_mm"] = _rangos["topo1_ini_mm"]
+        _exp["topo1_fin_ref"] = _rangos["topo1_fin_ref"]
+        _exp["topo1_fin_mm"] = _rangos["topo1_fin_mm"]
+        _exp["topo2_inicio_ref"] = _rangos["topo2_inicio_ref"]
+        _exp["topo2_ini_mm"] = _rangos["topo2_ini_mm"]
+        _exp["topo2_fin_ref"] = _rangos["topo2_fin_ref"]
+        _exp["topo2_fin_mm"] = _rangos["topo2_fin_mm"]
 
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [
             {"id": "topograma", "tipo": "topograma", "nombre": "Topograma"},
             _crear_exploracion_adq(1),
         ]
+
+    for _exp_boot in st.session_state.get("exploraciones_adq", []):
+        if _exp_boot.get("tipo") == "adquisicion":
+            _asegurar_rangos_exploracion(_exp_boot)
 
     if "exploracion_adq_activa" not in st.session_state:
         st.session_state["exploracion_adq_activa"] = "topograma"
@@ -2346,7 +2393,9 @@ with tab2:
             _guardar_rangos_desde_widgets(st.session_state.get("exploracion_adq_activa"))
             _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
             _numero = len(_existentes) + 1
-            st.session_state["exploraciones_adq"].append(_crear_exploracion_adq(_numero))
+            _nueva_exp = _crear_exploracion_adq(_numero)
+            st.session_state["exploraciones_adq"].append(_nueva_exp)
+            st.session_state["rangos_por_exploracion_adq"][_nueva_exp["id"]] = _valores_rango_por_defecto(_nueva_exp)
             _reindexar_exploraciones_adq()
             st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][-1]["id"]
             st.session_state["exploracion_adq_previa"] = st.session_state["exploraciones_adq"][-1]["id"]
@@ -2380,6 +2429,7 @@ with tab2:
                 _copia["topo2_fin_ref"] = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]
                 _copia["topo2_fin_mm"] = 400
                 st.session_state["exploraciones_adq"].append(_copia)
+                st.session_state["rangos_por_exploracion_adq"][_copia["id"]] = _valores_rango_por_defecto(_copia)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = _copia["id"]
                 st.session_state["exploracion_adq_previa"] = _copia["id"]
@@ -2391,6 +2441,7 @@ with tab2:
                     e for e in st.session_state["exploraciones_adq"]
                     if e.get("id") != _id_eliminar
                 ]
+                st.session_state.get("rangos_por_exploracion_adq", {}).pop(_id_eliminar, None)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = "topograma"
                 st.session_state["exploracion_adq_previa"] = "topograma"
@@ -2553,11 +2604,11 @@ with tab2:
 
             if _topos_adq:
                 if len(_topos_adq) >= 1:
-                    _topos_adq[0]["inicio_ref"] = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
-                    _topos_adq[0]["fin_ref"] = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[0]["inicio_ref"] = st.session_state.get(f"topo1_iniref_{_exp_id}", _actual.get("topo1_inicio_ref", _refs_ini_adq[0]))
+                    _topos_adq[0]["fin_ref"] = st.session_state.get(f"topo1_finref_{_exp_id}", _actual.get("topo1_fin_ref", _refs_fin_adq[0]))
                 if len(_topos_adq) >= 2:
-                    _topos_adq[1]["inicio_ref"] = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
-                    _topos_adq[1]["fin_ref"] = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[1]["inicio_ref"] = st.session_state.get(f"topo2_iniref_{_exp_id}", _actual.get("topo2_inicio_ref", _refs_ini_adq[0]))
+                    _topos_adq[1]["fin_ref"] = st.session_state.get(f"topo2_finref_{_exp_id}", _actual.get("topo2_fin_ref", _refs_fin_adq[0]))
 
                 _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq)
                 if _html_topos_adq:
