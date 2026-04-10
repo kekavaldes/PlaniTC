@@ -1993,6 +1993,14 @@ with tab2:
             "fin_mm": int(st.session_state.get("fin_mm", 400)),
         }
 
+    def _reindexar_exploraciones_adq():
+        _contador = 1
+        for _exp in st.session_state["exploraciones_adq"]:
+            if _exp.get("tipo") == "adquisicion":
+                _exp["id"] = f"exp_{_contador}"
+                _exp["nombre"] = f"Exploración {_contador}"
+                _contador += 1
+
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [
             {"id": "topograma", "tipo": "topograma", "nombre": "Topograma"},
@@ -2028,8 +2036,35 @@ with tab2:
             _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
             _numero = len(_existentes) + 1
             st.session_state["exploraciones_adq"].append(_crear_exploracion_adq(_numero))
+            _reindexar_exploraciones_adq()
             st.session_state["exploracion_adq_activa"] = f"exp_{_numero}"
             st.rerun()
+
+        _exp_activa_nav = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
+        _es_adq_activa = _exp_activa_nav is not None and _exp_activa_nav.get("tipo") == "adquisicion"
+
+        _c1, _c2 = st.columns(2)
+        with _c1:
+            if st.button("📄 Duplicar", use_container_width=True, key="duplicar_exploracion_adq", disabled=not _es_adq_activa):
+                _existentes = [e for e in st.session_state["exploraciones_adq"] if e.get("tipo") == "adquisicion"]
+                _nuevo_numero = len(_existentes) + 1
+                _copia = dict(_exp_activa_nav)
+                _copia["id"] = f"exp_{_nuevo_numero}"
+                _copia["nombre"] = f"Exploración {_nuevo_numero}"
+                st.session_state["exploraciones_adq"].append(_copia)
+                _reindexar_exploraciones_adq()
+                st.session_state["exploracion_adq_activa"] = f"exp_{_nuevo_numero}"
+                st.rerun()
+        with _c2:
+            if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa):
+                _id_eliminar = st.session_state["exploracion_adq_activa"]
+                st.session_state["exploraciones_adq"] = [
+                    e for e in st.session_state["exploraciones_adq"]
+                    if e.get("id") != _id_eliminar
+                ]
+                _reindexar_exploraciones_adq()
+                st.session_state["exploracion_adq_activa"] = "topograma"
+                st.rerun()
 
     with col_det:
         _actual = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
