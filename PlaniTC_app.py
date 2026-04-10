@@ -929,6 +929,17 @@ def get_y_position(ref):
     """Retorna posición Y (0-1) para una referencia anatómica."""
     return POSICIONES_Y.get(ref, 0.5)
 
+
+def get_y_position_with_offset(ref, offset_mm=0, total_mm=600):
+    """Combina referencia anatómica + desplazamiento en mm para ubicar la línea."""
+    try:
+        offset_mm = float(offset_mm or 0)
+    except Exception:
+        offset_mm = 0.0
+    base = get_y_position(ref)
+    y = base + (offset_mm / float(total_mm))
+    return max(0.01, min(0.99, y))
+
 def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", width=520):
     """
     Genera HTML con canvas interactivo: imagen + 2 líneas arrastrables.
@@ -1096,8 +1107,12 @@ def render_topogramas_independientes_interactivos(topos, width=760):
         subtitulo = topo.get("subtitulo", "")
         inicio_ref = topo.get("inicio_ref", "—")
         fin_ref = topo.get("fin_ref", "—")
-        y_ini = get_y_position(inicio_ref)
-        y_fin = get_y_position(fin_ref)
+        inicio_mm = topo.get("inicio_mm", 0)
+        fin_mm = topo.get("fin_mm", 0)
+        y_ini = topo.get("y_ini", get_y_position_with_offset(inicio_ref, inicio_mm))
+        y_fin = topo.get("y_fin", get_y_position_with_offset(fin_ref, fin_mm))
+        inicio_txt = f"{inicio_ref} + {int(inicio_mm)} mm" if str(inicio_ref) != "—" else "—"
+        fin_txt = f"{fin_ref} + {int(fin_mm)} mm" if str(fin_ref) != "—" else "—"
         cols_html.append(f"""
         <div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">
           <div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;">{titulo}</div>
@@ -1105,9 +1120,9 @@ def render_topogramas_independientes_interactivos(topos, width=760):
             style="width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
           <div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;">{subtitulo}</div>
           <div style="margin-top:4px; font-size:13px; color:#fff; text-align:center;">
-            <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioInd{i}">{inicio_ref}</b>
+            <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioInd{i}">{inicio_txt}</b>
             &nbsp;&nbsp;
-            <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinInd{i}">{fin_ref}</b>
+            <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinInd{i}">{fin_txt}</b>
             &nbsp;&nbsp;|&nbsp;&nbsp;
             Longitud: <b id="lblLongInd{i}">—</b> mm
           </div>
@@ -1128,7 +1143,7 @@ def render_topogramas_independientes_interactivos(topos, width=760):
 </div>
 <script>
 (function() {{
-  var topoData = {str([{"img_b64": t.get("img_b64", ""), "y_ini": get_y_position(t.get("inicio_ref", "—")), "y_fin": get_y_position(t.get("fin_ref", "—"))} for t in topos]).replace("'", '"')};
+  var topoData = {str([{"img_b64": t.get("img_b64", ""), "y_ini": t.get("y_ini", get_y_position_with_offset(t.get("inicio_ref", "—"), t.get("inicio_mm", 0))), "y_fin": t.get("y_fin", get_y_position_with_offset(t.get("fin_ref", "—"), t.get("fin_mm", 0)))} for t in topos]).replace("'", '"')};
 
   topoData.forEach(function(data, idx) {{
     var canvas = document.getElementById('topoCanvasInd' + idx);
@@ -2606,9 +2621,17 @@ with tab2:
                 if len(_topos_adq) >= 1:
                     _topos_adq[0]["inicio_ref"] = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
                     _topos_adq[0]["fin_ref"] = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[0]["inicio_mm"] = _actual.get("topo1_ini_mm", 0)
+                    _topos_adq[0]["fin_mm"] = _actual.get("topo1_fin_mm", 0)
+                    _topos_adq[0]["y_ini"] = get_y_position_with_offset(_topos_adq[0]["inicio_ref"], _topos_adq[0]["inicio_mm"])
+                    _topos_adq[0]["y_fin"] = get_y_position_with_offset(_topos_adq[0]["fin_ref"], _topos_adq[0]["fin_mm"])
                 if len(_topos_adq) >= 2:
                     _topos_adq[1]["inicio_ref"] = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
                     _topos_adq[1]["fin_ref"] = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[1]["inicio_mm"] = _actual.get("topo2_ini_mm", 0)
+                    _topos_adq[1]["fin_mm"] = _actual.get("topo2_fin_mm", 0)
+                    _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topos_adq[1]["inicio_ref"], _topos_adq[1]["inicio_mm"])
+                    _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
 
                 _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq)
                 if _html_topos_adq:
