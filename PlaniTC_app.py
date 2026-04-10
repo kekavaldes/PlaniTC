@@ -1093,9 +1093,9 @@ def _pil_to_b64_jpeg(img, max_width=900):
 
 def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width=760):
     """
-    Renderiza uno o dos topogramas programados con líneas móviles sincronizadas.
-    Si hay dos topogramas, al mover una línea en cualquiera, se actualizan ambos.
-    Ajusta el tamaño sin recortar la imagen y conserva su proporción.
+    Renderiza uno o dos topogramas programados con líneas móviles independientes.
+    Las imágenes se muestran arriba, con el mismo tamaño y más pequeñas para que
+    entren mejor en pantalla sin recortarse.
     """
     if not topos:
         return None
@@ -1103,22 +1103,31 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     y_ini = get_y_position(inicio_ref)
     y_fin = get_y_position(fin_ref)
     multiple = len(topos) > 1
-    canvas_css_width = 360 if multiple else 500
-    min_col_width = 320 if multiple else 540
+    canvas_css_width = 240 if multiple else 340
+    min_col_width = 240 if multiple else 340
 
     cols_html = []
+    topo_js = []
     for i, topo in enumerate(topos):
         img_b64 = topo.get("img_b64")
         if not img_b64:
             continue
         titulo = topo.get("titulo", f"Topograma {i+1}")
         subtitulo = topo.get("subtitulo", "")
+        inicio_lbl = topo.get("inicio_ref", inicio_ref)
+        fin_lbl = topo.get("fin_ref", fin_ref)
+        topo_js.append({"img_b64": img_b64, "inicio_ref": inicio_lbl, "fin_ref": fin_lbl})
         cols_html.append(f"""
-        <div style="flex:0 1 {canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width + 30}px;">
-          <div style="font-size:18px;font-weight:700;color:#fff;margin:0 0 8px 0;">{titulo}</div>
+        <div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">
+          <div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 8px 0; text-align:center;">{titulo}</div>
           <canvas id="topoCanvas{i}" width="500" height="900"
-            style="width:{canvas_css_width}px; max-width:100%; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
-          <div style="margin-top:6px; font-size:12px; color:#ccc;">{subtitulo}</div>
+            style="width:{canvas_css_width}px; height:auto; cursor:ns-resize; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto;"></canvas>
+          <div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;">{subtitulo}</div>
+          <div style="margin-top:6px; font-size:12px; color:#fff; text-align:center; line-height:1.5;">
+            <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioSync{i}">{inicio_lbl}</b><br>
+            <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinSync{i}">{fin_lbl}</b><br>
+            Longitud: <b id="lblLongSync{i}">—</b> mm
+          </div>
         </div>
         """)
 
@@ -1126,58 +1135,59 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
         return None
 
     html = f"""
-<div style="text-align:center; margin: 0.5rem 0;">
+<div style="text-align:center; margin: 0.25rem 0 0.75rem 0;">
   <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:10px;">
-    Arrastra las líneas para ajustar el rango de exploración.
-    {'Ambos topogramas se mueven simultáneamente.' if len(cols_html) > 1 else ''}
+    Arrastra las líneas de cada imagen para ajustar su rango de exploración de forma independiente.
   </div>
   <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; justify-content:center;">
     {''.join(cols_html)}
   </div>
-  <div style="margin-top:8px; font-size:13px; color:#fff;">
-    <span style="color:#00FF88;">▬</span> Inicio: <b id="lblInicioSync">{inicio_ref}</b>
-    &nbsp;&nbsp;
-    <span style="color:#FF4444;">▬</span> Fin: <b id="lblFinSync">{fin_ref}</b>
-    &nbsp;&nbsp;|&nbsp;&nbsp;
-    Longitud: <b id="lblLongSync">—</b> mm
-  </div>
 </div>
 <script>
 (function() {{
-  var topoData = {str([{"img_b64": t.get("img_b64", "")} for t in topos]).replace("'", '"')};
+  var topoData = {str(topo_js).replace("'", '"')};
   var canvases = topoData.map(function(_, idx) {{
     return document.getElementById('topoCanvas' + idx);
   }}).filter(Boolean);
 
   if (!canvases.length) return;
 
-  var yIni = {y_ini};
-  var yFin = {y_fin};
-  var dragging = null;
-  var activeCanvas = null;
   var dragThresh = 12;
   var imgs = [];
+  var dragging = null;
+  var activeIdx = null;
+  var positions = topoData.map(function() {{
+    return {{ yIni: {y_ini}, yFin: {y_fin} }};
+  }});
 
   function syncCanvasSize(canvas, img) {{
     if (!canvas || !img || !img.width || !img.height) return;
     var cssW = parseFloat(canvas.style.width) || canvas.clientWidth || 500;
     var ratio = img.height / img.width;
     var cssH = Math.round(cssW * ratio);
-    canvas.width = Math.max(200, Math.round(cssW));
-    canvas.height = Math.max(300, cssH);
+    canvas.width = Math.max(180, Math.round(cssW));
+    canvas.height = Math.max(260, cssH);
   }}
 
-  function drawCanvas(canvas, img) {{
+  function updateLabels(idx) {{
+    var pos = positions[idx];
+    var pct = Math.abs(pos.yFin - pos.yIni);
+    var longMm = Math.round(pct * 600);
+    var el = document.getElementById('lblLongSync' + idx);
+    if(el) el.textContent = longMm;
+  }}
+
+  function drawCanvas(canvas, img, idx) {{
     if(!canvas || !img) return;
     syncCanvasSize(canvas, img);
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
+    var pos = positions[idx];
     ctx.clearRect(0,0,W,H);
     ctx.drawImage(img, 0, 0, W, H);
 
-    var yi = Math.round(yIni * H);
-    var yf = Math.round(yFin * H);
-
+    var yi = Math.round(pos.yIni * H);
+    var yf = Math.round(pos.yFin * H);
     var y1 = Math.min(yi, yf), y2 = Math.max(yi, yf);
     ctx.fillStyle = 'rgba(100,180,255,0.12)';
     ctx.fillRect(0, y1, W, y2-y1);
@@ -1202,14 +1212,8 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     ctx.setLineDash([]);
     ctx.fillStyle = '#FF4444';
     ctx.fillText('FIN', 6, yf - 5);
-  }}
 
-  function drawAll() {{
-    canvases.forEach(function(canvas, idx) {{ drawCanvas(canvas, imgs[idx]); }});
-    var pct = Math.abs(yFin - yIni);
-    var longMm = Math.round(pct * 600);
-    var el = document.getElementById('lblLongSync');
-    if(el) el.textContent = longMm;
+    updateLabels(idx);
   }}
 
   function getMouseY(canvas, e) {{
@@ -1218,61 +1222,59 @@ def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width
     return (e.clientY - rect.top) * scaleY;
   }}
 
-  canvases.forEach(function(canvas) {{
+  canvases.forEach(function(canvas, idx) {{
     canvas.addEventListener('mousedown', function(e) {{
       var my = getMouseY(canvas, e);
-      var yi = yIni * canvas.height, yf = yFin * canvas.height;
-      if(Math.abs(my - yi) < dragThresh) {{ dragging = 'ini'; activeCanvas = canvas; }}
-      else if(Math.abs(my - yf) < dragThresh) {{ dragging = 'fin'; activeCanvas = canvas; }}
+      var pos = positions[idx];
+      var yi = pos.yIni * canvas.height, yf = pos.yFin * canvas.height;
+      if(Math.abs(my - yi) < dragThresh) {{ dragging = 'ini'; activeIdx = idx; }}
+      else if(Math.abs(my - yf) < dragThresh) {{ dragging = 'fin'; activeIdx = idx; }}
     }});
 
     canvas.addEventListener('mousemove', function(e) {{
       var my = getMouseY(canvas, e);
-      var yi = yIni * canvas.height, yf = yFin * canvas.height;
-      canvas.style.cursor = (Math.abs(my-yi)<dragThresh || Math.abs(my-yf)<dragThresh || activeCanvas===canvas) ? 'ns-resize' : 'default';
-      if(!dragging || activeCanvas !== canvas) return;
+      var pos = positions[idx];
+      var yi = pos.yIni * canvas.height, yf = pos.yFin * canvas.height;
+      canvas.style.cursor = (Math.abs(my-yi)<dragThresh || Math.abs(my-yf)<dragThresh || activeIdx===idx) ? 'ns-resize' : 'default';
+      if(!dragging || activeIdx !== idx) return;
       var newY = Math.max(0.01, Math.min(0.99, my/canvas.height));
-      if(dragging === 'ini') yIni = newY;
-      else yFin = newY;
-      drawAll();
+      if(dragging === 'ini') positions[idx].yIni = newY;
+      else positions[idx].yFin = newY;
+      drawCanvas(canvas, imgs[idx], idx);
     }});
 
-    canvas.addEventListener('mouseup', function() {{ dragging = null; activeCanvas = null; }});
-    canvas.addEventListener('mouseleave', function() {{ dragging = null; activeCanvas = null; }});
+    canvas.addEventListener('mouseup', function() {{ dragging = null; activeIdx = null; }});
+    canvas.addEventListener('mouseleave', function() {{ dragging = null; activeIdx = null; }});
 
     canvas.addEventListener('touchstart', function(e) {{
       e.preventDefault();
       var t = e.touches[0];
       var rect = canvas.getBoundingClientRect();
       var my = (t.clientY - rect.top) * (canvas.height / rect.height);
-      if(Math.abs(my - yIni*canvas.height) < dragThresh*2) {{ dragging = 'ini'; activeCanvas = canvas; }}
-      else if(Math.abs(my - yFin*canvas.height) < dragThresh*2) {{ dragging = 'fin'; activeCanvas = canvas; }}
+      var pos = positions[idx];
+      if(Math.abs(my - pos.yIni*canvas.height) < dragThresh*2) {{ dragging = 'ini'; activeIdx = idx; }}
+      else if(Math.abs(my - pos.yFin*canvas.height) < dragThresh*2) {{ dragging = 'fin'; activeIdx = idx; }}
     }}, {{passive:false}});
 
     canvas.addEventListener('touchmove', function(e) {{
       e.preventDefault();
-      if(!dragging || activeCanvas !== canvas) return;
+      if(!dragging || activeIdx !== idx) return;
       var t = e.touches[0];
       var rect = canvas.getBoundingClientRect();
       var my = (t.clientY - rect.top) * (canvas.height / rect.height);
       var newY = Math.max(0.01, Math.min(0.99, my/canvas.height));
-      if(dragging === 'ini') yIni = newY;
-      else yFin = newY;
-      drawAll();
+      if(dragging === 'ini') positions[idx].yIni = newY;
+      else positions[idx].yFin = newY;
+      drawCanvas(canvas, imgs[idx], idx);
     }}, {{passive:false}});
 
-    canvas.addEventListener('touchend', function() {{ dragging = null; activeCanvas = null; }});
+    canvas.addEventListener('touchend', function() {{ dragging = null; activeIdx = null; }});
   }});
 
-  var loaded = 0;
   topoData.forEach(function(item, idx) {{
     var img = new Image();
     imgs[idx] = img;
-    img.onload = function() {{
-      loaded += 1;
-      if (loaded >= topoData.length) drawAll();
-      else drawCanvas(canvases[idx], img);
-    }};
+    img.onload = function() {{ drawCanvas(canvases[idx], img, idx); }};
     img.src = 'data:image/jpeg;base64,' + item.img_b64;
   }});
 }})();
@@ -2156,6 +2158,77 @@ with tab2:
                 key=f"nombre_{_exp_id}",
             )
 
+            st.markdown('<div class="section-header">🖼️ Topograma(s) en esta adquisición</div>', unsafe_allow_html=True)
+            _hay_topo1 = st.session_state.get("topograma_iniciado", False)
+            _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
+            _topos_programados = []
+            _errores_topos = []
+
+            if _hay_topo1:
+                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("posicion", ""),
+                    st.session_state.get("entrada", ""),
+                    st.session_state.get("t1pt", ""),
+                )
+                if _img_adq_1 is not None:
+                    _topos_programados.append({
+                        "titulo": "✅ Topograma 1 programado",
+                        "subtitulo": (
+                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
+                            f"{st.session_state.get('t1l', '—')} mm · "
+                            f"{st.session_state.get('t1kv', '—')} kV · "
+                            f"{st.session_state.get('t1ma', '—')} mA"
+                        ),
+                        "inicio_ref": _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
+                        "fin_ref": _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
+                        "img_b64": _pil_to_b64_jpeg(_img_adq_1),
+                    })
+                else:
+                    _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
+
+            if _hay_topo2:
+                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
+                    st.session_state.get("examen", ""),
+                    st.session_state.get("t2_posicion_paciente", ""),
+                    st.session_state.get("t2_entrada", ""),
+                    st.session_state.get("t2pt", ""),
+                )
+                if _img_adq_2 is not None:
+                    _topos_programados.append({
+                        "titulo": "✅ Topograma 2 programado",
+                        "subtitulo": (
+                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
+                            f"{st.session_state.get('t2l', '—')} mm · "
+                            f"{st.session_state.get('t2kv', '—')} kV · "
+                            f"{st.session_state.get('t2ma', '—')} mA"
+                        ),
+                        "inicio_ref": _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
+                        "fin_ref": _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
+                        "img_b64": _pil_to_b64_jpeg(_img_adq_2),
+                    })
+                else:
+                    _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
+
+            if _topos_programados:
+                _html_topos_prog = render_topogramas_programados_interactivos(
+                    _topos_programados,
+                    _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
+                    _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
+                )
+                if _html_topos_prog:
+                    st.components.v1.html(_html_topos_prog, height=590 if len(_topos_programados) > 1 else 760)
+                else:
+                    st.warning("No se pudieron renderizar los topogramas programados en esta adquisición.")
+            else:
+                st.info("Aún no hay topogramas iniciados en la pestaña Topograma.")
+
+            for _err in _errores_topos:
+                if _err:
+                    st.warning(_err)
+
+            st.markdown("---")
+
             col_adq1, col_adq2 = st.columns([1, 1])
 
             with col_adq1:
@@ -2259,74 +2332,6 @@ with tab2:
                     _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
                     _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
                     _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
-
-            st.markdown("---")
-            st.markdown('<div class="section-header">🖼️ Topograma(s) en esta adquisición</div>', unsafe_allow_html=True)
-            _hay_topo1 = st.session_state.get("topograma_iniciado", False)
-            _hay_topo2 = st.session_state.get("aplica_topo2", False) and st.session_state.get("topograma2_iniciado", False)
-            _topos_programados = []
-            _errores_topos = []
-
-            if _hay_topo1:
-                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("posicion", ""),
-                    st.session_state.get("entrada", ""),
-                    st.session_state.get("t1pt", ""),
-                )
-                if _img_adq_1 is not None:
-                    _topos_programados.append({
-                        "titulo": "✅ Topograma 1 programado",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
-                            f"{st.session_state.get('t1l', '—')} mm · "
-                            f"{st.session_state.get('t1kv', '—')} kV · "
-                            f"{st.session_state.get('t1ma', '—')} mA"
-                        ),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_1),
-                    })
-                else:
-                    _errores_topos.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
-
-            if _hay_topo2:
-                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("t2_posicion_paciente", ""),
-                    st.session_state.get("t2_entrada", ""),
-                    st.session_state.get("t2pt", ""),
-                )
-                if _img_adq_2 is not None:
-                    _topos_programados.append({
-                        "titulo": "✅ Topograma 2 programado",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
-                            f"{st.session_state.get('t2l', '—')} mm · "
-                            f"{st.session_state.get('t2kv', '—')} kV · "
-                            f"{st.session_state.get('t2ma', '—')} mA"
-                        ),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_2),
-                    })
-                else:
-                    _errores_topos.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
-
-            if _topos_programados:
-                _html_topos_prog = render_topogramas_programados_interactivos(
-                    _topos_programados,
-                    _actual.get("inicio_ref", REFS_INICIO.get(region_anat, ["—"])[0]),
-                    _actual.get("fin_ref", REFS_FIN.get(region_anat, ["—"])[0]),
-                )
-                if _html_topos_prog:
-                    st.components.v1.html(_html_topos_prog, height=820 if len(_topos_programados) > 1 else 980)
-                    if len(_topos_programados) > 1:
-                        st.caption("Las líneas de inicio y fin se muestran sincronizadas en ambos topogramas de esta adquisición.")
-                else:
-                    st.warning("No se pudieron renderizar los topogramas programados en esta adquisición.")
-            else:
-                st.info("Aún no hay topogramas iniciados en la pestaña Topograma.")
-
-            for _err in _errores_topos:
-                if _err:
-                    st.warning(_err)
 
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
