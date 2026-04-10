@@ -1618,7 +1618,6 @@ with tab1b:
                 )
 
         with col_pos_preview:
-            st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado</div>', unsafe_allow_html=True)
             imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
                 st.session_state.get("posicion", ""),
                 st.session_state.get("entrada", ""),
@@ -1843,7 +1842,6 @@ with tab1b:
                     )
 
             with col_t2_preview:
-                st.markdown('<div class="section-header">🖼️ Posicionamiento seleccionado — Topograma 2</div>', unsafe_allow_html=True)
                 imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
                     topo2_posicion if topo2_posicion else "",
                     topo2_entrada if topo2_entrada else "",
