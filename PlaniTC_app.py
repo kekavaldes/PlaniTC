@@ -2295,6 +2295,20 @@ with tab2:
         _exp["topo2_fin_ref"] = _rangos["topo2_fin_ref"]
         _exp["topo2_fin_mm"] = _rangos["topo2_fin_mm"]
 
+    def _guardar_widget_rango(exp_id, clave_widget, campo_rango):
+        _exp = _buscar_exploracion_adq(exp_id)
+        if not _exp or _exp.get("tipo") != "adquisicion":
+            return
+        _rangos = _asegurar_rangos_exploracion(_exp)
+        _valor = st.session_state.get(clave_widget, _rangos.get(campo_rango))
+        if campo_rango.endswith("_mm"):
+            try:
+                _valor = int(_valor)
+            except Exception:
+                _valor = int(_rangos.get(campo_rango, 0))
+        _rangos[campo_rango] = _valor
+        _exp[campo_rango] = _valor
+
     if "exploraciones_adq" not in st.session_state or not st.session_state["exploraciones_adq"]:
         st.session_state["exploraciones_adq"] = [
             {"id": "topograma", "tipo": "topograma", "nombre": "Topograma"},
@@ -2310,6 +2324,9 @@ with tab2:
 
     if "exploracion_adq_previa" not in st.session_state:
         st.session_state["exploracion_adq_previa"] = st.session_state["exploracion_adq_activa"]
+
+    if "exploracion_adq_widgets_cargados" not in st.session_state:
+        st.session_state["exploracion_adq_widgets_cargados"] = None
 
     ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
@@ -2384,7 +2401,7 @@ with tab2:
                 if _previa and _previa != _exp["id"]:
                     _guardar_rangos_desde_widgets(_previa)
                 st.session_state["exploracion_adq_activa"] = _exp["id"]
-                st.session_state["exploracion_adq_previa"] = _exp["id"]
+                st.session_state["exploracion_adq_widgets_cargados"] = None
                 st.rerun()
             st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
@@ -2398,7 +2415,7 @@ with tab2:
             st.session_state["rangos_por_exploracion_adq"][_nueva_exp["id"]] = _valores_rango_por_defecto(_nueva_exp)
             _reindexar_exploraciones_adq()
             st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][-1]["id"]
-            st.session_state["exploracion_adq_previa"] = st.session_state["exploraciones_adq"][-1]["id"]
+            st.session_state["exploracion_adq_widgets_cargados"] = None
             st.rerun()
 
         _exp_activa_nav = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
@@ -2432,7 +2449,7 @@ with tab2:
                 st.session_state["rangos_por_exploracion_adq"][_copia["id"]] = _valores_rango_por_defecto(_copia)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = _copia["id"]
-                st.session_state["exploracion_adq_previa"] = _copia["id"]
+                st.session_state["exploracion_adq_widgets_cargados"] = None
                 st.rerun()
         with _c2:
             if st.button("🗑️ Eliminar", use_container_width=True, key="eliminar_exploracion_adq", disabled=not _es_adq_activa, type="secondary"):
@@ -2444,7 +2461,7 @@ with tab2:
                 st.session_state.get("rangos_por_exploracion_adq", {}).pop(_id_eliminar, None)
                 _reindexar_exploraciones_adq()
                 st.session_state["exploracion_adq_activa"] = "topograma"
-                st.session_state["exploracion_adq_previa"] = "topograma"
+                st.session_state["exploracion_adq_widgets_cargados"] = None
                 st.rerun()
 
     with col_det:
@@ -2528,11 +2545,9 @@ with tab2:
 
         else:
             _exp_id = _actual["id"]
-            if st.session_state.get("exploracion_adq_previa") != _exp_id:
-                _cargar_rangos_en_widgets(_actual, forzar=True)
-                st.session_state["exploracion_adq_previa"] = _exp_id
-            else:
-                _cargar_rangos_en_widgets(_actual, forzar=False)
+            _forzar_carga_widgets = st.session_state.get("exploracion_adq_widgets_cargados") != _exp_id
+            _cargar_rangos_en_widgets(_actual, forzar=_forzar_carga_widgets)
+            st.session_state["exploracion_adq_widgets_cargados"] = _exp_id
             st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
             _opciones_nombre_exp = [
@@ -2631,13 +2646,13 @@ with tab2:
                         with _c11:
                             _v = st.session_state.get(f"topo1_iniref_{_exp_id}", _actual.get("topo1_inicio_ref", _refs_ini_adq[0]))
                             _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
-                            st.number_input("mm inicio Topograma 1", value=int(st.session_state.get(f"topo1_inimm_{_exp_id}", _actual.get("topo1_ini_mm", 0))), step=10, key=f"topo1_inimm_{_exp_id}")
+                            st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_iniref_{_exp_id}", "topo1_inicio_ref"))
+                            st.number_input("mm inicio Topograma 1", value=int(st.session_state.get(f"topo1_inimm_{_exp_id}", _actual.get("topo1_ini_mm", 0))), step=10, key=f"topo1_inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_inimm_{_exp_id}", "topo1_ini_mm"))
                         with _c12:
                             _v = st.session_state.get(f"topo1_finref_{_exp_id}", _actual.get("topo1_fin_ref", _refs_fin_adq[0]))
                             _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
-                            st.number_input("mm fin Topograma 1", value=int(st.session_state.get(f"topo1_finmm_{_exp_id}", _actual.get("topo1_fin_mm", 400))), step=10, key=f"topo1_finmm_{_exp_id}")
+                            st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finref_{_exp_id}", "topo1_fin_ref"))
+                            st.number_input("mm fin Topograma 1", value=int(st.session_state.get(f"topo1_finmm_{_exp_id}", _actual.get("topo1_fin_mm", 400))), step=10, key=f"topo1_finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finmm_{_exp_id}", "topo1_fin_mm"))
                 else:
                     _tc1, _tc2 = st.columns(2, gap="small")
                     with _tc1:
@@ -2646,26 +2661,26 @@ with tab2:
                         with _c11:
                             _v = st.session_state.get(f"topo1_iniref_{_exp_id}", _actual.get("topo1_inicio_ref", _refs_ini_adq[0]))
                             _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
-                            st.number_input("mm inicio Topograma 1", value=int(st.session_state.get(f"topo1_inimm_{_exp_id}", _actual.get("topo1_ini_mm", 0))), step=10, key=f"topo1_inimm_{_exp_id}")
+                            st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_iniref_{_exp_id}", "topo1_inicio_ref"))
+                            st.number_input("mm inicio Topograma 1", value=int(st.session_state.get(f"topo1_inimm_{_exp_id}", _actual.get("topo1_ini_mm", 0))), step=10, key=f"topo1_inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_inimm_{_exp_id}", "topo1_ini_mm"))
                         with _c12:
                             _v = st.session_state.get(f"topo1_finref_{_exp_id}", _actual.get("topo1_fin_ref", _refs_fin_adq[0]))
                             _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
-                            st.number_input("mm fin Topograma 1", value=int(st.session_state.get(f"topo1_finmm_{_exp_id}", _actual.get("topo1_fin_mm", 400))), step=10, key=f"topo1_finmm_{_exp_id}")
+                            st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finref_{_exp_id}", "topo1_fin_ref"))
+                            st.number_input("mm fin Topograma 1", value=int(st.session_state.get(f"topo1_finmm_{_exp_id}", _actual.get("topo1_fin_mm", 400))), step=10, key=f"topo1_finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo1_finmm_{_exp_id}", "topo1_fin_mm"))
                     with _tc2:
                         st.caption("Topograma 2")
                         _c21, _c22 = st.columns(2)
                         with _c21:
                             _v = st.session_state.get(f"topo2_iniref_{_exp_id}", _actual.get("topo2_inicio_ref", _refs_ini_adq[0]))
                             _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}")
-                            st.number_input("mm inicio Topograma 2", value=int(st.session_state.get(f"topo2_inimm_{_exp_id}", _actual.get("topo2_ini_mm", 0))), step=10, key=f"topo2_inimm_{_exp_id}")
+                            st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_iniref_{_exp_id}", "topo2_inicio_ref"))
+                            st.number_input("mm inicio Topograma 2", value=int(st.session_state.get(f"topo2_inimm_{_exp_id}", _actual.get("topo2_ini_mm", 0))), step=10, key=f"topo2_inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_inimm_{_exp_id}", "topo2_ini_mm"))
                         with _c22:
                             _v = st.session_state.get(f"topo2_finref_{_exp_id}", _actual.get("topo2_fin_ref", _refs_fin_adq[0]))
                             _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}")
-                            st.number_input("mm fin Topograma 2", value=int(st.session_state.get(f"topo2_finmm_{_exp_id}", _actual.get("topo2_fin_mm", 400))), step=10, key=f"topo2_finmm_{_exp_id}")
+                            st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_finref_{_exp_id}", "topo2_fin_ref"))
+                            st.number_input("mm fin Topograma 2", value=int(st.session_state.get(f"topo2_finmm_{_exp_id}", _actual.get("topo2_fin_mm", 400))), step=10, key=f"topo2_finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"topo2_finmm_{_exp_id}", "topo2_fin_mm"))
 
             col_adq1, col_adq2 = st.columns([1, 1], gap="small")
 
@@ -2763,13 +2778,13 @@ with tab2:
                 with _col_ini:
                     _ini_ref_actual = st.session_state.get(f"iniref_{_exp_id}", _actual.get("inicio_ref", _refs_ini[0]))
                     _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
-                    st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
-                    st.number_input("mm inicio", value=int(st.session_state.get(f"inimm_{_exp_id}", _actual.get("ini_mm", 0))), step=10, key=f"inimm_{_exp_id}")
+                    st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"iniref_{_exp_id}", "inicio_ref"))
+                    st.number_input("mm inicio", value=int(st.session_state.get(f"inimm_{_exp_id}", _actual.get("ini_mm", 0))), step=10, key=f"inimm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"inimm_{_exp_id}", "ini_mm"))
                 with _col_fin:
                     _fin_ref_actual = st.session_state.get(f"finref_{_exp_id}", _actual.get("fin_ref", _refs_fin_lista[0]))
                     _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
-                    st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
-                    st.number_input("mm fin", value=int(st.session_state.get(f"finmm_{_exp_id}", _actual.get("fin_mm", 400))), step=10, key=f"finmm_{_exp_id}")
+                    st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"finref_{_exp_id}", "fin_ref"))
+                    st.number_input("mm fin", value=int(st.session_state.get(f"finmm_{_exp_id}", _actual.get("fin_mm", 400))), step=10, key=f"finmm_{_exp_id}", on_change=_guardar_widget_rango, args=(_exp_id, f"finmm_{_exp_id}", "fin_mm"))
 
             _guardar_rangos_desde_widgets(_exp_id)
             _actual = _buscar_exploracion_adq(_exp_id) or _actual
