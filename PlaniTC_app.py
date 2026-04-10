@@ -1985,29 +1985,31 @@ with tab2:
     region_anat = st.session_state.get("region_anat", "CUERPO")
 
     def _crear_exploracion_adq(numero):
+        _refs_ini_default = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
+        _refs_fin_default = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
         return {
             "id": f"exp_{numero}",
             "tipo": "adquisicion",
-            "nombre": st.session_state.get("nombre_exploracion", NOMBRES_EXPLORACION[0]),
-            "tipo_exp": st.session_state.get("tipo_exp", TIPOS_EXPLORACION[0]),
-            "doble_muestreo": st.session_state.get("doble_muestreo", "NO"),
-            "voz_adq": st.session_state.get("voz_adq", INSTRUCCIONES_VOZ[0]),
-            "mod_corriente": st.session_state.get("mod_corriente", MODULACION_CORRIENTE[0]),
-            "kvp": st.session_state.get("kvp", 120),
-            "mas_val": st.session_state.get("mas_val", 200),
-            "ind_cal": st.session_state.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0]),
-            "ind_ruido": st.session_state.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0]),
-            "rango_ma": st.session_state.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0]),
-            "conf_det": st.session_state.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0]),
-            "sfov": st.session_state.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0]),
-            "grosor_prosp": str(st.session_state.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0])),
-            "pitch": st.session_state.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0]),
-            "rot_tubo": st.session_state.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0]),
-            "retardo": st.session_state.get("retardo", RETARDOS[0]),
-            "inicio_ref": st.session_state.get("inicio_ref", REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0]),
-            "ini_mm": int(st.session_state.get("ini_mm", 0)),
-            "fin_ref": st.session_state.get("fin_ref", REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0]),
-            "fin_mm": int(st.session_state.get("fin_mm", 400)),
+            "nombre": NOMBRES_EXPLORACION[0],
+            "tipo_exp": TIPOS_EXPLORACION[0],
+            "doble_muestreo": "NO",
+            "voz_adq": INSTRUCCIONES_VOZ[0],
+            "mod_corriente": MODULACION_CORRIENTE[0],
+            "kvp": 120,
+            "mas_val": 200,
+            "ind_cal": INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0],
+            "ind_ruido": INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0],
+            "rango_ma": RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0],
+            "conf_det": CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0],
+            "sfov": SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0],
+            "grosor_prosp": str(GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]),
+            "pitch": PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0],
+            "rot_tubo": ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0],
+            "retardo": RETARDOS[0],
+            "inicio_ref": _refs_ini_default[0],
+            "ini_mm": 0,
+            "fin_ref": _refs_fin_default[0],
+            "fin_mm": 400,
         }
 
     def _reindexar_exploraciones_adq():
