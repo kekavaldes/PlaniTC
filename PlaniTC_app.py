@@ -1080,8 +1080,9 @@ def render_topogramas_independientes_interactivos(topos, width=760):
     if not topos:
         return None
 
-    canvas_css_width = 340 if len(topos) > 1 else 460
-    canvas_css_height = 500 if len(topos) > 1 else 580
+    # Se muestran aproximadamente a la mitad del tamaño visual anterior.
+    canvas_css_width = 170 if len(topos) > 1 else 230
+    canvas_css_height = 250 if len(topos) > 1 else 290
     canvas_width = 420
     canvas_height = 640
     min_col_width = canvas_css_width
@@ -2304,12 +2305,11 @@ with tab2:
         for _exp in st.session_state["exploraciones_adq"]:
             _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
             _icono = "⚡"
-            _nombre_base = _exp.get("nombre", "Exploración")
-            _orden_base = _exp.get("orden", "")
-            _label = f"{_icono} Exploración {_orden_base}"
+            _nombre_base = (_exp.get("nombre") or "SIN CONTRASTE").strip()
+            _label = f"{_icono} {_nombre_base}"
             _tipo_resumen = _exp.get("tipo_exp", "HELICOIDAL")
             _voz_resumen = _exp.get("voz_adq", _exp.get("voz", "NINGUNA"))
-            st.caption(f"{_nombre_base} · {_tipo_resumen} · Voz: {_voz_resumen}")
+            st.caption(f"{_tipo_resumen} · Voz: {_voz_resumen}")
             if st.button(
                 _label,
                 key=f"btn_sel_{_exp['id']}",
