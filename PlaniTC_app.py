@@ -3219,6 +3219,7 @@ with tab2:
             if _actual.get("tipo") == "topograma":
                 st.markdown('<div class="section-header">📡 Topograma</div>', unsafe_allow_html=True)
                 render_topograma_panel()
+                st.stop()
             else:
                 _sincronizar_desde_store(_actual)
                 _exp_id = _actual["id"]
