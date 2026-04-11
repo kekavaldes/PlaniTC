@@ -1322,6 +1322,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     var minW = 0.12;
     var minH = 0.10;
     var minR = modo === 'roi' ? 0.004 : 0.05;
+    var roiMoveHitMinPx = 18;
+    var roiHandleHitExtraPx = 12;
+    var roiVisualMinPx = 10;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
 
@@ -1382,15 +1385,17 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     function isInsideCircle(mx, my, cp) {{
       var dx = mx - cp.x;
       var dy = my - cp.y;
-      return Math.sqrt(dx*dx + dy*dy) <= cp.r;
+      var hitRadius = Math.max(cp.r, roiMoveHitMinPx);
+      return Math.sqrt(dx*dx + dy*dy) <= hitRadius;
     }}
 
     function isOnCircleHandle(mx, my, cp) {{
       var dx = mx - cp.x;
       var dy = my - cp.y;
       var dist = Math.sqrt(dx*dx + dy*dy);
-      var edgeTolerance = 10;
-      return Math.abs(dist - cp.r) <= edgeTolerance;
+      var visualRadius = Math.max(cp.r, roiVisualMinPx);
+      var edgeTolerance = Math.max(10, roiHandleHitExtraPx);
+      return Math.abs(dist - visualRadius) <= edgeTolerance;
     }}
 
     function updateLabels() {{
@@ -1474,18 +1479,23 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     function drawCircle() {{
       clampCircle();
       var cp = getCirclePx();
+      var visualRadius = Math.max(cp.r, roiVisualMinPx);
       ctx.fillStyle = rgbaFromHex(strokeColor, 0.18);
       ctx.beginPath();
-      ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
+      ctx.arc(cp.x, cp.y, visualRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
+      ctx.arc(cp.x, cp.y, visualRadius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = strokeColor;
+      ctx.beginPath();
+      ctx.arc(cp.x + visualRadius, cp.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = strokeColor;
       ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(roiLabel, Math.max(10, cp.x - cp.r), Math.max(18, cp.y - cp.r - 8));
+      ctx.fillText(roiLabel, Math.max(10, cp.x - visualRadius), Math.max(18, cp.y - visualRadius - 8));
     }}
 
     function draw() {{
