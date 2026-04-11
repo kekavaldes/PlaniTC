@@ -3064,7 +3064,7 @@ with tab2:
                     storage_key=_exp_id,
                     color=_color_exp,
                     show_labels=False,
-                    canvas_css_width=210 if _es_bolus and len(_topos_adq) > 1 else (292 if _es_bolus else None),
+                    canvas_css_width=198 if _es_bolus and len(_topos_adq) > 1 else (276 if _es_bolus else None),
                     canvas_css_height=308 if _es_bolus and len(_topos_adq) > 1 else (370 if _es_bolus else None),
                 )
                 _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
@@ -3092,15 +3092,15 @@ with tab2:
                         color=_color_exp,
                         show_labels=False,
                         roi_label="ROI",
-                        canvas_css_width=292 if len(_topos_adq) == 1 else 210,
+                        canvas_css_width=380 if len(_topos_adq) == 1 else 290,
                         canvas_css_height=370 if len(_topos_adq) == 1 else 308,
-                        canvas_width=420,
+                        canvas_width=560,
                         canvas_height=640,
                     )
 
                 if _html_topos_adq:
                     if _es_bolus and _html_roi_corte:
-                        _col_topo_bolus, _col_roi_bolus = st.columns([1.22, 1.28], gap="medium")
+                        _col_topo_bolus, _col_roi_bolus = st.columns([1.0, 1.55], gap="medium")
                         with _col_topo_bolus:
                             st.components.v1.html(_html_topos_adq, height=470 if len(_topos_adq) > 1 else 560)
                         with _col_roi_bolus:
