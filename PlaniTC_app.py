@@ -1433,7 +1433,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
       if (img.width && img.height) {{
-        var scale = Math.min(W / img.width, H / img.height);
+        var scale = (modo === 'roi')
+          ? Math.max(W / img.width, H / img.height)
+          : Math.min(W / img.width, H / img.height);
         var drawW = img.width * scale;
         var drawH = img.height * scale;
         var dx = (W - drawW) / 2;
