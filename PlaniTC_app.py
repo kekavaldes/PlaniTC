@@ -1322,9 +1322,6 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     var minW = 0.12;
     var minH = 0.10;
     var minR = modo === 'roi' ? 0.004 : 0.05;
-    var roiMoveHitMinPx = 18;
-    var roiHandleHitExtraPx = 12;
-    var roiVisualMinPx = 10;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
 
@@ -1385,17 +1382,15 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     function isInsideCircle(mx, my, cp) {{
       var dx = mx - cp.x;
       var dy = my - cp.y;
-      var hitRadius = Math.max(cp.r, roiMoveHitMinPx);
-      return Math.sqrt(dx*dx + dy*dy) <= hitRadius;
+      return Math.sqrt(dx*dx + dy*dy) <= cp.r;
     }}
 
     function isOnCircleHandle(mx, my, cp) {{
       var dx = mx - cp.x;
       var dy = my - cp.y;
       var dist = Math.sqrt(dx*dx + dy*dy);
-      var visualRadius = Math.max(cp.r, roiVisualMinPx);
-      var edgeTolerance = Math.max(10, roiHandleHitExtraPx);
-      return Math.abs(dist - visualRadius) <= edgeTolerance;
+      var edgeTolerance = 10;
+      return Math.abs(dist - cp.r) <= edgeTolerance;
     }}
 
     function updateLabels() {{
@@ -1479,23 +1474,18 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     function drawCircle() {{
       clampCircle();
       var cp = getCirclePx();
-      var visualRadius = Math.max(cp.r, roiVisualMinPx);
       ctx.fillStyle = rgbaFromHex(strokeColor, 0.18);
       ctx.beginPath();
-      ctx.arc(cp.x, cp.y, visualRadius, 0, Math.PI * 2);
+      ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(cp.x, cp.y, visualRadius, 0, Math.PI * 2);
+      ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = strokeColor;
-      ctx.beginPath();
-      ctx.arc(cp.x + visualRadius, cp.y, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = strokeColor;
       ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(roiLabel, Math.max(10, cp.x - visualRadius), Math.max(18, cp.y - visualRadius - 8));
+      ctx.fillText(roiLabel, Math.max(10, cp.x - cp.r), Math.max(18, cp.y - cp.r - 8));
     }}
 
     function draw() {{
@@ -3064,30 +3054,9 @@ with tab2:
                     storage_key=_exp_id,
                     color=_color_exp,
                     show_labels=False,
-                    canvas_css_width=186 if _es_bolus and len(_topos_adq) > 1 else (260 if _es_bolus else None),
-                    canvas_css_height=290 if _es_bolus and len(_topos_adq) > 1 else (360 if _es_bolus else None),
+                    canvas_css_width=210 if _es_bolus and len(_topos_adq) > 1 else (292 if _es_bolus else None),
+                    canvas_css_height=308 if _es_bolus and len(_topos_adq) > 1 else (370 if _es_bolus else None),
                 )
-                _html_topo1_bolus = None
-                _html_topo2_bolus = None
-                if _es_bolus and len(_topos_adq) >= 2:
-                    _html_topo1_bolus = render_topogramas_independientes_interactivos(
-                        [_topos_adq[0]],
-                        modo=_modo_topograma_adq,
-                        storage_key=f"{_exp_id}_topo1",
-                        color=_color_exp,
-                        show_labels=False,
-                        canvas_css_width=182,
-                        canvas_css_height=290,
-                    )
-                    _html_topo2_bolus = render_topogramas_independientes_interactivos(
-                        [_topos_adq[1]],
-                        modo=_modo_topograma_adq,
-                        storage_key=f"{_exp_id}_topo2",
-                        color=_color_exp,
-                        show_labels=False,
-                        canvas_css_width=182,
-                        canvas_css_height=290,
-                    )
                 _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
                 _ruta_posicion_corte = (
                     obtener_imagen_posicion_corte(_posicion_corte_seleccionada)
@@ -3113,31 +3082,22 @@ with tab2:
                         color=_color_exp,
                         show_labels=False,
                         roi_label="ROI",
-                        canvas_css_width=520 if len(_topos_adq) == 1 else 500,
-                        canvas_css_height=390 if len(_topos_adq) == 1 else 340,
-                        canvas_width=980,
-                        canvas_height=720,
+                        canvas_css_width=292 if len(_topos_adq) == 1 else 210,
+                        canvas_css_height=370 if len(_topos_adq) == 1 else 308,
+                        canvas_width=420,
+                        canvas_height=640,
                     )
 
                 if _html_topos_adq:
-                    if _es_bolus and _html_roi_corte and _html_topo1_bolus and _html_topo2_bolus and len(_topos_adq) >= 2:
-                        _col_topo1_bolus, _col_topo2_bolus, _col_roi_bolus = st.columns([0.9, 0.9, 1.95], gap="medium")
-                        with _col_topo1_bolus:
-                            st.components.v1.html(_html_topo1_bolus, height=420)
-                        with _col_topo2_bolus:
-                            st.components.v1.html(_html_topo2_bolus, height=420)
-                        with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=540)
-                            st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
-                    elif _es_bolus and _html_roi_corte:
-                        _col_topo_bolus, _col_roi_bolus = st.columns([0.88, 1.92], gap="medium")
+                    if _es_bolus and _html_roi_corte:
+                        _col_topo_bolus, _col_roi_bolus = st.columns([1.22, 1.28], gap="medium")
                         with _col_topo_bolus:
-                            st.components.v1.html(_html_topos_adq, height=560)
+                            st.components.v1.html(_html_topos_adq, height=470 if len(_topos_adq) > 1 else 560)
                         with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=540 if len(_topos_adq) > 1 else 620)
+                            st.components.v1.html(_html_roi_corte, height=500 if len(_topos_adq) > 1 else 590)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
-                        st.components.v1.html(_html_topos_adq, height=790 if len(_topos_adq) > 1 else 590)
+                        st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
 
 
                     st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
