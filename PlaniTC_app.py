@@ -2102,10 +2102,9 @@ def render_clearance_result(clearance):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Tabs principales
-tab0, tab1, tab1b, tab2, tab3, tab4, tab5 = st.tabs([
+tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🏠 Inicio",
     "👤 Ingreso",
-    "📡 Topograma",
     "⚡ Adquisición",
     "🔄 Reconstrucción",
     "💉 Jeringa Inyectora",
@@ -2276,7 +2275,7 @@ with tab1:
                     format_func=lambda x: "Seleccionar" if x is None else x
                 )
 
-with tab1b:
+def render_topograma_content():
     col_exam_block, col_pos_block, col_topo_img = st.columns([1.05, 1.15, 1.2])
 
     with col_exam_block:
@@ -3075,14 +3074,14 @@ with tab2:
         _reindexar_exploraciones_adq()
 
     if "exploracion_adq_activa" not in st.session_state:
-        st.session_state["exploracion_adq_activa"] = st.session_state["exploraciones_adq"][0]["id"]
+        st.session_state["exploracion_adq_activa"] = "__topograma__"
 
     _sanear_exploraciones_adq()
     _asegurar_store_adq()
 
-    ids_validos = [e.get("id") for e in st.session_state["exploraciones_adq"]]
+    ids_validos = ["__topograma__"] + [e.get("id") for e in st.session_state["exploraciones_adq"]]
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
-        st.session_state["exploracion_adq_activa"] = ids_validos[0]
+        st.session_state["exploracion_adq_activa"] = "__topograma__"
 
     col_nav, col_det = st.columns([0.58, 2.72], gap="small")
 
@@ -3128,6 +3127,22 @@ with tab2:
         }
         </style>
         """, unsafe_allow_html=True)
+
+        _topo_activa = st.session_state["exploracion_adq_activa"] == "__topograma__"
+        if st.button(
+            "📡 Topograma",
+            key="btn_sel_topograma_adq",
+            use_container_width=True,
+            type="primary" if _topo_activa else "secondary",
+        ):
+            _prev_id = st.session_state.get("exploracion_adq_activa")
+            if _prev_id and _prev_id != "__topograma__":
+                _prev_exp = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == _prev_id), None)
+                if _prev_exp is not None:
+                    _guardar_widgets_en_store(_prev_exp)
+            st.session_state["exploracion_adq_activa"] = "__topograma__"
+            st.rerun()
+        st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
 
         for _exp in st.session_state["exploraciones_adq"]:
             _activa = st.session_state["exploracion_adq_activa"] == _exp["id"]
@@ -3193,614 +3208,619 @@ with tab2:
                 st.rerun()
 
     with col_det:
-        _actual = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
-
-        if _actual is None:
-            st.warning("No se pudo cargar la exploración seleccionada.")
-
+        if st.session_state.get("exploracion_adq_activa") == "__topograma__":
+            st.markdown('<div class="section-header">📡 Topograma</div>', unsafe_allow_html=True)
+            st.caption("El topograma ahora forma parte de Adquisición y queda como primera exploración por defecto.")
+            render_topograma_content()
         else:
-            _sincronizar_desde_store(_actual)
-            _exp_id = _actual["id"]
-            if st.session_state.get("_ultimo_exp_cargado") != _exp_id:
-                _cargar_widgets_desde_store(_actual)
-                st.session_state["_ultimo_exp_cargado"] = _exp_id
-            st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
+            _actual = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state["exploracion_adq_activa"]), None)
 
-            _opciones_nombre_exp = [
-                "SIN CONTRASTE",
-                "ARTERIAL",
-                "ANGIOGRÁFICA",
-                "BOLUS TEST",
-                "BOLUS TRACKING",
-                "VENOSA",
-                "TARDÍA",
-            ]
-            _nombre_actual = _actual.get("nombre", _opciones_nombre_exp[0])
-            _nombre_idx = _opciones_nombre_exp.index(_nombre_actual) if _nombre_actual in _opciones_nombre_exp else 0
-            _actual["nombre"] = selectbox_con_placeholder(
-                "Nombre de la exploración",
-                _opciones_nombre_exp,
-                value=_nombre_actual,
-                key=f"nombre_{_exp_id}",
-            )
-
-            _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
-            _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
-            if _es_bolus:
-                _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
-                _pos_actual = _actual.get("posicion_corte", None)
-                if _pos_actual not in _posiciones_corte:
-                    _pos_actual = None
-                _actual["posicion_corte"] = selectbox_con_placeholder(
-                    "POSICIÓN DE CORTE",
-                    _posiciones_corte,
-                    value=_pos_actual,
-                    key=f"poscorte_{_exp_id}",
-                )
-
-            # Mostrar topogramas en Adquisición aunque el flag visual no haya quedado marcado.
-            # Se consideran disponibles si fueron iniciados o si ya existe una configuración válida
-            # en la pestaña de Topograma.
-            _hay_topo1_adq = bool(
-                st.session_state.get("topograma_iniciado", False)
-                or (
-                    st.session_state.get("examen", "")
-                    and st.session_state.get("posicion", "")
-                    and st.session_state.get("entrada", "")
-                    and st.session_state.get("t1pt", "")
-                )
-            )
-            _hay_topo2_adq = bool(
-                st.session_state.get("aplica_topo2", False)
-                and (
-                    st.session_state.get("topograma2_iniciado", False)
-                    or (
-                        st.session_state.get("examen", "")
-                        and st.session_state.get("t2_posicion_paciente", "")
-                        and st.session_state.get("t2_entrada", "")
-                        and st.session_state.get("t2pt", "")
-                    )
-                )
-            )
-            _topos_adq = []
-            _errores_topos_adq = []
-
-            if _hay_topo1_adq:
-                _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("posicion", ""),
-                    st.session_state.get("entrada", ""),
-                    st.session_state.get("t1pt", ""),
-                )
-                if _img_adq_1 is not None:
-                    _topos_adq.append({
-                        "titulo": "✅ Topograma 1",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
-                            f"{st.session_state.get('t1l', '—')} mm · "
-                            f"{st.session_state.get('t1kv', '—')} kV · "
-                            f"{st.session_state.get('t1ma', '—')} mA"
-                        ),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_1),
-                    })
-                else:
-                    _errores_topos_adq.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
-
-            if _hay_topo2_adq:
-                _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
-                    st.session_state.get("examen", ""),
-                    st.session_state.get("t2_posicion_paciente", ""),
-                    st.session_state.get("t2_entrada", ""),
-                    st.session_state.get("t2pt", ""),
-                )
-                if _img_adq_2 is not None:
-                    _topos_adq.append({
-                        "titulo": "✅ Topograma 2",
-                        "subtitulo": (
-                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
-                            f"{st.session_state.get('t2l', '—')} mm · "
-                            f"{st.session_state.get('t2kv', '—')} kV · "
-                            f"{st.session_state.get('t2ma', '—')} mA"
-                        ),
-                        "img_b64": _pil_to_b64_jpeg(_img_adq_2),
-                    })
-                else:
-                    _errores_topos_adq.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
-
-            _refs_ini_adq = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
-            _refs_fin_adq = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
-
-            if _topos_adq:
-                if len(_topos_adq) >= 1:
-                    _topo1_inicio_ref = st.session_state.get("topo1_inicio_ref_global", _refs_ini_adq[0])
-                    _topo1_fin_ref = st.session_state.get("topo1_fin_ref_global", _refs_fin_adq[0])
-                    _topo1_inicio_mm = int(st.session_state.get("topo1_ini_mm_global", 0))
-                    _topo1_fin_mm = int(st.session_state.get("topo1_fin_mm_global", 400))
-                    _topos_adq[0]["inicio_ref"] = _topo1_inicio_ref
-                    _topos_adq[0]["fin_ref"] = _topo1_fin_ref
-                    _topos_adq[0]["inicio_mm"] = _topo1_inicio_mm
-                    _topos_adq[0]["fin_mm"] = _topo1_fin_mm
-                    _topos_adq[0]["y_ini"] = get_y_position_with_offset(_topo1_inicio_ref, _topo1_inicio_mm)
-                    _topos_adq[0]["y_fin"] = get_y_position_with_offset(_topo1_fin_ref, _topo1_fin_mm)
-                if len(_topos_adq) >= 2:
-                    _topo2_inicio_ref = st.session_state.get("topo2_inicio_ref_global", _refs_ini_adq[0])
-                    _topo2_fin_ref = st.session_state.get("topo2_fin_ref_global", _refs_fin_adq[0])
-                    _topo2_inicio_mm = int(st.session_state.get("topo2_ini_mm_global", 0))
-                    _topo2_fin_mm = int(st.session_state.get("topo2_fin_mm_global", 400))
-                    _topos_adq[1]["inicio_ref"] = _topo2_inicio_ref
-                    _topos_adq[1]["fin_ref"] = _topo2_fin_ref
-                    _topos_adq[1]["inicio_mm"] = _topo2_inicio_mm
-                    _topos_adq[1]["fin_mm"] = _topo2_fin_mm
-                    _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topo2_inicio_ref, _topo2_inicio_mm)
-                    _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topo2_fin_ref, _topo2_fin_mm)
-
-                _modo_topograma_adq = "line" if _es_bolus else "rect"
-                _paleta_exp = ["#00D2FF", "#FF7A59", "#6EEB83", "#C084FC", "#FFD166", "#FF4D6D", "#7BDFF2", "#A3E635"]
-                _color_exp = _paleta_exp[(max(1, int(_actual.get("orden", 1))) - 1) % len(_paleta_exp)]
-                _html_topos_adq = render_topogramas_independientes_interactivos(
-                    _topos_adq,
-                    modo=_modo_topograma_adq,
-                    storage_key=_exp_id,
-                    color=_color_exp,
-                    show_labels=False,
-                    canvas_css_width=186 if _es_bolus and len(_topos_adq) > 1 else (260 if _es_bolus else None),
-                    canvas_css_height=290 if _es_bolus and len(_topos_adq) > 1 else (360 if _es_bolus else None),
-                )
-                _html_topo1_bolus = None
-                _html_topo2_bolus = None
-                if _es_bolus and len(_topos_adq) >= 2:
-                    _html_topo1_bolus = render_topogramas_independientes_interactivos(
-                        [_topos_adq[0]],
-                        modo=_modo_topograma_adq,
-                        storage_key=f"{_exp_id}_topo1",
-                        color=_color_exp,
-                        show_labels=False,
-                        canvas_css_width=182,
-                        canvas_css_height=290,
-                    )
-                    _html_topo2_bolus = render_topogramas_independientes_interactivos(
-                        [_topos_adq[1]],
-                        modo=_modo_topograma_adq,
-                        storage_key=f"{_exp_id}_topo2",
-                        color=_color_exp,
-                        show_labels=False,
-                        canvas_css_width=182,
-                        canvas_css_height=290,
-                    )
-                _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
-                _ruta_posicion_corte = (
-                    obtener_imagen_posicion_corte(_posicion_corte_seleccionada)
-                    if _es_bolus and _posicion_corte_seleccionada not in [None, "Seleccionar", ""]
-                    else None
-                )
-                _img_pos_corte = None
-                if _ruta_posicion_corte is not None:
-                    try:
-                        _img_pos_corte = Image.open(_ruta_posicion_corte)
-                    except Exception:
-                        _img_pos_corte = None
-                _html_roi_corte = None
-                if _img_pos_corte is not None:
-                    _html_roi_corte = render_topogramas_independientes_interactivos(
-                        [{
-                            "titulo": _actual.get("posicion_corte", "Posición de corte"),
-                            "subtitulo": "ROI ajustable",
-                            "img_b64": _pil_to_b64_jpeg(_img_pos_corte),
-                        }],
-                        modo="roi",
-                        storage_key=f"{_exp_id}_roi_corte",
-                        color=_color_exp,
-                        show_labels=False,
-                        roi_label="ROI",
-                        canvas_css_width=520 if len(_topos_adq) == 1 else 500,
-                        canvas_css_height=390 if len(_topos_adq) == 1 else 340,
-                        canvas_width=980,
-                        canvas_height=720,
-                    )
-
-                if _html_topos_adq:
-                    if _es_bolus and _html_roi_corte and _html_topo1_bolus and _html_topo2_bolus and len(_topos_adq) >= 2:
-                        _col_topo1_bolus, _col_topo2_bolus, _col_roi_bolus = st.columns([0.9, 0.9, 1.95], gap="medium")
-                        with _col_topo1_bolus:
-                            st.components.v1.html(_html_topo1_bolus, height=420)
-                        with _col_topo2_bolus:
-                            st.components.v1.html(_html_topo2_bolus, height=420)
-                        with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=540)
-                            st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
-                    elif _es_bolus and _html_roi_corte:
-                        _col_topo_bolus, _col_roi_bolus = st.columns([0.88, 1.92], gap="medium")
-                        with _col_topo_bolus:
-                            st.components.v1.html(_html_topos_adq, height=560)
-                        with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=540 if len(_topos_adq) > 1 else 620)
-                            st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
-                    else:
-                        _alto_topos = 430 if len(_topos_adq) > 1 else 470
-                        st.components.v1.html(_html_topos_adq, height=_alto_topos)
-
-                    st.markdown("<div style='margin-top:-34px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
-                else:
-                    st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
-
-            for _err_topo_adq in _errores_topos_adq:
-                if _err_topo_adq:
-                    st.warning(_err_topo_adq)
-
-            if not _topos_adq and not _errores_topos_adq:
-                st.info("Aún no hay topogramas disponibles para esta adquisición. Configúralos en la pestaña Topograma.")
-
-            col_adq1, col_adq2 = st.columns([1, 1], gap="small")
-            _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
-            _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
-
-            if _es_bolus:
-                with col_adq1:
-                    st.markdown('<div class="section-header">⚙️ Parámetros de Bolus</div>', unsafe_allow_html=True)
-                    _periodos_bolus = ["0,9 sg", "1 sg", "1,5 sg", "2 sg"]
-                    _periodo_actual = _actual.get("periodo_bolus", "1 sg")
-                    _periodo_idx = _periodos_bolus.index(_periodo_actual) if _periodo_actual in _periodos_bolus else 1
-                    _actual["periodo_bolus"] = selectbox_con_placeholder("Periodo", _periodos_bolus, value=_periodo_actual, key=f"periodobolus_{_exp_id}")
-
-                    _n_imgs_bolus = [10, 15, 20, 25, 30]
-                    _n_actual = int(_actual.get("n_imagenes_bolus", 15)) if str(_actual.get("n_imagenes_bolus", 15)).isdigit() else 15
-                    _n_idx = _n_imgs_bolus.index(_n_actual) if _n_actual in _n_imgs_bolus else 1
-                    _actual["n_imagenes_bolus"] = selectbox_con_placeholder("N° de imágenes", _n_imgs_bolus, value=_n_actual, key=f"nimgbolus_{_exp_id}")
-
-                    if _nombre_exp_upper == "BOLUS TRACKING":
-                        _actual["umbral_disparo"] = st.text_input("Umbral de disparo (UH)", value=str(_actual.get("umbral_disparo", "")), key=f"umbral_{_exp_id}")
-
-                with col_adq2:
-                    st.markdown('<div class="section-header">🔧 Configuración fija</div>', unsafe_allow_html=True)
-                    _actual["kvp_bolus"] = 100
-                    _actual["mas_bolus"] = 20
-                    st.text_input("kV", value="100", key=f"kvbolus_{_exp_id}", disabled=True)
-                    st.text_input("mAs", value="20", key=f"masbolus_{_exp_id}", disabled=True)
-                    st.info("En Test bolus y Bolus tracking estos valores quedan fijos por ahora.")
-
-                _actual["kvp"] = 100
-                _actual["mas_val"] = 20
-                _actual["mod_corriente"] = "MANUAL"
-                _actual["tipo_exp"] = "SECUENCIAL CONTIGUO"
-                _actual["doble_muestreo"] = "NO"
-                _actual["pitch"] = 1.0
+            if _actual is None:
+                st.warning("No se pudo cargar la exploración seleccionada.")
 
             else:
-                st.markdown("""
-                <style>
-                .adq-grid-wrap{margin-top:2px;}
-                .adq-row{margin-bottom:6px;}
-                .adq-row:last-child{margin-bottom:4px;}
-                .adq-icon-box{
-                    min-height:78px;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    font-size:1.35rem;
-                    color:#b8d6e6;
-                    border-radius:10px;
-                    background:rgba(255,255,255,0.04);
-                    border:1px solid rgba(184,214,230,0.18);
-                }
-                .adq-pair-label{
-                    color:#d8edf7;
-                    font-size:0.74rem;
-                    font-weight:700;
-                    letter-spacing:0.03em;
-                    text-transform:uppercase;
-                    white-space:nowrap;
-                    margin:0 0 4px 2px;
-                    line-height:1.1;
-                }
-                .adq-grid-wrap [data-baseweb="select"] > div,
-                .adq-grid-wrap input{
-                    background-color:#6f8fa6 !important;
-                    border-radius:10px !important;
-                    min-height:38px !important;
-                }
-                .adq-grid-wrap [data-baseweb="select"] *{color:white !important;}
-                .adq-grid-wrap input{color:white !important;}
-                .adq-grid-wrap div[data-testid="stHorizontalBlock"]{align-items:stretch;}
-                </style>
-                """, unsafe_allow_html=True)
+                _sincronizar_desde_store(_actual)
+                _exp_id = _actual["id"]
+                if st.session_state.get("_ultimo_exp_cargado") != _exp_id:
+                    _cargar_widgets_desde_store(_actual)
+                    st.session_state["_ultimo_exp_cargado"] = _exp_id
+                st.markdown(f'<div class="section-header">⚡ {_actual.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
 
-                def _adq_pair(col, etiqueta, render_fn):
-                    with col:
-                        st.markdown(f"<div class='adq-pair-label'>{etiqueta}</div>", unsafe_allow_html=True)
-                        render_fn()
+                _opciones_nombre_exp = [
+                    "SIN CONTRASTE",
+                    "ARTERIAL",
+                    "ANGIOGRÁFICA",
+                    "BOLUS TEST",
+                    "BOLUS TRACKING",
+                    "VENOSA",
+                    "TARDÍA",
+                ]
+                _nombre_actual = _actual.get("nombre", _opciones_nombre_exp[0])
+                _nombre_idx = _opciones_nombre_exp.index(_nombre_actual) if _nombre_actual in _opciones_nombre_exp else 0
+                _actual["nombre"] = selectbox_con_placeholder(
+                    "Nombre de la exploración",
+                    _opciones_nombre_exp,
+                    value=_nombre_actual,
+                    key=f"nombre_{_exp_id}",
+                )
 
-                st.markdown("<div class='adq-grid-wrap'>", unsafe_allow_html=True)
+                _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
+                _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
+                if _es_bolus:
+                    _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
+                    _pos_actual = _actual.get("posicion_corte", None)
+                    if _pos_actual not in _posiciones_corte:
+                        _pos_actual = None
+                    _actual["posicion_corte"] = selectbox_con_placeholder(
+                        "POSICIÓN DE CORTE",
+                        _posiciones_corte,
+                        value=_pos_actual,
+                        key=f"poscorte_{_exp_id}",
+                    )
 
-                # Fila 1: modulación / ruido
-                _row1_icon, _row1_body = st.columns([0.12, 1], gap="small")
-                with _row1_icon:
-                    st.markdown("<div class='adq-icon-box'>☢️</div>", unsafe_allow_html=True)
-                with _row1_body:
-                    _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
-
-                    def _render_modcorr():
-                        _actual["mod_corriente"] = selectbox_con_placeholder(
-                            "Modulación corriente",
-                            MODULACION_CORRIENTE,
-                            value=_actual.get("mod_corriente", MODULACION_CORRIENTE[0]),
-                            key=f"mod_{_exp_id}",
-                            label_visibility="collapsed"
+                # Mostrar topogramas en Adquisición aunque el flag visual no haya quedado marcado.
+                # Se consideran disponibles si fueron iniciados o si ya existe una configuración válida
+                # en la pestaña de Topograma.
+                _hay_topo1_adq = bool(
+                    st.session_state.get("topograma_iniciado", False)
+                    or (
+                        st.session_state.get("examen", "")
+                        and st.session_state.get("posicion", "")
+                        and st.session_state.get("entrada", "")
+                        and st.session_state.get("t1pt", "")
+                    )
+                )
+                _hay_topo2_adq = bool(
+                    st.session_state.get("aplica_topo2", False)
+                    and (
+                        st.session_state.get("topograma2_iniciado", False)
+                        or (
+                            st.session_state.get("examen", "")
+                            and st.session_state.get("t2_posicion_paciente", "")
+                            and st.session_state.get("t2_entrada", "")
+                            and st.session_state.get("t2pt", "")
                         )
-                    _adq_pair(_c1, "Modulación corriente", _render_modcorr)
+                    )
+                )
+                _topos_adq = []
+                _errores_topos_adq = []
 
-                    _label_kv = "kV"
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        _label_kv = "CARE kV"
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        _label_kv = "AUTO kV"
-
-                    def _render_kv():
-                        _actual["kvp"] = selectbox_con_placeholder(
-                            _label_kv,
-                            KVP_OPCIONES,
-                            value=_actual.get("kvp", KVP_OPCIONES[0]),
-                            key=f"kv_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c2, _label_kv, _render_kv)
-
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        def _render_tercero():
-                            _actual["mas_val"] = selectbox_con_placeholder(
-                                "mAs REF",
-                                MAS_OPCIONES,
-                                value=_actual.get("mas_val", MAS_OPCIONES[0]),
-                                key=f"masref_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        def _render_cuarto():
-                            _actual["ind_cal"] = selectbox_con_placeholder(
-                                "Índice de calidad",
-                                INDICE_CALIDAD,
-                                value=_actual.get("ind_cal", INDICE_CALIDAD[0]),
-                                key=f"indcal_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "mAs ref", "Índice calidad"
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        def _render_tercero():
-                            _actual["rango_ma"] = selectbox_con_placeholder(
-                                "Rango mA",
-                                RANGO_MA,
-                                value=_actual.get("rango_ma", RANGO_MA[0]),
-                                key=f"rangoma_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                            try:
-                                _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
-                            except Exception:
-                                _actual["mas_val"] = 200
-                        def _render_cuarto():
-                            _actual["ind_ruido"] = selectbox_con_placeholder(
-                                "Índice de ruido",
-                                INDICE_RUIDO,
-                                value=_actual.get("ind_ruido", INDICE_RUIDO[0]),
-                                key=f"indruido_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
+                if _hay_topo1_adq:
+                    _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
+                        st.session_state.get("examen", ""),
+                        st.session_state.get("posicion", ""),
+                        st.session_state.get("entrada", ""),
+                        st.session_state.get("t1pt", ""),
+                    )
+                    if _img_adq_1 is not None:
+                        _topos_adq.append({
+                            "titulo": "✅ Topograma 1",
+                            "subtitulo": (
+                                f"Tubo: {st.session_state.get('t1pt', '—')} · "
+                                f"{st.session_state.get('t1l', '—')} mm · "
+                                f"{st.session_state.get('t1kv', '—')} kV · "
+                                f"{st.session_state.get('t1ma', '—')} mA"
+                            ),
+                            "img_b64": _pil_to_b64_jpeg(_img_adq_1),
+                        })
                     else:
-                        def _render_tercero():
-                            _actual["mas_val"] = selectbox_con_placeholder(
-                                "mAs",
-                                MAS_OPCIONES,
-                                value=_actual.get("mas_val", MAS_OPCIONES[0]),
-                                key=f"mas_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        def _render_cuarto():
-                            _actual["ind_ruido"] = selectbox_con_placeholder(
-                                "Índice de ruido",
-                                INDICE_RUIDO,
-                                value=_actual.get("ind_ruido", INDICE_RUIDO[0]),
-                                key=f"indruido_manual_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "mAs", "Índice ruido"
-                    _adq_pair(_c3, _tercero_label, _render_tercero)
-                    _adq_pair(_c4, _cuarto_label, _render_cuarto)
+                        _errores_topos_adq.append(_err_adq_1 or "No se encontró la imagen del Topograma 1.")
 
-                # Asegurar tipo de exploración principal
-                if _actual.get("tipo_exp") is None:
-                    _actual["tipo_exp"] = TIPOS_EXPLORACION[0]
-
-                # Fila 2: configuración / detectores
-                _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
-                with _row2_icon:
-                    st.markdown("<div class='adq-icon-box'>⚙️</div>", unsafe_allow_html=True)
-                with _row2_body:
-                    _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
-
-                    if _actual["tipo_exp"] == "HELICOIDAL":
-                        def _render_dm():
-                            _actual["doble_muestreo"] = selectbox_con_placeholder(
-                                "Doble muestreo (eje Z)",
-                                ["NO", "SI"],
-                                value=_actual.get("doble_muestreo", "NO"),
-                                key=f"dm_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
+                if _hay_topo2_adq:
+                    _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
+                        st.session_state.get("examen", ""),
+                        st.session_state.get("t2_posicion_paciente", ""),
+                        st.session_state.get("t2_entrada", ""),
+                        st.session_state.get("t2pt", ""),
+                    )
+                    if _img_adq_2 is not None:
+                        _topos_adq.append({
+                            "titulo": "✅ Topograma 2",
+                            "subtitulo": (
+                                f"Tubo: {st.session_state.get('t2pt', '—')} · "
+                                f"{st.session_state.get('t2l', '—')} mm · "
+                                f"{st.session_state.get('t2kv', '—')} kV · "
+                                f"{st.session_state.get('t2ma', '—')} mA"
+                            ),
+                            "img_b64": _pil_to_b64_jpeg(_img_adq_2),
+                        })
                     else:
-                        _actual["doble_muestreo"] = "NO"
-                        def _render_dm():
-                            st.text_input(
-                                "Doble muestreo (eje Z)",
-                                value="No aplica",
-                                key=f"dm_na_{_exp_id}",
-                                disabled=True,
-                                label_visibility="collapsed"
-                            )
-                    _adq_pair(_c1, "Doble muestreo", _render_dm)
+                        _errores_topos_adq.append(_err_adq_2 or "No se encontró la imagen del Topograma 2.")
 
-                    def _render_confdet():
-                        _actual["conf_det"] = selectbox_con_placeholder(
-                            "Configuración de detectores",
-                            CONF_DETECTORES,
-                            value=_actual.get("conf_det", CONF_DETECTORES[0]),
-                            key=f"confdet_{_exp_id}",
-                            label_visibility="collapsed"
+                _refs_ini_adq = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
+                _refs_fin_adq = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
+
+                if _topos_adq:
+                    if len(_topos_adq) >= 1:
+                        _topo1_inicio_ref = st.session_state.get("topo1_inicio_ref_global", _refs_ini_adq[0])
+                        _topo1_fin_ref = st.session_state.get("topo1_fin_ref_global", _refs_fin_adq[0])
+                        _topo1_inicio_mm = int(st.session_state.get("topo1_ini_mm_global", 0))
+                        _topo1_fin_mm = int(st.session_state.get("topo1_fin_mm_global", 400))
+                        _topos_adq[0]["inicio_ref"] = _topo1_inicio_ref
+                        _topos_adq[0]["fin_ref"] = _topo1_fin_ref
+                        _topos_adq[0]["inicio_mm"] = _topo1_inicio_mm
+                        _topos_adq[0]["fin_mm"] = _topo1_fin_mm
+                        _topos_adq[0]["y_ini"] = get_y_position_with_offset(_topo1_inicio_ref, _topo1_inicio_mm)
+                        _topos_adq[0]["y_fin"] = get_y_position_with_offset(_topo1_fin_ref, _topo1_fin_mm)
+                    if len(_topos_adq) >= 2:
+                        _topo2_inicio_ref = st.session_state.get("topo2_inicio_ref_global", _refs_ini_adq[0])
+                        _topo2_fin_ref = st.session_state.get("topo2_fin_ref_global", _refs_fin_adq[0])
+                        _topo2_inicio_mm = int(st.session_state.get("topo2_ini_mm_global", 0))
+                        _topo2_fin_mm = int(st.session_state.get("topo2_fin_mm_global", 400))
+                        _topos_adq[1]["inicio_ref"] = _topo2_inicio_ref
+                        _topos_adq[1]["fin_ref"] = _topo2_fin_ref
+                        _topos_adq[1]["inicio_mm"] = _topo2_inicio_mm
+                        _topos_adq[1]["fin_mm"] = _topo2_fin_mm
+                        _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topo2_inicio_ref, _topo2_inicio_mm)
+                        _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topo2_fin_ref, _topo2_fin_mm)
+
+                    _modo_topograma_adq = "line" if _es_bolus else "rect"
+                    _paleta_exp = ["#00D2FF", "#FF7A59", "#6EEB83", "#C084FC", "#FFD166", "#FF4D6D", "#7BDFF2", "#A3E635"]
+                    _color_exp = _paleta_exp[(max(1, int(_actual.get("orden", 1))) - 1) % len(_paleta_exp)]
+                    _html_topos_adq = render_topogramas_independientes_interactivos(
+                        _topos_adq,
+                        modo=_modo_topograma_adq,
+                        storage_key=_exp_id,
+                        color=_color_exp,
+                        show_labels=False,
+                        canvas_css_width=186 if _es_bolus and len(_topos_adq) > 1 else (260 if _es_bolus else None),
+                        canvas_css_height=290 if _es_bolus and len(_topos_adq) > 1 else (360 if _es_bolus else None),
+                    )
+                    _html_topo1_bolus = None
+                    _html_topo2_bolus = None
+                    if _es_bolus and len(_topos_adq) >= 2:
+                        _html_topo1_bolus = render_topogramas_independientes_interactivos(
+                            [_topos_adq[0]],
+                            modo=_modo_topograma_adq,
+                            storage_key=f"{_exp_id}_topo1",
+                            color=_color_exp,
+                            show_labels=False,
+                            canvas_css_width=182,
+                            canvas_css_height=290,
                         )
-                    _adq_pair(_c2, "Conf. detectores", _render_confdet)
-
-                    def _render_sfov():
-                        _actual["sfov"] = selectbox_con_placeholder(
-                            "SFOV",
-                            SFOV_OPCIONES,
-                            value=_actual.get("sfov", SFOV_OPCIONES[0]),
-                            key=f"sfov_{_exp_id}",
-                            label_visibility="collapsed"
+                        _html_topo2_bolus = render_topogramas_independientes_interactivos(
+                            [_topos_adq[1]],
+                            modo=_modo_topograma_adq,
+                            storage_key=f"{_exp_id}_topo2",
+                            color=_color_exp,
+                            show_labels=False,
+                            canvas_css_width=182,
+                            canvas_css_height=290,
                         )
-                    _adq_pair(_c3, "SFOV", _render_sfov)
-
-                    def _render_tipoexp():
-                        _actual["tipo_exp"] = selectbox_con_placeholder(
-                            "Cobertura-colimación",
-                            TIPOS_EXPLORACION,
-                            value=_actual.get("tipo_exp", TIPOS_EXPLORACION[0]),
-                            key=f"tipoexp_{_exp_id}",
-                            label_visibility="collapsed"
+                    _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
+                    _ruta_posicion_corte = (
+                        obtener_imagen_posicion_corte(_posicion_corte_seleccionada)
+                        if _es_bolus and _posicion_corte_seleccionada not in [None, "Seleccionar", ""]
+                        else None
+                    )
+                    _img_pos_corte = None
+                    if _ruta_posicion_corte is not None:
+                        try:
+                            _img_pos_corte = Image.open(_ruta_posicion_corte)
+                        except Exception:
+                            _img_pos_corte = None
+                    _html_roi_corte = None
+                    if _img_pos_corte is not None:
+                        _html_roi_corte = render_topogramas_independientes_interactivos(
+                            [{
+                                "titulo": _actual.get("posicion_corte", "Posición de corte"),
+                                "subtitulo": "ROI ajustable",
+                                "img_b64": _pil_to_b64_jpeg(_img_pos_corte),
+                            }],
+                            modo="roi",
+                            storage_key=f"{_exp_id}_roi_corte",
+                            color=_color_exp,
+                            show_labels=False,
+                            roi_label="ROI",
+                            canvas_css_width=520 if len(_topos_adq) == 1 else 500,
+                            canvas_css_height=390 if len(_topos_adq) == 1 else 340,
+                            canvas_width=980,
+                            canvas_height=720,
                         )
-                    _adq_pair(_c4, "Cobertura-colimación", _render_tipoexp)
 
-                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
-                    def _render_gpros():
-                        _actual["grosor_prosp"] = selectbox_con_placeholder(
-                            "Corte prospectivo (mm)",
-                            _grosor_opciones,
-                            value=_actual.get("grosor_prosp", _grosor_opciones[0]),
-                            key=f"gpros_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c5, "Corte prosp.", _render_gpros)
+                    if _html_topos_adq:
+                        if _es_bolus and _html_roi_corte and _html_topo1_bolus and _html_topo2_bolus and len(_topos_adq) >= 2:
+                            _col_topo1_bolus, _col_topo2_bolus, _col_roi_bolus = st.columns([0.9, 0.9, 1.95], gap="medium")
+                            with _col_topo1_bolus:
+                                st.components.v1.html(_html_topo1_bolus, height=420)
+                            with _col_topo2_bolus:
+                                st.components.v1.html(_html_topo2_bolus, height=420)
+                            with _col_roi_bolus:
+                                st.components.v1.html(_html_roi_corte, height=540)
+                                st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
+                        elif _es_bolus and _html_roi_corte:
+                            _col_topo_bolus, _col_roi_bolus = st.columns([0.88, 1.92], gap="medium")
+                            with _col_topo_bolus:
+                                st.components.v1.html(_html_topos_adq, height=560)
+                            with _col_roi_bolus:
+                                st.components.v1.html(_html_roi_corte, height=540 if len(_topos_adq) > 1 else 620)
+                                st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
+                        else:
+                            _alto_topos = 430 if len(_topos_adq) > 1 else 470
+                            st.components.v1.html(_html_topos_adq, height=_alto_topos)
 
-                # Fila 3: tiempo / exploración
-                _row3_icon, _row3_body = st.columns([0.12, 1], gap="small")
-                with _row3_icon:
-                    st.markdown("<div class='adq-icon-box'>🕒</div>", unsafe_allow_html=True)
-                with _row3_body:
-                    _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
-
-                    def _render_delay():
-                        _actual["retardo"] = selectbox_con_placeholder(
-                            "Retardo (Delay)",
-                            RETARDOS,
-                            value=_actual.get("retardo", RETARDOS[0]),
-                            key=f"delay_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c1, "Retardo (Delay)", _render_delay)
-
-                    if _actual["tipo_exp"] == "HELICOIDAL":
-                        def _render_pitch():
-                            _actual["pitch"] = selectbox_con_placeholder(
-                                "Pitch",
-                                PITCH_OPCIONES,
-                                value=_actual.get("pitch", PITCH_OPCIONES[0]),
-                                key=f"pitch_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
+                        st.markdown("<div style='margin-top:-34px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
                     else:
-                        _actual["pitch"] = 1.0
-                        def _render_pitch():
-                            st.text_input("Pitch", value="No aplica", key=f"pitch_na_{_exp_id}", disabled=True, label_visibility="collapsed")
-                    _adq_pair(_c2, "Pitch", _render_pitch)
+                        st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
 
-                    def _render_rot():
-                        _actual["rot_tubo"] = selectbox_con_placeholder(
-                            "Rotación tubo (sg)",
-                            ROT_TUBO,
-                            value=_actual.get("rot_tubo", ROT_TUBO[0]),
-                            key=f"rot_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c3, "Rot. tubo", _render_rot)
+                for _err_topo_adq in _errores_topos_adq:
+                    if _err_topo_adq:
+                        st.warning(_err_topo_adq)
 
-                    def _render_voz():
-                        _actual["voz_adq"] = selectbox_con_placeholder(
-                            "Instrucción de voz",
-                            INSTRUCCIONES_VOZ,
-                            value=_actual.get("voz_adq", INSTRUCCIONES_VOZ[0]),
-                            key=f"voz_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c4, "Instrucción voz", _render_voz)
+                if not _topos_adq and not _errores_topos_adq:
+                    st.info("Aún no hay topogramas disponibles para esta adquisición. Configúralos en la exploración 📡 Topograma.")
 
-                # Fila 4: rango de exploración
-                st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
-                _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
-                _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
-                _row4_icon, _row4_body = st.columns([0.12, 1], gap="small")
-                with _row4_icon:
-                    st.markdown("<div class='adq-icon-box'>📏</div>", unsafe_allow_html=True)
-                with _row4_body:
-                    _r1, _r2, _r3, _r4 = st.columns(4, gap="small")
-                    _adq_pair(_r1, "Inicio exploración", lambda: _actual.__setitem__("inicio_ref", selectbox_con_placeholder(
-                        "Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}", label_visibility="collapsed"
-                    )))
-                    _adq_pair(_r2, "mm inicio", lambda: _actual.__setitem__("ini_mm", st.number_input(
-                        "mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}", label_visibility="collapsed"
-                    )))
-                    _adq_pair(_r3, "Fin exploración", lambda: _actual.__setitem__("fin_ref", selectbox_con_placeholder(
-                        "Fin exploración", _refs_fin_lista, value=_actual.get("fin_ref", _refs_fin_lista[0]), key=f"finref_{_exp_id}", label_visibility="collapsed"
-                    )))
-                    _adq_pair(_r4, "mm fin", lambda: _actual.__setitem__("fin_mm", st.number_input(
-                        "mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}", label_visibility="collapsed"
-                    )))
+                col_adq1, col_adq2 = st.columns([1, 1], gap="small")
+                _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
+                _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
 
-                st.markdown("</div>", unsafe_allow_html=True)
-            _kvp = _actual.get("kvp", 120)
-            _mas_val = _actual.get("mas_val", 200)
-            _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
-            _pitch = _actual.get("pitch", 1.0)
-            _rot_tubo = _actual.get("rot_tubo", ROT_TUBO[0])
-            _ini_mm = _actual.get("ini_mm", 0)
-            _fin_mm = _actual.get("fin_mm", 400)
-            _grosor_float = float(str(_actual.get("grosor_prosp", 1.0)).replace(",", ".")) if _actual.get("grosor_prosp") is not None else 1.0
+                if _es_bolus:
+                    with col_adq1:
+                        st.markdown('<div class="section-header">⚙️ Parámetros de Bolus</div>', unsafe_allow_html=True)
+                        _periodos_bolus = ["0,9 sg", "1 sg", "1,5 sg", "2 sg"]
+                        _periodo_actual = _actual.get("periodo_bolus", "1 sg")
+                        _periodo_idx = _periodos_bolus.index(_periodo_actual) if _periodo_actual in _periodos_bolus else 1
+                        _actual["periodo_bolus"] = selectbox_con_placeholder("Periodo", _periodos_bolus, value=_periodo_actual, key=f"periodobolus_{_exp_id}")
 
-            _cob = calcular_cobertura_helical(_conf_det, _pitch)
-            _cob_str = f"{_cob} mm/rot" if isinstance(_cob, float) else "—"
-            _ctdi = estimar_dosis_ctdi(_kvp, _mas_val, _conf_det)
-            _duracion = calcular_duracion(_ini_mm, _fin_mm, _cob if isinstance(_cob, float) else 1, _rot_tubo)
-            _ruido_est = nivel_ruido_estimado(_mas_val, _kvp, _grosor_float)
+                        _n_imgs_bolus = [10, 15, 20, 25, 30]
+                        _n_actual = int(_actual.get("n_imagenes_bolus", 15)) if str(_actual.get("n_imagenes_bolus", 15)).isdigit() else 15
+                        _n_idx = _n_imgs_bolus.index(_n_actual) if _n_actual in _n_imgs_bolus else 1
+                        _actual["n_imagenes_bolus"] = selectbox_con_placeholder("N° de imágenes", _n_imgs_bolus, value=_n_actual, key=f"nimgbolus_{_exp_id}")
 
-            _actual["ctdi"] = _ctdi
-            _actual["ruido_est"] = _ruido_est
-            _actual["cobertura"] = _cob
-            _actual["duracion"] = _duracion
+                        if _nombre_exp_upper == "BOLUS TRACKING":
+                            _actual["umbral_disparo"] = st.text_input("Umbral de disparo (UH)", value=str(_actual.get("umbral_disparo", "")), key=f"umbral_{_exp_id}")
 
-            st.markdown("---")
-            st.markdown("**Resumen calculado automáticamente**")
-            _col_m1, _col_m2, _col_m3, _col_m4 = st.columns(4)
-            with _col_m1:
-                st.metric("Cobertura/rot.", _cob_str)
-            with _col_m2:
-                st.metric("CTDIvol estimado", f"{_ctdi} mGy" if _ctdi != "—" else "—")
-            with _col_m3:
-                st.metric("Duración scan", f"{_duracion} sg" if _duracion != "—" else "—")
-            with _col_m4:
-                st.metric("Ruido relativo", f"{_ruido_est}" if _ruido_est != "—" else "—")
+                    with col_adq2:
+                        st.markdown('<div class="section-header">🔧 Configuración fija</div>', unsafe_allow_html=True)
+                        _actual["kvp_bolus"] = 100
+                        _actual["mas_bolus"] = 20
+                        st.text_input("kV", value="100", key=f"kvbolus_{_exp_id}", disabled=True)
+                        st.text_input("mAs", value="20", key=f"masbolus_{_exp_id}", disabled=True)
+                        st.info("En Test bolus y Bolus tracking estos valores quedan fijos por ahora.")
 
-            if isinstance(_ctdi, float) and _ctdi > 30:
-                st.markdown('<div class="alert-warn">⚠️ Dosis estimada elevada. Considere reducir mAs o usar modulación automática.</div>', unsafe_allow_html=True)
-            elif isinstance(_ctdi, float):
-                st.markdown('<div class="alert-info">✅ Dosis dentro de rangos aceptables para esta exploración.</div>', unsafe_allow_html=True)
+                    _actual["kvp"] = 100
+                    _actual["mas_val"] = 20
+                    _actual["mod_corriente"] = "MANUAL"
+                    _actual["tipo_exp"] = "SECUENCIAL CONTIGUO"
+                    _actual["doble_muestreo"] = "NO"
+                    _actual["pitch"] = 1.0
 
-            st.markdown('<div class="param-summary">', unsafe_allow_html=True)
-            st.markdown(f"""
-**Resumen de la exploración activa:**
-- Nombre: `{_actual.get('nombre', '—')}`
-- Tipo: `{_actual.get('tipo_exp', '—')}` | Modulación: `{_actual.get('mod_corriente', '—')}`
-- kV: `{_actual.get('kvp', '—')}` | mAs / referencia: `{_actual.get('mas_val', '—')}`
-- Detectores: `{_actual.get('conf_det', '—')}` | Pitch: `{_actual.get('pitch', '—')}` | Rotación: `{_actual.get('rot_tubo', '—')}` sg
-- Inicio: `{_actual.get('inicio_ref', '—')}` + `{_actual.get('ini_mm', 0)}` mm
-- Fin: `{_actual.get('fin_ref', '—')}` + `{_actual.get('fin_mm', 0)}` mm
-""")
-            st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <style>
+                    .adq-grid-wrap{margin-top:2px;}
+                    .adq-row{margin-bottom:6px;}
+                    .adq-row:last-child{margin-bottom:4px;}
+                    .adq-icon-box{
+                        min-height:78px;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        font-size:1.35rem;
+                        color:#b8d6e6;
+                        border-radius:10px;
+                        background:rgba(255,255,255,0.04);
+                        border:1px solid rgba(184,214,230,0.18);
+                    }
+                    .adq-pair-label{
+                        color:#d8edf7;
+                        font-size:0.74rem;
+                        font-weight:700;
+                        letter-spacing:0.03em;
+                        text-transform:uppercase;
+                        white-space:nowrap;
+                        margin:0 0 4px 2px;
+                        line-height:1.1;
+                    }
+                    .adq-grid-wrap [data-baseweb="select"] > div,
+                    .adq-grid-wrap input{
+                        background-color:#6f8fa6 !important;
+                        border-radius:10px !important;
+                        min-height:38px !important;
+                    }
+                    .adq-grid-wrap [data-baseweb="select"] *{color:white !important;}
+                    .adq-grid-wrap input{color:white !important;}
+                    .adq-grid-wrap div[data-testid="stHorizontalBlock"]{align-items:stretch;}
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    def _adq_pair(col, etiqueta, render_fn):
+                        with col:
+                            st.markdown(f"<div class='adq-pair-label'>{etiqueta}</div>", unsafe_allow_html=True)
+                            render_fn()
+
+                    st.markdown("<div class='adq-grid-wrap'>", unsafe_allow_html=True)
+
+                    # Fila 1: modulación / ruido
+                    _row1_icon, _row1_body = st.columns([0.12, 1], gap="small")
+                    with _row1_icon:
+                        st.markdown("<div class='adq-icon-box'>☢️</div>", unsafe_allow_html=True)
+                    with _row1_body:
+                        _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
+
+                        def _render_modcorr():
+                            _actual["mod_corriente"] = selectbox_con_placeholder(
+                                "Modulación corriente",
+                                MODULACION_CORRIENTE,
+                                value=_actual.get("mod_corriente", MODULACION_CORRIENTE[0]),
+                                key=f"mod_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c1, "Modulación corriente", _render_modcorr)
+
+                        _label_kv = "kV"
+                        if _actual["mod_corriente"] == "CARE DOSE 4D":
+                            _label_kv = "CARE kV"
+                        elif _actual["mod_corriente"] == "AUTO mA":
+                            _label_kv = "AUTO kV"
+
+                        def _render_kv():
+                            _actual["kvp"] = selectbox_con_placeholder(
+                                _label_kv,
+                                KVP_OPCIONES,
+                                value=_actual.get("kvp", KVP_OPCIONES[0]),
+                                key=f"kv_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c2, _label_kv, _render_kv)
+
+                        if _actual["mod_corriente"] == "CARE DOSE 4D":
+                            def _render_tercero():
+                                _actual["mas_val"] = selectbox_con_placeholder(
+                                    "mAs REF",
+                                    MAS_OPCIONES,
+                                    value=_actual.get("mas_val", MAS_OPCIONES[0]),
+                                    key=f"masref_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                            def _render_cuarto():
+                                _actual["ind_cal"] = selectbox_con_placeholder(
+                                    "Índice de calidad",
+                                    INDICE_CALIDAD,
+                                    value=_actual.get("ind_cal", INDICE_CALIDAD[0]),
+                                    key=f"indcal_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                            _tercero_label, _cuarto_label = "mAs ref", "Índice calidad"
+                        elif _actual["mod_corriente"] == "AUTO mA":
+                            def _render_tercero():
+                                _actual["rango_ma"] = selectbox_con_placeholder(
+                                    "Rango mA",
+                                    RANGO_MA,
+                                    value=_actual.get("rango_ma", RANGO_MA[0]),
+                                    key=f"rangoma_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                                try:
+                                    _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
+                                except Exception:
+                                    _actual["mas_val"] = 200
+                            def _render_cuarto():
+                                _actual["ind_ruido"] = selectbox_con_placeholder(
+                                    "Índice de ruido",
+                                    INDICE_RUIDO,
+                                    value=_actual.get("ind_ruido", INDICE_RUIDO[0]),
+                                    key=f"indruido_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                            _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
+                        else:
+                            def _render_tercero():
+                                _actual["mas_val"] = selectbox_con_placeholder(
+                                    "mAs",
+                                    MAS_OPCIONES,
+                                    value=_actual.get("mas_val", MAS_OPCIONES[0]),
+                                    key=f"mas_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                            def _render_cuarto():
+                                _actual["ind_ruido"] = selectbox_con_placeholder(
+                                    "Índice de ruido",
+                                    INDICE_RUIDO,
+                                    value=_actual.get("ind_ruido", INDICE_RUIDO[0]),
+                                    key=f"indruido_manual_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                            _tercero_label, _cuarto_label = "mAs", "Índice ruido"
+                        _adq_pair(_c3, _tercero_label, _render_tercero)
+                        _adq_pair(_c4, _cuarto_label, _render_cuarto)
+
+                    # Asegurar tipo de exploración principal
+                    if _actual.get("tipo_exp") is None:
+                        _actual["tipo_exp"] = TIPOS_EXPLORACION[0]
+
+                    # Fila 2: configuración / detectores
+                    _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
+                    with _row2_icon:
+                        st.markdown("<div class='adq-icon-box'>⚙️</div>", unsafe_allow_html=True)
+                    with _row2_body:
+                        _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
+
+                        if _actual["tipo_exp"] == "HELICOIDAL":
+                            def _render_dm():
+                                _actual["doble_muestreo"] = selectbox_con_placeholder(
+                                    "Doble muestreo (eje Z)",
+                                    ["NO", "SI"],
+                                    value=_actual.get("doble_muestreo", "NO"),
+                                    key=f"dm_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                        else:
+                            _actual["doble_muestreo"] = "NO"
+                            def _render_dm():
+                                st.text_input(
+                                    "Doble muestreo (eje Z)",
+                                    value="No aplica",
+                                    key=f"dm_na_{_exp_id}",
+                                    disabled=True,
+                                    label_visibility="collapsed"
+                                )
+                        _adq_pair(_c1, "Doble muestreo", _render_dm)
+
+                        def _render_confdet():
+                            _actual["conf_det"] = selectbox_con_placeholder(
+                                "Configuración de detectores",
+                                CONF_DETECTORES,
+                                value=_actual.get("conf_det", CONF_DETECTORES[0]),
+                                key=f"confdet_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c2, "Conf. detectores", _render_confdet)
+
+                        def _render_sfov():
+                            _actual["sfov"] = selectbox_con_placeholder(
+                                "SFOV",
+                                SFOV_OPCIONES,
+                                value=_actual.get("sfov", SFOV_OPCIONES[0]),
+                                key=f"sfov_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c3, "SFOV", _render_sfov)
+
+                        def _render_tipoexp():
+                            _actual["tipo_exp"] = selectbox_con_placeholder(
+                                "Cobertura-colimación",
+                                TIPOS_EXPLORACION,
+                                value=_actual.get("tipo_exp", TIPOS_EXPLORACION[0]),
+                                key=f"tipoexp_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c4, "Cobertura-colimación", _render_tipoexp)
+
+                        _grosor_opciones = [str(g) for g in GROSOR_PROSP]
+                        def _render_gpros():
+                            _actual["grosor_prosp"] = selectbox_con_placeholder(
+                                "Corte prospectivo (mm)",
+                                _grosor_opciones,
+                                value=_actual.get("grosor_prosp", _grosor_opciones[0]),
+                                key=f"gpros_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c5, "Corte prosp.", _render_gpros)
+
+                    # Fila 3: tiempo / exploración
+                    _row3_icon, _row3_body = st.columns([0.12, 1], gap="small")
+                    with _row3_icon:
+                        st.markdown("<div class='adq-icon-box'>🕒</div>", unsafe_allow_html=True)
+                    with _row3_body:
+                        _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
+
+                        def _render_delay():
+                            _actual["retardo"] = selectbox_con_placeholder(
+                                "Retardo (Delay)",
+                                RETARDOS,
+                                value=_actual.get("retardo", RETARDOS[0]),
+                                key=f"delay_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c1, "Retardo (Delay)", _render_delay)
+
+                        if _actual["tipo_exp"] == "HELICOIDAL":
+                            def _render_pitch():
+                                _actual["pitch"] = selectbox_con_placeholder(
+                                    "Pitch",
+                                    PITCH_OPCIONES,
+                                    value=_actual.get("pitch", PITCH_OPCIONES[0]),
+                                    key=f"pitch_{_exp_id}",
+                                    label_visibility="collapsed"
+                                )
+                        else:
+                            _actual["pitch"] = 1.0
+                            def _render_pitch():
+                                st.text_input("Pitch", value="No aplica", key=f"pitch_na_{_exp_id}", disabled=True, label_visibility="collapsed")
+                        _adq_pair(_c2, "Pitch", _render_pitch)
+
+                        def _render_rot():
+                            _actual["rot_tubo"] = selectbox_con_placeholder(
+                                "Rotación tubo (sg)",
+                                ROT_TUBO,
+                                value=_actual.get("rot_tubo", ROT_TUBO[0]),
+                                key=f"rot_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c3, "Rot. tubo", _render_rot)
+
+                        def _render_voz():
+                            _actual["voz_adq"] = selectbox_con_placeholder(
+                                "Instrucción de voz",
+                                INSTRUCCIONES_VOZ,
+                                value=_actual.get("voz_adq", INSTRUCCIONES_VOZ[0]),
+                                key=f"voz_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _adq_pair(_c4, "Instrucción voz", _render_voz)
+
+                    # Fila 4: rango de exploración
+                    st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
+                    _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
+                    _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
+                    _row4_icon, _row4_body = st.columns([0.12, 1], gap="small")
+                    with _row4_icon:
+                        st.markdown("<div class='adq-icon-box'>📏</div>", unsafe_allow_html=True)
+                    with _row4_body:
+                        _r1, _r2, _r3, _r4 = st.columns(4, gap="small")
+                        _adq_pair(_r1, "Inicio exploración", lambda: _actual.__setitem__("inicio_ref", selectbox_con_placeholder(
+                            "Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}", label_visibility="collapsed"
+                        )))
+                        _adq_pair(_r2, "mm inicio", lambda: _actual.__setitem__("ini_mm", st.number_input(
+                            "mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}", label_visibility="collapsed"
+                        )))
+                        _adq_pair(_r3, "Fin exploración", lambda: _actual.__setitem__("fin_ref", selectbox_con_placeholder(
+                            "Fin exploración", _refs_fin_lista, value=_actual.get("fin_ref", _refs_fin_lista[0]), key=f"finref_{_exp_id}", label_visibility="collapsed"
+                        )))
+                        _adq_pair(_r4, "mm fin", lambda: _actual.__setitem__("fin_mm", st.number_input(
+                            "mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}", label_visibility="collapsed"
+                        )))
+
+                    st.markdown("</div>", unsafe_allow_html=True)
+                _kvp = _actual.get("kvp", 120)
+                _mas_val = _actual.get("mas_val", 200)
+                _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
+                _pitch = _actual.get("pitch", 1.0)
+                _rot_tubo = _actual.get("rot_tubo", ROT_TUBO[0])
+                _ini_mm = _actual.get("ini_mm", 0)
+                _fin_mm = _actual.get("fin_mm", 400)
+                _grosor_float = float(str(_actual.get("grosor_prosp", 1.0)).replace(",", ".")) if _actual.get("grosor_prosp") is not None else 1.0
+
+                _cob = calcular_cobertura_helical(_conf_det, _pitch)
+                _cob_str = f"{_cob} mm/rot" if isinstance(_cob, float) else "—"
+                _ctdi = estimar_dosis_ctdi(_kvp, _mas_val, _conf_det)
+                _duracion = calcular_duracion(_ini_mm, _fin_mm, _cob if isinstance(_cob, float) else 1, _rot_tubo)
+                _ruido_est = nivel_ruido_estimado(_mas_val, _kvp, _grosor_float)
+
+                _actual["ctdi"] = _ctdi
+                _actual["ruido_est"] = _ruido_est
+                _actual["cobertura"] = _cob
+                _actual["duracion"] = _duracion
+
+                st.markdown("---")
+                st.markdown("**Resumen calculado automáticamente**")
+                _col_m1, _col_m2, _col_m3, _col_m4 = st.columns(4)
+                with _col_m1:
+                    st.metric("Cobertura/rot.", _cob_str)
+                with _col_m2:
+                    st.metric("CTDIvol estimado", f"{_ctdi} mGy" if _ctdi != "—" else "—")
+                with _col_m3:
+                    st.metric("Duración scan", f"{_duracion} sg" if _duracion != "—" else "—")
+                with _col_m4:
+                    st.metric("Ruido relativo", f"{_ruido_est}" if _ruido_est != "—" else "—")
+
+                if isinstance(_ctdi, float) and _ctdi > 30:
+                    st.markdown('<div class="alert-warn">⚠️ Dosis estimada elevada. Considere reducir mAs o usar modulación automática.</div>', unsafe_allow_html=True)
+                elif isinstance(_ctdi, float):
+                    st.markdown('<div class="alert-info">✅ Dosis dentro de rangos aceptables para esta exploración.</div>', unsafe_allow_html=True)
+
+                st.markdown('<div class="param-summary">', unsafe_allow_html=True)
+                st.markdown(f"""
+    **Resumen de la exploración activa:**
+    - Nombre: `{_actual.get('nombre', '—')}`
+    - Tipo: `{_actual.get('tipo_exp', '—')}` | Modulación: `{_actual.get('mod_corriente', '—')}`
+    - kV: `{_actual.get('kvp', '—')}` | mAs / referencia: `{_actual.get('mas_val', '—')}`
+    - Detectores: `{_actual.get('conf_det', '—')}` | Pitch: `{_actual.get('pitch', '—')}` | Rotación: `{_actual.get('rot_tubo', '—')}` sg
+    - Inicio: `{_actual.get('inicio_ref', '—')}` + `{_actual.get('ini_mm', 0)}` mm
+    - Fin: `{_actual.get('fin_ref', '—')}` + `{_actual.get('fin_mm', 0)}` mm
+    """)
+                st.markdown('</div>', unsafe_allow_html=True)
 
 # ───────────────────────────────────────────────────────────────
 # TAB 3: RECONSTRUCCIÓN
