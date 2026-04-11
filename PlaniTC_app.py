@@ -3051,6 +3051,18 @@ with tab2:
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
                         st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
+
+                    if _es_bolus:
+                        _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
+                        _pos_actual = _actual.get("posicion_corte", "BOTON AORTICO")
+                        _pos_idx = _posiciones_corte.index(_pos_actual) if _pos_actual in _posiciones_corte else 0
+                        _actual["posicion_corte"] = st.selectbox(
+                            "POSICIÓN DE CORTE",
+                            _posiciones_corte,
+                            index=_pos_idx,
+                            key=f"poscorte_{_exp_id}",
+                        )
+
                     st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
                 else:
                     st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
@@ -3126,11 +3138,6 @@ with tab2:
                     _n_actual = int(_actual.get("n_imagenes_bolus", 15)) if str(_actual.get("n_imagenes_bolus", 15)).isdigit() else 15
                     _n_idx = _n_imgs_bolus.index(_n_actual) if _n_actual in _n_imgs_bolus else 1
                     _actual["n_imagenes_bolus"] = st.selectbox("N° de imágenes", _n_imgs_bolus, index=_n_idx, key=f"nimgbolus_{_exp_id}")
-
-                    _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
-                    _pos_actual = _actual.get("posicion_corte", "BOTON AORTICO")
-                    _pos_idx = _posiciones_corte.index(_pos_actual) if _pos_actual in _posiciones_corte else 0
-                    _actual["posicion_corte"] = st.selectbox("POSICIÓN DE CORTE", _posiciones_corte, index=_pos_idx, key=f"poscorte_{_exp_id}")
 
                     if _nombre_exp_upper == "BOLUS TRACKING":
                         _actual["umbral_disparo"] = st.text_input("Umbral de disparo (UH)", value=str(_actual.get("umbral_disparo", "")), key=f"umbral_{_exp_id}")
