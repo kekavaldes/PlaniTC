@@ -2332,15 +2332,18 @@ with tab1b:
                 key="pos_extremidades"
             )
 
-        imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
-            st.session_state.get("posicion", ""),
-            st.session_state.get("entrada", ""),
-            st.session_state.get("t1pt", None),
-        )
-        if imagen_posicionamiento is not None:
-            st.image(str(imagen_posicionamiento), width=250)
-        else:
-            st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        _col_img_pos_sp1, _col_img_pos_centro1, _col_img_pos_sp2 = st.columns([0.18, 0.64, 0.18])
+        with _col_img_pos_centro1:
+            imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
+                st.session_state.get("posicion", ""),
+                st.session_state.get("entrada", ""),
+                st.session_state.get("t1pt", None),
+            )
+            if imagen_posicionamiento is not None:
+                st.image(str(imagen_posicionamiento), width=220)
+            else:
+                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
     with col_topo_img:
         _region_prev   = st.session_state.get("region_anat", "CUERPO")
@@ -2569,7 +2572,7 @@ with tab1b:
         topo2_kv = 100
         topo2_ma = 40
 
-        col_t2_cfg, col_t2_img = st.columns([1, 1])
+        col_t2_cfg, col_t2_img = st.columns([1, 1], vertical_alignment="top")
 
         with col_t2_cfg:
             st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente — Topograma 2</div>', unsafe_allow_html=True)
@@ -2619,8 +2622,6 @@ with tab1b:
                 )
 
         with col_t2_img:
-            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-
             def _tubo_to_proy_prev_t2(pos_tubo):
                 if not pos_tubo:
                     return "AP"
@@ -2655,7 +2656,9 @@ with tab1b:
                     st.session_state.get("t2pt", ""),
                 )
                 if _img_topo_t2 is not None:
-                    st.image(_img_topo_t2, use_container_width=True)
+                    _col_topo2_sp1, _col_topo2_img_centro, _col_topo2_sp2 = st.columns([0.06, 0.88, 0.06])
+                    with _col_topo2_img_centro:
+                        st.image(_img_topo_t2, width=320)
                     st.markdown(f"""
                     <div style="font-size:11px; color:#888; margin-top:6px; text-align:center;">
                         Proyección: {_proy_prev_t2} · Tubo: {st.session_state.get("t2pt", "ARRIBA 0°")}
@@ -2669,21 +2672,19 @@ with tab1b:
                     st.warning(_err_topo_t2 or "No se encontró una imagen de topograma para esta combinación.")
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        col_t2_pos_img, col_t2_param_header = st.columns([1, 1])
-
-        with col_t2_pos_img:
+        _col_t2_pos_sp1, _col_t2_pos_img, _col_t2_pos_sp2 = st.columns([0.18, 0.64, 0.18])
+        with _col_t2_pos_img:
             imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
                 topo2_posicion if topo2_posicion else "",
                 topo2_entrada if topo2_entrada else "",
                 st.session_state.get("t2pt", None),
             )
             if imagen_posicionamiento_t2 is not None:
-                st.image(str(imagen_posicionamiento_t2), width=250)
+                st.image(str(imagen_posicionamiento_t2), width=220)
             else:
                 st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
-        with col_t2_param_header:
-            st.markdown('<div class="section-header">📡 Parámetros Topograma 2</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">📡 Parámetros Topograma 2</div>', unsafe_allow_html=True)
 
         col_topo2_rango, col_topo2_param = st.columns([0.95, 1.35])
 
