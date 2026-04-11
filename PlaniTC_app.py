@@ -2136,70 +2136,9 @@ with tab1:
     if "sexo_clearance" not in st.session_state:
         st.session_state["sexo_clearance"] = None
 
-    fecha_nacimiento_ref = st.session_state.get("fecha_nacimiento", date.today())
-    edad = calcular_edad(fecha_nacimiento_ref, date.today())
+    col_ing1, col_ing2, col_ing3 = st.columns([1.3, 1.0, 1.0])
 
-    st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
-    peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
-    embarazo = st.selectbox(
-        "¿Embarazo?",
-        [None, "SI", "NO", "PROBABLE"],
-        index=0,
-        key="embarazo",
-        format_func=lambda x: "Seleccionar" if x is None else x,
-        placeholder="Seleccionar"
-    )
-    requiere_creatinina = st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
-
-    if requiere_creatinina:
-        sexo_clearance = st.selectbox(
-            "Sexo",
-            [None, "Femenino", "Masculino"],
-            index=0,
-            key="sexo_clearance",
-            format_func=lambda x: "Seleccionar" if x is None else x
-        )
-        creatinina_serica = st.number_input(
-            "Creatinina sérica (mg/dL)",
-            min_value=0.1,
-            max_value=20.0,
-            value=1.0,
-            step=0.1,
-            key="creatinina_serica"
-        )
-        clearance = calc_clearance_cockcroft_gault(edad, peso, creatinina_serica, sexo_clearance) if sexo_clearance else None
-        render_clearance_result(clearance)
-
-    st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
-
-    if not st.session_state["contraste_ev"]:
-        st.session_state["vvp"] = None
-        st.session_state["metodo_inyeccion"] = None
-        st.session_state["cantidad_contraste"] = None
-    else:
-        st.selectbox(
-            "VVP",
-            [None, "24G", "22G", "20G", "18G", "CVC"],
-            key="vvp",
-            format_func=lambda x: "Seleccionar" if x is None else x
-        )
-        st.selectbox(
-            "Método de inyección",
-            [None, "INYECTORA AUTOMÁTICA", "INYECCIÓN MANUAL"],
-            key="metodo_inyeccion",
-            format_func=lambda x: "Seleccionar" if x is None else x
-        )
-        st.selectbox(
-            "Cantidad de medio de contraste",
-            [None] + [f"{i} cc" for i in range(10, 151, 10)],
-            key="cantidad_contraste",
-            format_func=lambda x: "Seleccionar" if x is None else x
-        )
-
-with tab1b:
-    col_top_info1, col_top_info2 = st.columns([1.3, 1.0])
-
-    with col_top_info1:
+    with col_ing1:
         st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
         nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
 
@@ -2242,7 +2181,9 @@ with tab1b:
         )
         st.session_state["examen"] = examen if examen else ""
 
-    with col_top_info2:
+        # La posición del paciente y la entrada se configuran en la pestaña Topograma.
+
+    with col_ing2:
         st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
         if region_anat_seleccionada is None:
             st.markdown("""
@@ -2261,6 +2202,65 @@ with tab1b:
             else:
                 st.info("No hay imagen disponible para esta región.")
 
+    with col_ing3:
+        st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
+        peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
+        embarazo = st.selectbox(
+            "¿Embarazo?",
+            [None, "SI", "NO", "PROBABLE"],
+            index=0,
+            key="embarazo",
+            format_func=lambda x: "Seleccionar" if x is None else x,
+            placeholder="Seleccionar"
+        )
+        requiere_creatinina = st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
+
+        if requiere_creatinina:
+            sexo_clearance = st.selectbox(
+                "Sexo",
+                [None, "Femenino", "Masculino"],
+                index=0,
+                key="sexo_clearance",
+                format_func=lambda x: "Seleccionar" if x is None else x
+            )
+            creatinina_serica = st.number_input(
+                "Creatinina sérica (mg/dL)",
+                min_value=0.1,
+                max_value=20.0,
+                value=1.0,
+                step=0.1,
+                key="creatinina_serica"
+            )
+            clearance = calc_clearance_cockcroft_gault(edad, peso, creatinina_serica, sexo_clearance) if sexo_clearance else None
+            render_clearance_result(clearance)
+
+        st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
+
+        if not st.session_state["contraste_ev"]:
+            st.session_state["vvp"] = None
+            st.session_state["metodo_inyeccion"] = None
+            st.session_state["cantidad_contraste"] = None
+        else:
+            st.selectbox(
+                "VVP",
+                [None, "24G", "22G", "20G", "18G", "CVC"],
+                key="vvp",
+                format_func=lambda x: "Seleccionar" if x is None else x
+            )
+            st.selectbox(
+                "Método de inyección",
+                [None, "INYECTORA AUTOMÁTICA", "INYECCIÓN MANUAL"],
+                key="metodo_inyeccion",
+                format_func=lambda x: "Seleccionar" if x is None else x
+            )
+            st.selectbox(
+                "Cantidad de medio de contraste",
+                [None] + [f"{i} cc" for i in range(10, 151, 10)],
+                key="cantidad_contraste",
+                format_func=lambda x: "Seleccionar" if x is None else x
+            )
+
+with tab1b:
     col_topo_cfg, col_topo_img = st.columns([1, 1])
 
     with col_topo_cfg:
