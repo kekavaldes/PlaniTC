@@ -2140,29 +2140,7 @@ with tab1:
     edad = calcular_edad(fecha_nacimiento_ref, date.today())
 
     st.markdown('<div class="section-header">📋 Datos del paciente</div>', unsafe_allow_html=True)
-    nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez", key="nombre_paciente")
 
-    col_fn, col_edad = st.columns(2)
-    with col_fn:
-        fecha_nacimiento = st.date_input(
-            "Fecha de nacimiento",
-            min_value=date(1900, 1, 1),
-            max_value=date.today(),
-            format="DD/MM/YYYY",
-            key="fecha_nacimiento"
-        )
-    edad = calcular_edad(fecha_nacimiento, date.today())
-    with col_edad:
-        st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True, key="edad_visual")
-
-    diagnostico = st.text_area(
-        "Diagnóstico",
-        placeholder="Indicación clínica del examen",
-        height=100,
-        key="diagnostico_paciente"
-    )
-
-    st.markdown('<div class="section-header">📋 Datos del paciente</div>', unsafe_allow_html=True)
     nombre = st.text_input(
         "Nombre del paciente",
         placeholder="Escribe el nombre del paciente",
@@ -2173,13 +2151,16 @@ with tab1:
     with col_fn:
         fecha_nacimiento = st.date_input(
             "Fecha de nacimiento",
-            value=date.today(),
+            value=fecha_nacimiento_ref,
             min_value=date(1900, 1, 1),
             max_value=date.today(),
             format="DD/MM/YYYY",
             key="fecha_nacimiento"
         )
+
     edad = calcular_edad(fecha_nacimiento, date.today())
+    st.session_state["edad_paciente"] = edad
+
     with col_edad:
         st.text_input(
             "Edad",
