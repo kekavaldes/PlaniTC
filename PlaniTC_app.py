@@ -547,46 +547,31 @@ DIR_POSICION_CORTE = BASE_DIR / "POSICION DE CORTE"
 ZIP_POSICION_CORTE = BASE_DIR / "POSICION DE CORTE.zip"
 CACHE_POSICION_CORTE = BASE_DIR / "_cache_posicion_corte"
 
-
-def preparar_fuentes_posicion_corte():
-    fuentes = []
+def _asegurar_posicion_corte_extraida():
     try:
-        if DIR_POSICION_CORTE.exists():
-            fuentes.append(DIR_POSICION_CORTE)
+        if DIR_POSICION_CORTE.exists() and any(DIR_POSICION_CORTE.iterdir()):
+            return DIR_POSICION_CORTE
         if ZIP_POSICION_CORTE.exists():
             CACHE_POSICION_CORTE.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(ZIP_POSICION_CORTE, "r") as zf:
+            with zipfile.ZipFile(ZIP_POSICION_CORTE, 'r') as zf:
                 zf.extractall(CACHE_POSICION_CORTE)
             interna = CACHE_POSICION_CORTE / "POSICION DE CORTE"
             if interna.exists():
-                fuentes.append(interna)
-            else:
-                fuentes.append(CACHE_POSICION_CORTE)
+                return interna
     except Exception:
-        pass
-    return fuentes
+        return None
+    return DIR_POSICION_CORTE if DIR_POSICION_CORTE.exists() else None
 
-
-def _normalizar_posicion_corte(nombre: str) -> str:
-    nombre = (nombre or "").strip().lower()
-    nombre = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("ascii")
-    nombre = nombre.replace("_", " ").replace("-", " ")
-    nombre = " ".join(nombre.split())
-    return nombre
-
-
-def obtener_imagen_posicion_corte(nombre_posicion: str):
-    objetivo = _normalizar_posicion_corte(nombre_posicion)
-    extensiones = {".png", ".jpg", ".jpeg", ".webp"}
-    for fuente in preparar_fuentes_posicion_corte():
-        if not fuente.exists():
-            continue
-        for ruta in fuente.rglob("*"):
-            if not ruta.is_file() or ruta.suffix.lower() not in extensiones:
-                continue
-            if ruta.name.startswith("._") or "__MACOSX" in str(ruta):
-                continue
-            if _normalizar_posicion_corte(ruta.stem) == objetivo:
+def obtener_imagen_posicion_corte(nombre_posicion):
+    if not nombre_posicion:
+        return None
+    carpeta = _asegurar_posicion_corte_extraida()
+    if carpeta is None or not Path(carpeta).exists():
+        return None
+    objetivo = normalizar_nombre_archivo_topograma(str(nombre_posicion))
+    for ruta in Path(carpeta).glob('*'):
+        if ruta.is_file() and ruta.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp'}:
+            if normalizar_nombre_archivo_topograma(ruta.stem) == objetivo:
                 return ruta
     return None
 
@@ -1134,30 +1119,36 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
 
 
 
-def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key=None, color="#00D2FF", show_labels=False, roi_label="ROI"):
+def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key=None, color="#00D2FF", show_labels=False, show_titles=True, show_subtitles=True):
     """
-    Renderiza uno o más canvas interactivos.
-    modo="rect"  -> rectángulo movible y redimensionable
-    modo="line"  -> línea horizontal única movible
-    modo="roi"   -> círculo movible y redimensionable para ROI
+    modo="rect" -> rectángulo movible y redimensionable
+    modo="line" -> línea horizontal única movible
+    modo="roi"  -> círculo movible y redimensionable
     """
     if not topos:
         return None
 
-    canvas_css_width = 227 if len(topos) > 1 else 307
-    canvas_css_height = 333 if len(topos) > 1 else 387
-    canvas_width = 420
-    canvas_height = 640
+    multiple = len(topos) > 1
+    if modo == "roi":
+        canvas_css_width = 300 if multiple else 360
+        canvas_css_height = 300 if multiple else 360
+        canvas_width = 560
+        canvas_height = 560
+    else:
+        canvas_css_width = 227 if multiple else 307
+        canvas_css_height = 333 if multiple else 387
+        canvas_width = 420
+        canvas_height = 640
     min_col_width = canvas_css_width
 
     cols_html = []
     topo_payload = []
+    fill_color = "rgba(0, 210, 255, 0.18)"
 
     for i, topo in enumerate(topos):
         img_b64 = topo.get("img_b64")
         if not img_b64:
             continue
-
         titulo = topo.get("titulo", f"Topograma {i+1}")
         subtitulo = topo.get("subtitulo", "")
         inicio_ref = topo.get("inicio_ref", "—")
@@ -1166,484 +1157,117 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         fin_mm = topo.get("fin_mm", 0)
         y_ini = topo.get("y_ini", get_y_position_with_offset(inicio_ref, inicio_mm))
         y_fin = topo.get("y_fin", get_y_position_with_offset(fin_ref, fin_mm))
-
         y1 = max(0.05, min(y_ini, y_fin))
         y2 = min(0.95, max(y_ini, y_fin))
         rect_h = max(0.10, y2 - y1)
         rect_y = max(0.02, min(0.98 - rect_h, y1))
         rect_x = 0.22
         rect_w = 0.56
-        line_y = (y1 + y2) / 2.0
-        circle_x = 0.50
-        circle_y = 0.50
-        circle_r = 0.12
+        line_y = max(0.04, min(0.96, (y_ini + y_fin) / 2 if (y_ini is not None and y_fin is not None) else 0.5))
+        circle_x = topo.get("circle_x", 0.5)
+        circle_y = topo.get("circle_y", 0.5)
+        circle_r = topo.get("circle_r", 0.08)
 
-        labels_html = ""
+        title_html = f'<div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;">{titulo}</div>' if show_titles else ''
+        subtitle_html = f'<div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:18px;">{subtitulo}</div>' if show_subtitles and subtitulo else ''
+        labels_html = ''
         if show_labels:
-            labels_html = f'''
-          <div style="margin-top:4px; font-size:13px; color:#fff; text-align:center; line-height:1.45;">
-            Campo: <b id="lblSizeInd{i}">—</b>
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            Centro: <b id="lblCenterInd{i}">—</b>
-            <br>
-            Alto aprox.: <b id="lblHeightInd{i}">—</b> mm
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            Ancho aprox.: <b id="lblWidthInd{i}">—</b> %
-          </div>
-            '''
+            labels_html = (
+                f'<div style="margin-top:4px; font-size:13px; color:#fff; text-align:center; line-height:1.45;">'
+                f'Campo: <b id="lblSizeInd{i}">—</b>&nbsp;&nbsp;|&nbsp;&nbsp;Centro: <b id="lblCenterInd{i}">—</b><br>'
+                f'Alto aprox.: <b id="lblHeightInd{i}">—</b> mm&nbsp;&nbsp;|&nbsp;&nbsp;Ancho aprox.: <b id="lblWidthInd{i}">—</b> %'
+                f'</div>'
+            )
 
-        cols_html.append(f'''
-        <div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">
-          <div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;">{titulo}</div>
-          <canvas id="topoCanvasInd{i}" width="{canvas_width}" height="{canvas_height}"
-            style="width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:grab; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto; touch-action:none;"></canvas>
-          <div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;">{subtitulo}</div>
-          {labels_html}
-        </div>
-        ''')
+        cols_html.append(
+            f'<div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">'
+            f'{title_html}'
+            f'<canvas id="topoCanvasInd{i}" width="{canvas_width}" height="{canvas_height}" style="width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:{'ns-resize' if modo == 'line' else 'grab'}; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto; touch-action:none;"></canvas>'
+            f'{subtitle_html}{labels_html}</div>'
+        )
 
         topo_payload.append({
-            "img_b64": img_b64,
-            "rect_x": rect_x,
-            "rect_y": rect_y,
-            "rect_w": rect_w,
-            "rect_h": rect_h,
-            "line_y": line_y,
-            "circle_x": circle_x,
-            "circle_y": circle_y,
-            "circle_r": circle_r,
+            "img_b64": img_b64, "rect_x": rect_x, "rect_y": rect_y, "rect_w": rect_w, "rect_h": rect_h,
+            "line_y": line_y, "circle_x": circle_x, "circle_y": circle_y, "circle_r": circle_r,
+            "stroke": color, "fill": fill_color, "handle": color,
         })
 
     if not cols_html:
         return None
 
-    help_text = {
-        "rect": "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño.",
-        "line": "Arrastra la línea para ubicar el corte de planificación.",
-        "roi": "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño.",
-    }.get(modo, "")
-
-    html = f'''
-<div style="text-align:center; margin:0 0 0 0;">
-  <div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;">
-    {help_text}
-  </div>
-  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;">
-    {''.join(cols_html)}
-  </div>
-</div>
+    instruccion = (
+        "Arrastra la línea para ubicar el corte único en cada topograma." if modo == "line" else
+        "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño." if modo == "roi" else
+        "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño en cada topograma."
+    )
+    topo_json = json.dumps(topo_payload)
+    mode_json = json.dumps(modo)
+    storage_json = json.dumps(storage_key or "default")
+    show_labels_json = json.dumps(show_labels)
+    html = f'''<div style="text-align:center; margin:0;"><div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;">{instruccion}</div><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;">{''.join(cols_html)}</div></div>
 <script>
 (function() {{
-  var topoData = {json.dumps(topo_payload)};
-  var modo = {json.dumps(modo)};
-  var baseStorageKey = {json.dumps(storage_key or '')};
-  var strokeColor = {json.dumps(color)};
-  var showLabels = {json.dumps(show_labels)};
-  var roiLabel = {json.dumps(roi_label)};
-
-  function rgbaFromHex(hex, alpha) {{
-    if (!hex || typeof hex !== 'string') return 'rgba(0,210,255,' + alpha + ')';
-    var h = hex.replace('#','');
-    if (h.length === 3) h = h.split('').map(function(c) {{ return c + c; }}).join('');
-    if (h.length !== 6) return 'rgba(0,210,255,' + alpha + ')';
-    var r = parseInt(h.substring(0,2), 16);
-    var g = parseInt(h.substring(2,4), 16);
-    var b = parseInt(h.substring(4,6), 16);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
-  }}
-
+  var topoData = {topo_json};
+  var mode = {mode_json};
+  var storageKey = {storage_json};
+  var showLabels = {show_labels_json};
   topoData.forEach(function(data, idx) {{
     var canvas = document.getElementById('topoCanvasInd' + idx);
     if (!canvas) return;
-
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
-    var storageKey = baseStorageKey ? ('planitc_' + baseStorageKey + '_' + modo + '_' + idx) : '';
-
-    var rectState = {{ x: data.rect_x, y: data.rect_y, w: data.rect_w, h: data.rect_h }};
-    var lineState = {{ y: data.line_y }};
-    var circleState = {{ x: data.circle_x, y: data.circle_y, r: data.circle_r }};
-
-    try {{
-      if (storageKey) {{
-        var saved = localStorage.getItem(storageKey);
-        if (saved) {{
-          var parsed = JSON.parse(saved);
-          if (modo === 'rect' && parsed && parsed.rectState) rectState = parsed.rectState;
-          if (modo === 'line' && parsed && parsed.lineState) lineState = parsed.lineState;
-          if (modo === 'roi' && parsed && parsed.circleState) circleState = parsed.circleState;
-        }}
-      }}
-    }} catch (e) {{}}
-
-    var dragMode = null;
-    var dragOffsetX = 0;
-    var dragOffsetY = 0;
-    var handleSize = 18;
-    var minW = 0.12;
-    var minH = 0.10;
-    var minR = 0.05;
+    var rectState = {{x:data.rect_x, y:data.rect_y, w:data.rect_w, h:data.rect_h}};
+    var lineState = {{y:data.line_y}};
+    var circleState = {{x:data.circle_x, y:data.circle_y, r:data.circle_r}};
+    var persistKey = 'planitc_interactivo_' + storageKey + '_' + idx + '_' + mode;
+    var dragMode = null, dragOffsetX = 0, dragOffsetY = 0;
+    var handleSize = 18, minW = 0.12, minH = 0.10, minR = 0.03;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
-
-    function saveState() {{
+    function loadPersistedState() {{
       try {{
-        if (!storageKey) return;
-        localStorage.setItem(storageKey, JSON.stringify({{
-          rectState: rectState,
-          lineState: lineState,
-          circleState: circleState
-        }}));
+        var raw = window.localStorage.getItem(persistKey); if (!raw) return;
+        var saved = JSON.parse(raw);
+        if (mode === 'line' && typeof saved.line_y === 'number') lineState.y = saved.line_y;
+        if (mode === 'roi') {{ if (typeof saved.circle_x === 'number') circleState.x = saved.circle_x; if (typeof saved.circle_y === 'number') circleState.y = saved.circle_y; if (typeof saved.circle_r === 'number') circleState.r = saved.circle_r; }}
+        if (mode === 'rect') {{ if (typeof saved.rect_x === 'number') rectState.x = saved.rect_x; if (typeof saved.rect_y === 'number') rectState.y = saved.rect_y; if (typeof saved.rect_w === 'number') rectState.w = saved.rect_w; if (typeof saved.rect_h === 'number') rectState.h = saved.rect_h; }}
       }} catch (e) {{}}
     }}
-
-    function clampRect() {{
-      rectState.w = Math.max(minW, Math.min(0.92, rectState.w));
-      rectState.h = Math.max(minH, Math.min(0.92, rectState.h));
-      rectState.x = Math.max(0.02, Math.min(0.98 - rectState.w, rectState.x));
-      rectState.y = Math.max(0.02, Math.min(0.98 - rectState.h, rectState.y));
+    function savePersistedState() {{
+      try {{
+        var payload = mode === 'line' ? {{line_y: lineState.y}} : (mode === 'roi' ? {{circle_x: circleState.x, circle_y: circleState.y, circle_r: circleState.r}} : {{rect_x: rectState.x, rect_y: rectState.y, rect_w: rectState.w, rect_h: rectState.h}});
+        window.localStorage.setItem(persistKey, JSON.stringify(payload));
+      }} catch (e) {{}}
     }}
-
-    function clampLine() {{
-      lineState.y = Math.max(0.03, Math.min(0.97, lineState.y));
-    }}
-
-    function clampCircle() {{
-      circleState.r = Math.max(minR, Math.min(0.35, circleState.r));
-      circleState.x = Math.max(circleState.r + 0.02, Math.min(0.98 - circleState.r, circleState.x));
-      circleState.y = Math.max(circleState.r + 0.02, Math.min(0.98 - circleState.r, circleState.y));
-    }}
-
-    function getRectPx() {{
-      return {{ x: rectState.x * W, y: rectState.y * H, w: rectState.w * W, h: rectState.h * H }};
-    }}
-
-    function getLinePx() {{
-      return {{ y: lineState.y * H }};
-    }}
-
-    function getCirclePx() {{
-      return {{ x: circleState.x * W, y: circleState.y * H, r: circleState.r * Math.min(W, H) }};
-    }}
-
-    function isInResizeHandle(mx, my, rp) {{
-      return mx >= rp.x + rp.w - handleSize && mx <= rp.x + rp.w + 4 &&
-             my >= rp.y + rp.h - handleSize && my <= rp.y + rp.h + 4;
-    }}
-
-    function isInsideRect(mx, my, rp) {{
-      return mx >= rp.x && mx <= rp.x + rp.w && my >= rp.y && my <= rp.y + rp.h;
-    }}
-
-    function isOnLine(my, lp) {{
-      return Math.abs(my - lp.y) <= 14;
-    }}
-
-    function isInsideCircle(mx, my, cp) {{
-      var dx = mx - cp.x;
-      var dy = my - cp.y;
-      return Math.sqrt(dx*dx + dy*dy) <= cp.r;
-    }}
-
-    function isOnCircleHandle(mx, my, cp) {{
-      var hx = cp.x + cp.r * 0.72;
-      var hy = cp.y + cp.r * 0.72;
-      return Math.abs(mx - hx) <= 14 && Math.abs(my - hy) <= 14;
-    }}
-
-    function updateLabels() {{
-      if (!showLabels) return;
-      var lblSize = document.getElementById('lblSizeInd' + idx);
-      var lblCenter = document.getElementById('lblCenterInd' + idx);
-      var lblHeight = document.getElementById('lblHeightInd' + idx);
-      var lblWidth = document.getElementById('lblWidthInd' + idx);
-      if (!lblSize || !lblCenter || !lblHeight || !lblWidth) return;
-
-      if (modo === 'rect') {{
-        var centerX = Math.round((rectState.x + rectState.w / 2) * 100);
-        var centerY = Math.round((rectState.y + rectState.h / 2) * 100);
-        var widthPct = Math.round(rectState.w * 100);
-        var heightMm = Math.round(rectState.h * 600);
-        lblSize.textContent = widthPct + '% × ' + Math.round(rectState.h * 100) + '%';
-        lblCenter.textContent = 'X ' + centerX + '% · Y ' + centerY + '%';
-        lblHeight.textContent = heightMm;
-        lblWidth.textContent = widthPct;
-      }} else if (modo === 'line') {{
-        lblSize.textContent = 'Corte único';
-        lblCenter.textContent = 'Y ' + Math.round(lineState.y * 100) + '%';
-        lblHeight.textContent = '—';
-        lblWidth.textContent = '—';
-      }} else if (modo === 'roi') {{
-        lblSize.textContent = 'ROI';
-        lblCenter.textContent = 'X ' + Math.round(circleState.x * 100) + '% · Y ' + Math.round(circleState.y * 100) + '%';
-        lblHeight.textContent = Math.round(circleState.r * 2 * 600);
-        lblWidth.textContent = Math.round((circleState.r * 2) * 100);
-      }}
-    }}
-
-    function drawBaseImage() {{
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, W, H);
-      if (img.width && img.height) {{
-        var scale = Math.min(W / img.width, H / img.height);
-        var drawW = img.width * scale;
-        var drawH = img.height * scale;
-        var dx = (W - drawW) / 2;
-        var dy = (H - drawH) / 2;
-        ctx.drawImage(img, dx, dy, drawW, drawH);
-      }}
-    }}
-
-    function drawRect() {{
-      clampRect();
-      var rp = getRectPx();
-      ctx.fillStyle = rgbaFromHex(strokeColor, 0.14);
-      ctx.fillRect(rp.x, rp.y, rp.w, rp.h);
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([10, 6]);
-      ctx.strokeRect(rp.x, rp.y, rp.w, rp.h);
-      ctx.setLineDash([]);
-      ctx.fillStyle = strokeColor;
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('SFOV / DFOV', rp.x + 8, Math.max(16, rp.y + 16));
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
-    }}
-
-    function drawLine() {{
-      clampLine();
-      var lp = getLinePx();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(28, lp.y);
-      ctx.lineTo(W - 28, lp.y);
-      ctx.stroke();
-      ctx.fillStyle = strokeColor;
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('CORTE', 28, Math.max(18, lp.y - 10));
-    }}
-
-    function drawCircle() {{
-      clampCircle();
-      var cp = getCirclePx();
-      ctx.fillStyle = rgbaFromHex(strokeColor, 0.18);
-      ctx.beginPath();
-      ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = strokeColor;
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(roiLabel, Math.max(10, cp.x - cp.r), Math.max(18, cp.y - cp.r - 8));
-      var hx = cp.x + cp.r * 0.72;
-      var hy = cp.y + cp.r * 0.72;
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(hx - 8, hy - 8, 16, 16);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(hx - 8, hy - 8, 16, 16);
-    }}
-
+    loadPersistedState();
+    function clampRect() {{ rectState.w = Math.max(minW, Math.min(0.92, rectState.w)); rectState.h = Math.max(minH, Math.min(0.92, rectState.h)); rectState.x = Math.max(0.02, Math.min(0.98 - rectState.w, rectState.x)); rectState.y = Math.max(0.02, Math.min(0.98 - rectState.h, rectState.y)); }}
+    function clampLine() {{ lineState.y = Math.max(0.03, Math.min(0.97, lineState.y)); }}
+    function clampCircle() {{ circleState.r = Math.max(minR, Math.min(0.42, circleState.r)); circleState.x = Math.max(circleState.r, Math.min(1 - circleState.r, circleState.x)); circleState.y = Math.max(circleState.r, Math.min(1 - circleState.r, circleState.y)); }}
+    function getRectPx() {{ return {{x: rectState.x*W, y: rectState.y*H, w: rectState.w*W, h: rectState.h*H}}; }}
+    function getLinePx() {{ return lineState.y * H; }}
+    function getCirclePx() {{ return {{x: circleState.x*W, y: circleState.y*H, r: circleState.r*Math.min(W,H)}}; }}
+    function isInResizeHandle(mx,my,rp) {{ return mx >= rp.x+rp.w-handleSize && mx <= rp.x+rp.w+4 && my >= rp.y+rp.h-handleSize && my <= rp.y+rp.h+4; }}
+    function isInsideRect(mx,my,rp) {{ return mx >= rp.x && mx <= rp.x+rp.w && my >= rp.y && my <= rp.y+rp.h; }}
+    function isOnLine(my, lineY) {{ return Math.abs(my-lineY) <= 12; }}
+    function isInsideCircle(mx,my,cp) {{ return Math.hypot(mx-cp.x, my-cp.y) <= cp.r; }}
+    function isOnCircleHandle(mx,my,cp) {{ return Math.hypot(mx-(cp.x+cp.r), my-cp.y) <= 14; }}
+    function updateLabels() {{ if (!showLabels || mode !== 'rect') return; var lblSize = document.getElementById('lblSizeInd' + idx); var lblCenter = document.getElementById('lblCenterInd' + idx); var lblHeight = document.getElementById('lblHeightInd' + idx); var lblWidth = document.getElementById('lblWidthInd' + idx); var centerX = Math.round((rectState.x + rectState.w / 2) * 100); var centerY = Math.round((rectState.y + rectState.h / 2) * 100); var widthPct = Math.round(rectState.w * 100); var heightMm = Math.round(rectState.h * 600); if (lblSize) lblSize.textContent = widthPct + '% × ' + Math.round(rectState.h * 100) + '%'; if (lblCenter) lblCenter.textContent = 'X ' + centerX + '% · Y ' + centerY + '%'; if (lblHeight) lblHeight.textContent = heightMm; if (lblWidth) lblWidth.textContent = widthPct; }}
     function draw() {{
-      drawBaseImage();
-      if (modo === 'line') drawLine();
-      else if (modo === 'roi') drawCircle();
-      else drawRect();
-      updateLabels();
-      saveState();
+      clampRect(); clampLine(); clampCircle(); ctx.clearRect(0,0,W,H); ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+      if (img.width && img.height) {{ var scale = Math.min(W / img.width, H / img.height); var drawW = img.width * scale, drawH = img.height * scale; var dx = (W - drawW) / 2, dy = (H - drawH) / 2; ctx.drawImage(img, dx, dy, drawW, drawH); }}
+      if (mode === 'line') {{ var ly = getLinePx(); ctx.strokeStyle = data.stroke; ctx.lineWidth = 4; ctx.setLineDash([12,7]); ctx.beginPath(); ctx.moveTo(W*0.12, ly); ctx.lineTo(W*0.88, ly); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = data.stroke; ctx.beginPath(); ctx.arc(W*0.12, ly, 6, 0, Math.PI*2); ctx.arc(W*0.88, ly, 6, 0, Math.PI*2); ctx.fill(); return; }}
+      if (mode === 'roi') {{ var cp = getCirclePx(); ctx.fillStyle = 'rgba(0, 210, 255, 0.12)'; ctx.beginPath(); ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = data.stroke; ctx.lineWidth = 4; ctx.setLineDash([10,6]); ctx.beginPath(); ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = data.handle; ctx.beginPath(); ctx.arc(cp.x + cp.r, cp.y, 8, 0, Math.PI*2); ctx.fill(); return; }}
+      var rp = getRectPx(); ctx.fillStyle = data.fill; ctx.fillRect(rp.x, rp.y, rp.w, rp.h); ctx.strokeStyle = data.stroke; ctx.lineWidth = 3; ctx.setLineDash([10,6]); ctx.strokeRect(rp.x, rp.y, rp.w, rp.h); ctx.setLineDash([]); ctx.fillStyle = data.handle; ctx.fillRect(rp.x+rp.w-handleSize, rp.y+rp.h-handleSize, handleSize, handleSize); ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.strokeRect(rp.x+rp.w-handleSize, rp.y+rp.h-handleSize, handleSize, handleSize); updateLabels();
     }}
-
-    function getMousePos(e) {{
-      var rect = canvas.getBoundingClientRect();
-      var scaleX = W / rect.width;
-      var scaleY = H / rect.height;
-      return {{ x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }};
-    }}
-
-    function updateCursor(mx, my) {{
-      if (modo === 'line') {{
-        var lp = getLinePx();
-        canvas.style.cursor = isOnLine(my, lp) ? 'ns-resize' : 'default';
-        return;
-      }}
-      if (modo === 'roi') {{
-        var cp = getCirclePx();
-        if (isOnCircleHandle(mx, my, cp)) canvas.style.cursor = 'nwse-resize';
-        else if (isInsideCircle(mx, my, cp)) canvas.style.cursor = 'grab';
-        else canvas.style.cursor = 'default';
-        return;
-      }}
-      var rp = getRectPx();
-      if (isInResizeHandle(mx, my, rp)) canvas.style.cursor = 'nwse-resize';
-      else if (isInsideRect(mx, my, rp)) canvas.style.cursor = 'grab';
-      else canvas.style.cursor = 'default';
-    }}
-
-    canvas.addEventListener('mousedown', function(e) {{
-      var pos = getMousePos(e);
-      if (modo === 'line') {{
-        var lp = getLinePx();
-        if (isOnLine(pos.y, lp)) dragMode = 'move-line';
-        return;
-      }}
-      if (modo === 'roi') {{
-        var cp = getCirclePx();
-        if (isOnCircleHandle(pos.x, pos.y, cp)) {{
-          dragMode = 'resize-circle';
-        }} else if (isInsideCircle(pos.x, pos.y, cp)) {{
-          dragMode = 'move-circle';
-          dragOffsetX = pos.x - cp.x;
-          dragOffsetY = pos.y - cp.y;
-          canvas.style.cursor = 'grabbing';
-        }}
-        return;
-      }}
-      var rp = getRectPx();
-      if (isInResizeHandle(pos.x, pos.y, rp)) {{
-        dragMode = 'resize-rect';
-        canvas.style.cursor = 'nwse-resize';
-      }} else if (isInsideRect(pos.x, pos.y, rp)) {{
-        dragMode = 'move-rect';
-        dragOffsetX = pos.x - rp.x;
-        dragOffsetY = pos.y - rp.y;
-        canvas.style.cursor = 'grabbing';
-      }}
-    }});
-
-    canvas.addEventListener('mousemove', function(e) {{
-      var pos = getMousePos(e);
-      updateCursor(pos.x, pos.y);
-      if (!dragMode) return;
-
-      if (dragMode === 'move-line') {{
-        lineState.y = pos.y / H;
-        clampLine();
-      }} else if (dragMode === 'move-circle') {{
-        circleState.x = (pos.x - dragOffsetX) / W;
-        circleState.y = (pos.y - dragOffsetY) / H;
-        clampCircle();
-      }} else if (dragMode === 'resize-circle') {{
-        var cp = getCirclePx();
-        var dx = pos.x - cp.x;
-        var dy = pos.y - cp.y;
-        circleState.r = Math.max(minR, Math.sqrt(dx*dx + dy*dy) / Math.min(W, H));
-        clampCircle();
-      }} else if (dragMode === 'move-rect') {{
-        rectState.x = (pos.x - dragOffsetX) / W;
-        rectState.y = (pos.y - dragOffsetY) / H;
-        clampRect();
-      }} else if (dragMode === 'resize-rect') {{
-        rectState.w = (pos.x / W) - rectState.x;
-        rectState.h = (pos.y / H) - rectState.y;
-        clampRect();
-      }}
-      draw();
-    }});
-
-    function endDrag() {{
-      dragMode = null;
-      canvas.style.cursor = 'grab';
-      saveState();
-    }}
-
-    canvas.addEventListener('mouseup', endDrag);
-    canvas.addEventListener('mouseleave', endDrag);
-    canvas.addEventListener('touchstart', function(e) {{
-      e.preventDefault();
-      var t = e.touches[0];
-      var pos = getMousePos(t);
-      if (modo === 'line') {{
-        var lp = getLinePx();
-        if (isOnLine(pos.y, lp)) dragMode = 'move-line';
-        return;
-      }}
-      if (modo === 'roi') {{
-        var cp = getCirclePx();
-        if (isOnCircleHandle(pos.x, pos.y, cp)) {{
-          dragMode = 'resize-circle';
-        }} else if (isInsideCircle(pos.x, pos.y, cp)) {{
-          dragMode = 'move-circle';
-          dragOffsetX = pos.x - cp.x;
-          dragOffsetY = pos.y - cp.y;
-        }}
-        return;
-      }}
-      var rp = getRectPx();
-      if (isInResizeHandle(pos.x, pos.y, rp)) {{
-        dragMode = 'resize-rect';
-      }} else if (isInsideRect(pos.x, pos.y, rp)) {{
-        dragMode = 'move-rect';
-        dragOffsetX = pos.x - rp.x;
-        dragOffsetY = pos.y - rp.y;
-      }}
-    }}, {{passive:false}});
-
-    canvas.addEventListener('touchmove', function(e) {{
-      e.preventDefault();
-      if (!dragMode) return;
-      var t = e.touches[0];
-      var pos = getMousePos(t);
-      if (dragMode === 'move-line') {{
-        lineState.y = pos.y / H;
-        clampLine();
-      }} else if (dragMode === 'move-circle') {{
-        circleState.x = (pos.x - dragOffsetX) / W;
-        circleState.y = (pos.y - dragOffsetY) / H;
-        clampCircle();
-      }} else if (dragMode === 'resize-circle') {{
-        var cp = getCirclePx();
-        var dx = pos.x - cp.x;
-        var dy = pos.y - cp.y;
-        circleState.r = Math.max(minR, Math.sqrt(dx*dx + dy*dy) / Math.min(W, H));
-        clampCircle();
-      }} else if (dragMode === 'move-rect') {{
-        rectState.x = (pos.x - dragOffsetX) / W;
-        rectState.y = (pos.y - dragOffsetY) / H;
-        clampRect();
-      }} else if (dragMode === 'resize-rect') {{
-        rectState.w = (pos.x / W) - rectState.x;
-        rectState.h = (pos.y / H) - rectState.y;
-        clampRect();
-      }}
-      draw();
-    }}, {{passive:false}});
-
-    canvas.addEventListener('touchend', endDrag);
-    img.onload = function() {{ draw(); }};
-    if (img.complete) draw();
+    function getMousePos(e) {{ var rect = canvas.getBoundingClientRect(); return {{x:(e.clientX - rect.left) * (W / rect.width), y:(e.clientY - rect.top) * (H / rect.height)}}; }}
+    canvas.addEventListener('mousedown', function(e) {{ var pos = getMousePos(e); if (mode === 'line') {{ if (isOnLine(pos.y, getLinePx())) dragMode = 'line'; return; }} if (mode === 'roi') {{ var cp = getCirclePx(); if (isOnCircleHandle(pos.x,pos.y,cp)) dragMode = 'resize-circle'; else if (isInsideCircle(pos.x,pos.y,cp)) {{ dragMode = 'move-circle'; dragOffsetX = pos.x - cp.x; dragOffsetY = pos.y - cp.y; }} return; }} var rp = getRectPx(); if (isInResizeHandle(pos.x,pos.y,rp)) dragMode = 'resize'; else if (isInsideRect(pos.x,pos.y,rp)) {{ dragMode = 'move'; dragOffsetX = pos.x-rp.x; dragOffsetY = pos.y-rp.y; }} }});
+    canvas.addEventListener('mousemove', function(e) {{ var pos = getMousePos(e); if (!dragMode) return; if (mode === 'line' && dragMode === 'line') {{ lineState.y = pos.y / H; draw(); savePersistedState(); return; }} if (mode === 'roi') {{ var cp = getCirclePx(); if (dragMode === 'move-circle') {{ circleState.x = (pos.x - dragOffsetX) / W; circleState.y = (pos.y - dragOffsetY) / H; }} else if (dragMode === 'resize-circle') {{ circleState.r = Math.hypot(pos.x - cp.x, pos.y - cp.y) / Math.min(W,H); }} draw(); savePersistedState(); return; }} if (dragMode === 'move') {{ rectState.x = (pos.x - dragOffsetX) / W; rectState.y = (pos.y - dragOffsetY) / H; }} else if (dragMode === 'resize') {{ rectState.w = (pos.x / W) - rectState.x; rectState.h = (pos.y / H) - rectState.y; }} draw(); savePersistedState(); }});
+    function endDrag() {{ dragMode = null; }}
+    canvas.addEventListener('mouseup', endDrag); canvas.addEventListener('mouseleave', endDrag); img.onload = function() {{ draw(); }}; if (img.complete) draw();
   }});
 }})();
-</script>
-'''
+</script>'''
     return html
-
-def _pil_to_b64_jpeg(img, max_width=900):
-    """Convierte una imagen PIL a base64 JPEG para usarla en canvas HTML."""
-    if img is None:
-        return None
-    try:
-        im = img.copy()
-        if im.mode not in ("RGB", "L"):
-            im = im.convert("RGB")
-        elif im.mode == "L":
-            im = im.convert("RGB")
-        if max_width and im.width > max_width:
-            ratio = max_width / float(im.width)
-            im = im.resize((int(im.width * ratio), int(im.height * ratio)))
-        buf = io.BytesIO()
-        im.save(buf, format="JPEG", quality=92)
-        return base64.b64encode(buf.getvalue()).decode("utf-8")
-    except Exception:
-        return None
 
 
 def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width=760):
@@ -2575,12 +2199,6 @@ with tab2:
             "topo2_ini_mm": 0,
             "topo2_fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
             "topo2_fin_mm": 400,
-            "periodo_bolus": "1 sg",
-            "n_imagenes_bolus": 15,
-            "posicion_corte": "BOTON AORTICO",
-            "umbral_disparo": "",
-            "kvp_bolus": 100,
-            "mas_bolus": 20,
         }
 
     def _reindexar_exploraciones_adq():
@@ -2912,6 +2530,14 @@ with tab2:
                 index=_nombre_idx,
                 key=f"nombre_{_exp_id}",
             )
+            _nombre_exp_upper = str(_actual.get("nombre", "")).upper().strip()
+            _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
+            _actual.setdefault("periodo_bolus", "1 sg")
+            _actual.setdefault("n_imagenes_bolus", 15)
+            _actual.setdefault("posicion_corte", "")
+            _actual.setdefault("umbral_bolus", "")
+            _actual["kvp_bolus"] = 100
+            _actual["mas_bolus"] = 20
 
             # Mostrar topogramas en Adquisición aunque el flag visual no haya quedado marcado.
             # Se consideran disponibles si fueron iniciados o si ya existe una configuración válida
@@ -3001,49 +2627,41 @@ with tab2:
                     _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topos_adq[1]["inicio_ref"], _topos_adq[1]["inicio_mm"])
                     _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
 
-                _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
-                _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
-                _modo_topograma_adq = "line" if _es_bolus else "rect"
-                _paleta_exp = ["#00D2FF", "#FF7A59", "#6EEB83", "#C084FC", "#FFD166", "#FF4D6D", "#7BDFF2", "#A3E635"]
-                _color_exp = _paleta_exp[(max(1, int(_actual.get("orden", 1))) - 1) % len(_paleta_exp)]
+                _palette = ["#00D2FF", "#FFB000", "#FF4D6D", "#7CFF6B", "#C77DFF", "#00E5A8"]
+                _exp_num = int(_exp_id.split("_")[-1]) if str(_exp_id).split("_")[-1].isdigit() else 1
+                _color_exploracion = _palette[(_exp_num - 1) % len(_palette)]
                 _html_topos_adq = render_topogramas_independientes_interactivos(
                     _topos_adq,
-                    modo=_modo_topograma_adq,
-                    storage_key=_exp_id,
-                    color=_color_exp,
+                    modo="line" if _es_bolus else "rect",
+                    storage_key=f"{_exp_id}_topos",
+                    color=_color_exploracion,
                     show_labels=False,
                 )
-                _ruta_posicion_corte = obtener_imagen_posicion_corte(_actual.get("posicion_corte", "BOTON AORTICO")) if _es_bolus else None
-                _img_pos_corte = None
-                if _ruta_posicion_corte is not None:
-                    try:
-                        _img_pos_corte = Image.open(_ruta_posicion_corte)
-                    except Exception:
-                        _img_pos_corte = None
                 _html_roi_corte = None
-                if _img_pos_corte is not None:
-                    _html_roi_corte = render_topogramas_independientes_interactivos(
-                        [{
-                            "titulo": _actual.get("posicion_corte", "Posición de corte"),
-                            "subtitulo": "ROI ajustable",
-                            "img_b64": _pil_to_b64_jpeg(_img_pos_corte),
-                        }],
-                        modo="roi",
-                        storage_key=f"{_exp_id}_roi_corte",
-                        color=_color_exp,
-                        show_labels=False,
-                        roi_label="ROI",
-                    )
-
+                _pos_sel = _actual.get("posicion_corte", "")
+                if _es_bolus and _pos_sel:
+                    _ruta_pos = obtener_imagen_posicion_corte(_pos_sel)
+                    if _ruta_pos is not None:
+                        try:
+                            _img_roi = Image.open(_ruta_pos).convert("RGB")
+                            _html_roi_corte = render_topogramas_independientes_interactivos(
+                                [{"img_b64": _pil_to_b64_jpeg(_img_roi), "circle_x": 0.5, "circle_y": 0.5, "circle_r": 0.08}],
+                                modo="roi",
+                                storage_key=f"{_exp_id}_roi_{normalizar_nombre_archivo_topograma(_pos_sel)}",
+                                color=_color_exploracion,
+                                show_labels=False,
+                                show_titles=False,
+                                show_subtitles=False,
+                            )
+                        except Exception:
+                            _html_roi_corte = None
                 if _html_topos_adq:
                     if _es_bolus and _html_roi_corte:
-                        _col_topo_bolus, _col_roi_bolus = st.columns([1.6, 0.85], gap="medium")
+                        _col_topo_bolus, _col_roi_bolus = st.columns([1.45, 1.05], gap="medium")
                         with _col_topo_bolus:
                             st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
                         with _col_roi_bolus:
-                            st.markdown('<div class="section-header">🎯 Posición de corte</div>', unsafe_allow_html=True)
-                            st.components.v1.html(_html_roi_corte, height=590)
-                            st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
+                            st.components.v1.html(_html_roi_corte, height=430)
                     else:
                         st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
                     st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
@@ -3103,149 +2721,110 @@ with tab2:
                             _actual["topo2_fin_ref"] = st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}")
                             _actual["topo2_fin_mm"] = st.number_input("mm fin Topograma 2", value=int(_actual.get("topo2_fin_mm", 400)), step=10, key=f"topo2_finmm_{_exp_id}")
 
-
-
             col_adq1, col_adq2 = st.columns([1, 1], gap="small")
-            _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
-            _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
 
-            if _es_bolus:
-                with col_adq1:
-                    st.markdown('<div class="section-header">⚙️ Parámetros de Bolus</div>', unsafe_allow_html=True)
-                    _periodos_bolus = ["0,9 sg", "1 sg", "1,5 sg", "2 sg"]
-                    _periodo_actual = _actual.get("periodo_bolus", "1 sg")
-                    _periodo_idx = _periodos_bolus.index(_periodo_actual) if _periodo_actual in _periodos_bolus else 1
-                    _actual["periodo_bolus"] = st.selectbox("Periodo", _periodos_bolus, index=_periodo_idx, key=f"periodobolus_{_exp_id}")
+            with col_adq1:
+                st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
+                _tipo_idx = TIPOS_EXPLORACION.index(_actual.get("tipo_exp", TIPOS_EXPLORACION[0])) if _actual.get("tipo_exp", TIPOS_EXPLORACION[0]) in TIPOS_EXPLORACION else 0
+                _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_exp_id}")
 
-                    _n_imgs_bolus = [10, 15, 20, 25, 30]
-                    _n_actual = int(_actual.get("n_imagenes_bolus", 15)) if str(_actual.get("n_imagenes_bolus", 15)).isdigit() else 15
-                    _n_idx = _n_imgs_bolus.index(_n_actual) if _n_actual in _n_imgs_bolus else 1
-                    _actual["n_imagenes_bolus"] = st.selectbox("N° de imágenes", _n_imgs_bolus, index=_n_idx, key=f"nimgbolus_{_exp_id}")
+                if _actual["tipo_exp"] == "HELICOIDAL":
+                    _dm_idx = ["NO", "SI"].index(_actual.get("doble_muestreo", "NO")) if _actual.get("doble_muestreo", "NO") in ["NO", "SI"] else 0
+                    _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_exp_id}")
+                else:
+                    _actual["doble_muestreo"] = "NO"
 
-                    _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
-                    _pos_actual = _actual.get("posicion_corte", "BOTON AORTICO")
-                    _pos_idx = _posiciones_corte.index(_pos_actual) if _pos_actual in _posiciones_corte else 0
-                    _actual["posicion_corte"] = st.selectbox("POSICIÓN DE CORTE", _posiciones_corte, index=_pos_idx, key=f"poscorte_{_exp_id}")
+                _voz_idx = INSTRUCCIONES_VOZ.index(_actual.get("voz_adq", INSTRUCCIONES_VOZ[0])) if _actual.get("voz_adq", INSTRUCCIONES_VOZ[0]) in INSTRUCCIONES_VOZ else 0
+                _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_exp_id}")
 
-                    if _nombre_exp_upper == "BOLUS TRACKING":
-                        _actual["umbral_disparo"] = st.text_input("Umbral de disparo (UH)", value=str(_actual.get("umbral_disparo", "")), key=f"umbral_{_exp_id}")
+                st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
+                _mod_idx = MODULACION_CORRIENTE.index(_actual.get("mod_corriente", MODULACION_CORRIENTE[0])) if _actual.get("mod_corriente", MODULACION_CORRIENTE[0]) in MODULACION_CORRIENTE else 0
+                _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_exp_id}")
 
-                with col_adq2:
-                    st.markdown('<div class="section-header">🔧 Configuración fija</div>', unsafe_allow_html=True)
-                    _actual["kvp_bolus"] = 100
-                    _actual["mas_bolus"] = 20
-                    st.text_input("kV", value="100", key=f"kvbolus_{_exp_id}", disabled=True)
-                    st.text_input("mAs", value="20", key=f"masbolus_{_exp_id}", disabled=True)
-                    st.info("En Test bolus y Bolus tracking estos valores quedan fijos por ahora.")
+                _col_kv, _col_mas = st.columns(2)
+                with _col_kv:
+                    _kv_actual = _actual.get("kvp", 120)
+                    _kv_idx = KVP_OPCIONES.index(_kv_actual) if _kv_actual in KVP_OPCIONES else 3
+                    _label_kv = "kV"
+                    if _actual["mod_corriente"] == "CARE DOSE 4D":
+                        _label_kv = "CARE kV"
+                    elif _actual["mod_corriente"] == "AUTO mA":
+                        _label_kv = "AUTO kV"
+                    _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_exp_id}")
 
-                _actual["kvp"] = 100
-                _actual["mas_val"] = 20
-                _actual["mod_corriente"] = "MANUAL"
-                _actual["tipo_exp"] = "SECUENCIAL CONTIGUO"
-                _actual["doble_muestreo"] = "NO"
-                _actual["pitch"] = 1.0
-            else:
-                with col_adq1:
-                    st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
-                    _tipo_idx = TIPOS_EXPLORACION.index(_actual.get("tipo_exp", TIPOS_EXPLORACION[0])) if _actual.get("tipo_exp", TIPOS_EXPLORACION[0]) in TIPOS_EXPLORACION else 0
-                    _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_exp_id}")
-
-                    if _actual["tipo_exp"] == "HELICOIDAL":
-                        _dm_idx = ["NO", "SI"].index(_actual.get("doble_muestreo", "NO")) if _actual.get("doble_muestreo", "NO") in ["NO", "SI"] else 0
-                        _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_exp_id}")
+                with _col_mas:
+                    if _actual["mod_corriente"] == "CARE DOSE 4D":
+                        _mas_base = _actual.get("mas_val", 200)
+                        _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
+                        _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_exp_id}")
+                        _ind_cal = _actual.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0])
+                        _ind_cal_idx = INDICE_CALIDAD.index(_ind_cal) if _ind_cal in INDICE_CALIDAD else (4 if len(INDICE_CALIDAD) > 4 else 0)
+                        _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_exp_id}")
+                    elif _actual["mod_corriente"] == "AUTO mA":
+                        _rango_ma = _actual.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0])
+                        _rango_idx = RANGO_MA.index(_rango_ma) if _rango_ma in RANGO_MA else (2 if len(RANGO_MA) > 2 else 0)
+                        _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_exp_id}")
+                        try:
+                            _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
+                        except Exception:
+                            _actual["mas_val"] = 200
+                        _ind_ruido = _actual.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0])
+                        _ind_ruido_idx = INDICE_RUIDO.index(_ind_ruido) if _ind_ruido in INDICE_RUIDO else (2 if len(INDICE_RUIDO) > 2 else 0)
+                        _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_exp_id}")
                     else:
-                        _actual["doble_muestreo"] = "NO"
+                        _mas_base = _actual.get("mas_val", 200)
+                        _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
+                        _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_exp_id}")
 
-                    _voz_idx = INSTRUCCIONES_VOZ.index(_actual.get("voz_adq", INSTRUCCIONES_VOZ[0])) if _actual.get("voz_adq", INSTRUCCIONES_VOZ[0]) in INSTRUCCIONES_VOZ else 0
-                    _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_exp_id}")
+            with col_adq2:
+                st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
+                _conf_actual = _actual.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0])
+                _conf_idx = CONF_DETECTORES.index(_conf_actual) if _conf_actual in CONF_DETECTORES else (4 if len(CONF_DETECTORES) > 4 else 0)
+                _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_exp_id}")
 
-                    st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
-                    _mod_idx = MODULACION_CORRIENTE.index(_actual.get("mod_corriente", MODULACION_CORRIENTE[0])) if _actual.get("mod_corriente", MODULACION_CORRIENTE[0]) in MODULACION_CORRIENTE else 0
-                    _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_exp_id}")
+                _sfov_actual = _actual.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0])
+                _sfov_idx = SFOV_OPCIONES.index(_sfov_actual) if _sfov_actual in SFOV_OPCIONES else (2 if len(SFOV_OPCIONES) > 2 else 0)
+                _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_exp_id}")
 
-                    _col_kv, _col_mas = st.columns(2)
-                    with _col_kv:
-                        _kv_actual = _actual.get("kvp", 120)
-                        _kv_idx = KVP_OPCIONES.index(_kv_actual) if _kv_actual in KVP_OPCIONES else 3
-                        _label_kv = "kV"
-                        if _actual["mod_corriente"] == "CARE DOSE 4D":
-                            _label_kv = "CARE kV"
-                        elif _actual["mod_corriente"] == "AUTO mA":
-                            _label_kv = "AUTO kV"
-                        _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_exp_id}")
+                _grosor_actual = str(_actual.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]))
+                _grosor_opciones = [str(g) for g in GROSOR_PROSP]
+                _grosor_idx = _grosor_opciones.index(_grosor_actual) if _grosor_actual in _grosor_opciones else (2 if len(_grosor_opciones) > 2 else 0)
+                _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_exp_id}")
 
-                    with _col_mas:
-                        if _actual["mod_corriente"] == "CARE DOSE 4D":
-                            _mas_base = _actual.get("mas_val", 200)
-                            _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                            _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_exp_id}")
-                            _ind_cal = _actual.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0])
-                            _ind_cal_idx = INDICE_CALIDAD.index(_ind_cal) if _ind_cal in INDICE_CALIDAD else (4 if len(INDICE_CALIDAD) > 4 else 0)
-                            _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_exp_id}")
-                        elif _actual["mod_corriente"] == "AUTO mA":
-                            _rango_ma = _actual.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0])
-                            _rango_idx = RANGO_MA.index(_rango_ma) if _rango_ma in RANGO_MA else (2 if len(RANGO_MA) > 2 else 0)
-                            _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_exp_id}")
-                            try:
-                                _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
-                            except Exception:
-                                _actual["mas_val"] = 200
-                            _ind_ruido = _actual.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0])
-                            _ind_ruido_idx = INDICE_RUIDO.index(_ind_ruido) if _ind_ruido in INDICE_RUIDO else (2 if len(INDICE_RUIDO) > 2 else 0)
-                            _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_exp_id}")
-                        else:
-                            _mas_base = _actual.get("mas_val", 200)
-                            _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                            _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_exp_id}")
+                _col_p, _col_r = st.columns(2)
+                with _col_p:
+                    if _actual["tipo_exp"] == "HELICOIDAL":
+                        _pitch_actual = _actual.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0])
+                        _pitch_idx = PITCH_OPCIONES.index(_pitch_actual) if _pitch_actual in PITCH_OPCIONES else (6 if len(PITCH_OPCIONES) > 6 else 0)
+                        _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_exp_id}")
+                    else:
+                        _actual["pitch"] = 1.0
+                        st.info("Pitch no aplica")
+                with _col_r:
+                    _rot_actual = _actual.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0])
+                    _rot_idx = ROT_TUBO.index(_rot_actual) if _rot_actual in ROT_TUBO else (1 if len(ROT_TUBO) > 1 else 0)
+                    _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_exp_id}")
 
-                with col_adq2:
-                    st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
-                    _conf_actual = _actual.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0])
-                    _conf_idx = CONF_DETECTORES.index(_conf_actual) if _conf_actual in CONF_DETECTORES else (4 if len(CONF_DETECTORES) > 4 else 0)
-                    _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_exp_id}")
+                _ret_actual = _actual.get("retardo", RETARDOS[0])
+                _ret_idx = RETARDOS.index(_ret_actual) if _ret_actual in RETARDOS else 0
+                _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_exp_id}")
 
-                    _sfov_actual = _actual.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0])
-                    _sfov_idx = SFOV_OPCIONES.index(_sfov_actual) if _sfov_actual in SFOV_OPCIONES else (2 if len(SFOV_OPCIONES) > 2 else 0)
-                    _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_exp_id}")
+                st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
+                _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
+                _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
 
-                    _grosor_actual = str(_actual.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]))
-                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
-                    _grosor_idx = _grosor_opciones.index(_grosor_actual) if _grosor_actual in _grosor_opciones else (2 if len(_grosor_opciones) > 2 else 0)
-                    _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_exp_id}")
+                _col_ini, _col_fin = st.columns(2)
+                with _col_ini:
+                    _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
+                    _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
+                    _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
+                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
+                with _col_fin:
+                    _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
+                    _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
+                    _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
+                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
 
-                    _col_p, _col_r = st.columns(2)
-                    with _col_p:
-                        if _actual["tipo_exp"] == "HELICOIDAL":
-                            _pitch_actual = _actual.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0])
-                            _pitch_idx = PITCH_OPCIONES.index(_pitch_actual) if _pitch_actual in PITCH_OPCIONES else (6 if len(PITCH_OPCIONES) > 6 else 0)
-                            _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_exp_id}")
-                        else:
-                            _actual["pitch"] = 1.0
-                            st.info("Pitch no aplica")
-                    with _col_r:
-                        _rot_actual = _actual.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0])
-                        _rot_idx = ROT_TUBO.index(_rot_actual) if _rot_actual in ROT_TUBO else (1 if len(ROT_TUBO) > 1 else 0)
-                        _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_exp_id}")
-
-                    _ret_actual = _actual.get("retardo", RETARDOS[0])
-                    _ret_idx = RETARDOS.index(_ret_actual) if _ret_actual in RETARDOS else 0
-                    _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_exp_id}")
-
-                    st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
-                    _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
-                    _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
-
-                    _col_ini, _col_fin = st.columns(2)
-                    with _col_ini:
-                        _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
-                        _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
-                        _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
-                        _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
-                    with _col_fin:
-                        _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
-                        _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
-                        _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
-                        _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
             _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
