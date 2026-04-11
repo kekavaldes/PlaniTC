@@ -2621,6 +2621,19 @@ with tab1b:
                     key="t2_pos_extremidades"
                 )
 
+            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+            _col_t2_pos_sp1, _col_t2_pos_img, _col_t2_pos_sp2 = st.columns([0.18, 0.64, 0.18])
+            with _col_t2_pos_img:
+                imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
+                    topo2_posicion if topo2_posicion else "",
+                    topo2_entrada if topo2_entrada else "",
+                    st.session_state.get("t2pt", None),
+                )
+                if imagen_posicionamiento_t2 is not None:
+                    st.image(str(imagen_posicionamiento_t2), width=220)
+                else:
+                    st.markdown("<div style='height:220px; display:flex; align-items:center; justify-content:center; text-align:center; color:#888;'>Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.</div>", unsafe_allow_html=True)
+
         with col_t2_img:
             def _tubo_to_proy_prev_t2(pos_tubo):
                 if not pos_tubo:
@@ -2637,12 +2650,12 @@ with tab1b:
                 st.markdown(f"""
                 <div style="
                     border: 1px solid #333; border-radius: 8px;
-                    background: #0A0A0A; min-height: 430px;
+                    background: #0A0A0A; min-height: 360px; max-height: 360px;
                     display: flex; flex-direction: column;
                     align-items: center; justify-content: center;
-                    text-align: center; gap: 16px; padding: 1rem;">
+                    text-align: center; gap: 16px; padding: 1rem; width: 100%; box-sizing: border-box;">
                     <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
-                    <div style="color:#333; font-size:0.8rem;">
+                    <div style="color:#888; font-size:0.8rem;">
                         Proyección: {_proy_prev_t2} · Tubo: {st.session_state.get("t2pt", "ARRIBA 0°")}
                     </div>
                 </div>
@@ -2672,18 +2685,6 @@ with tab1b:
                     st.warning(_err_topo_t2 or "No se encontró una imagen de topograma para esta combinación.")
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        _col_t2_pos_sp1, _col_t2_pos_img, _col_t2_pos_sp2 = st.columns([0.18, 0.64, 0.18])
-        with _col_t2_pos_img:
-            imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
-                topo2_posicion if topo2_posicion else "",
-                topo2_entrada if topo2_entrada else "",
-                st.session_state.get("t2pt", None),
-            )
-            if imagen_posicionamiento_t2 is not None:
-                st.image(str(imagen_posicionamiento_t2), width=220)
-            else:
-                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
-
         st.markdown('<div class="section-header">📡 Parámetros Topograma 2</div>', unsafe_allow_html=True)
 
         col_topo2_rango, col_topo2_param = st.columns([0.95, 1.35])
