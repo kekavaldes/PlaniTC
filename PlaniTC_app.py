@@ -3609,12 +3609,33 @@ with tab2:
                 if _actual.get("tipo_exp") is None:
                     _actual["tipo_exp"] = TIPOS_EXPLORACION[0]
 
-                # Fila 2: geometría / detectores
+                # Fila 2: configuración / detectores
                 _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
                 with _row2_icon:
                     st.markdown("<div class='adq-icon-box'>⚙️</div>", unsafe_allow_html=True)
                 with _row2_body:
-                    _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
+                    _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
+
+                    if _actual["tipo_exp"] == "HELICOIDAL":
+                        def _render_dm():
+                            _actual["doble_muestreo"] = selectbox_con_placeholder(
+                                "Doble muestreo (eje Z)",
+                                ["NO", "SI"],
+                                value=_actual.get("doble_muestreo", "NO"),
+                                key=f"dm_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                    else:
+                        _actual["doble_muestreo"] = "NO"
+                        def _render_dm():
+                            st.text_input(
+                                "Doble muestreo (eje Z)",
+                                value="No aplica",
+                                key=f"dm_na_{_exp_id}",
+                                disabled=True,
+                                label_visibility="collapsed"
+                            )
+                    _adq_pair(_c1, "Doble muestreo", _render_dm)
 
                     def _render_confdet():
                         _actual["conf_det"] = selectbox_con_placeholder(
@@ -3624,7 +3645,7 @@ with tab2:
                             key=f"confdet_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c1, "Conf. detectores", _render_confdet)
+                    _adq_pair(_c2, "Conf. detectores", _render_confdet)
 
                     def _render_sfov():
                         _actual["sfov"] = selectbox_con_placeholder(
@@ -3634,7 +3655,7 @@ with tab2:
                             key=f"sfov_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c2, "SFOV", _render_sfov)
+                    _adq_pair(_c3, "SFOV", _render_sfov)
 
                     def _render_tipoexp():
                         _actual["tipo_exp"] = selectbox_con_placeholder(
@@ -3644,7 +3665,7 @@ with tab2:
                             key=f"tipoexp_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c3, "Cobertura-colimación", _render_tipoexp)
+                    _adq_pair(_c4, "Cobertura-colimación", _render_tipoexp)
 
                     _grosor_opciones = [str(g) for g in GROSOR_PROSP]
                     def _render_gpros():
@@ -3655,7 +3676,7 @@ with tab2:
                             key=f"gpros_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c4, "Corte prosp.", _render_gpros)
+                    _adq_pair(_c5, "Corte prosp.", _render_gpros)
 
                 # Fila 3: tiempo / exploración
                 _row3_icon, _row3_body = st.columns([0.12, 1], gap="small")
@@ -3709,33 +3730,27 @@ with tab2:
                         )
                     _adq_pair(_c4, "Instrucción voz", _render_voz)
 
-                # Rango de exploración compacto
+                # Fila 4: rango de exploración
                 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
                 _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
                 _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
-                _r1, _r2, _r3, _r4 = st.columns(4, gap="small")
-                _adq_pair(_r1, "Inicio exploración", lambda: _actual.__setitem__("inicio_ref", selectbox_con_placeholder(
-                    "Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}", label_visibility="collapsed"
-                )))
-                _adq_pair(_r2, "mm inicio", lambda: _actual.__setitem__("ini_mm", st.number_input(
-                    "mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}", label_visibility="collapsed"
-                )))
-                _adq_pair(_r3, "Fin exploración", lambda: _actual.__setitem__("fin_ref", selectbox_con_placeholder(
-                    "Fin exploración", _refs_fin_lista, value=_actual.get("fin_ref", _refs_fin_lista[0]), key=f"finref_{_exp_id}", label_visibility="collapsed"
-                )))
-                _adq_pair(_r4, "mm fin", lambda: _actual.__setitem__("fin_mm", st.number_input(
-                    "mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}", label_visibility="collapsed"
-                )))
-
-                if _actual["tipo_exp"] == "HELICOIDAL":
-                    _actual["doble_muestreo"] = selectbox_con_placeholder(
-                        "Doble muestreo (eje Z)",
-                        ["NO", "SI"],
-                        value=_actual.get("doble_muestreo", "NO"),
-                        key=f"dm_{_exp_id}",
-                    )
-                else:
-                    _actual["doble_muestreo"] = "NO"
+                _row4_icon, _row4_body = st.columns([0.12, 1], gap="small")
+                with _row4_icon:
+                    st.markdown("<div class='adq-icon-box'>📏</div>", unsafe_allow_html=True)
+                with _row4_body:
+                    _r1, _r2, _r3, _r4 = st.columns(4, gap="small")
+                    _adq_pair(_r1, "Inicio exploración", lambda: _actual.__setitem__("inicio_ref", selectbox_con_placeholder(
+                        "Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}", label_visibility="collapsed"
+                    )))
+                    _adq_pair(_r2, "mm inicio", lambda: _actual.__setitem__("ini_mm", st.number_input(
+                        "mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}", label_visibility="collapsed"
+                    )))
+                    _adq_pair(_r3, "Fin exploración", lambda: _actual.__setitem__("fin_ref", selectbox_con_placeholder(
+                        "Fin exploración", _refs_fin_lista, value=_actual.get("fin_ref", _refs_fin_lista[0]), key=f"finref_{_exp_id}", label_visibility="collapsed"
+                    )))
+                    _adq_pair(_r4, "mm fin", lambda: _actual.__setitem__("fin_mm", st.number_input(
+                        "mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}", label_visibility="collapsed"
+                    )))
 
                 st.markdown("</div>", unsafe_allow_html=True)
             _kvp = _actual.get("kvp", 120)
