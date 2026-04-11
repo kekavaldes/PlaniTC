@@ -3113,10 +3113,10 @@ with tab2:
                         color=_color_exp,
                         show_labels=False,
                         roi_label="ROI",
-                        canvas_css_width=470 if len(_topos_adq) == 1 else 430,
-                        canvas_css_height=370 if len(_topos_adq) == 1 else 308,
-                        canvas_width=860,
-                        canvas_height=640,
+                        canvas_css_width=520 if len(_topos_adq) == 1 else 500,
+                        canvas_css_height=390 if len(_topos_adq) == 1 else 340,
+                        canvas_width=980,
+                        canvas_height=720,
                     )
 
                 if _html_topos_adq:
@@ -3127,14 +3127,14 @@ with tab2:
                         with _col_topo2_bolus:
                             st.components.v1.html(_html_topo2_bolus, height=420)
                         with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=500)
+                            st.components.v1.html(_html_roi_corte, height=540)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     elif _es_bolus and _html_roi_corte:
                         _col_topo_bolus, _col_roi_bolus = st.columns([0.88, 1.92], gap="medium")
                         with _col_topo_bolus:
                             st.components.v1.html(_html_topos_adq, height=560)
                         with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=500 if len(_topos_adq) > 1 else 590)
+                            st.components.v1.html(_html_roi_corte, height=540 if len(_topos_adq) > 1 else 620)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
                         st.components.v1.html(_html_topos_adq, height=790 if len(_topos_adq) > 1 else 590)
