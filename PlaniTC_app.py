@@ -2232,10 +2232,10 @@ with tab1:
                 )
 
 with tab1b:
-    col_top_info1, col_top_info2 = st.columns([1.3, 1.0])
+    st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
+    col_top_info1, col_top_info2 = st.columns([1.65, 0.8])
 
     with col_top_info1:
-        st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
         region_anat = st.selectbox(
             "Región anatómica",
             [None] + list(REGIONES.keys()),
@@ -2260,23 +2260,29 @@ with tab1b:
         st.session_state["examen"] = examen if examen else ""
 
     with col_top_info2:
-        st.markdown('<div class="section-header">🫀 Región seleccionada</div>', unsafe_allow_html=True)
         if region_anat_seleccionada is None:
             st.markdown("""
-            <div style="color:#555; text-align:center; padding:2rem; border:1px dashed #333;
-                        border-radius:8px; margin-top:1rem;">
-                Selecciona una región anatómica para ver la imagen
+            <div style="color:#555; text-align:center; padding:1rem; border:1px dashed #333;
+                        border-radius:8px; margin-top:0.4rem; min-height:120px; display:flex;
+                        align-items:center; justify-content:center;">
+                Selecciona una región anatómica
             </div>
             """, unsafe_allow_html=True)
         else:
             img_b64 = REGION_IMAGES.get(region_anat_real, None)
             if img_b64:
                 st.markdown(
-                    f"<div style='text-align:center;'><img src='data:image/png;base64,{img_b64}' style='max-width:100%; border-radius:10px; border:1px solid #333;'></div>",
+                    f"<div style='text-align:center; margin-top:0.35rem;'><img src='data:image/png;base64,{img_b64}' style='width:100%; max-width:220px; max-height:150px; object-fit:contain; border-radius:10px; border:1px solid #333;'></div>",
                     unsafe_allow_html=True
                 )
             else:
-                st.info("No hay imagen disponible para esta región.")
+                st.markdown("""
+                <div style="color:#777; text-align:center; padding:1rem; border:1px dashed #333;
+                            border-radius:8px; margin-top:0.4rem; min-height:120px; display:flex;
+                            align-items:center; justify-content:center;">
+                    No hay imagen disponible
+                </div>
+                """, unsafe_allow_html=True)
 
     col_topo_cfg, col_topo_img = st.columns([1, 1])
 
