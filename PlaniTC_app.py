@@ -2422,7 +2422,6 @@ with tab1b:
     col_topo1_rango, col_topo1_param = st.columns([0.95, 1.35])
 
     with col_topo1_rango:
-        st.markdown('<div class="section-header">🎯 Rango Topograma 1</div>', unsafe_allow_html=True)
         col_rt1a, col_rt1b = st.columns(2)
         with col_rt1a:
             st.session_state["topo1_inicio_ref_global"] = selectbox_con_placeholder(
@@ -2636,7 +2635,6 @@ with tab1b:
             col_topo2_rango, col_topo2_param = st.columns([0.95, 1.35])
 
             with col_topo2_rango:
-                st.markdown('<div class="section-header">🎯 Rango Topograma 2</div>', unsafe_allow_html=True)
                 col_rt2a, col_rt2b = st.columns(2)
                 with col_rt2a:
                     st.session_state["topo2_inicio_ref_global"] = selectbox_con_placeholder(
