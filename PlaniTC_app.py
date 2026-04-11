@@ -2102,10 +2102,9 @@ def render_clearance_result(clearance):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Tabs principales
-tab0, tab1, tab1b, tab2, tab3, tab4, tab5 = st.tabs([
+tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🏠 Inicio",
     "👤 Ingreso",
-    "📡 Topograma",
     "⚡ Adquisición",
     "🔄 Reconstrucción",
     "💉 Jeringa Inyectora",
@@ -2276,7 +2275,7 @@ with tab1:
                     format_func=lambda x: "Seleccionar" if x is None else x
                 )
 
-with tab1b:
+def render_topograma_panel():
     col_exam_block, col_pos_block, col_topo_img = st.columns([1.05, 1.15, 1.2])
 
     with col_exam_block:
