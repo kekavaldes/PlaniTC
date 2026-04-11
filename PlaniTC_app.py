@@ -185,6 +185,13 @@ st.markdown("""
         border-radius: 6px; font-weight: 600;
         margin: 1rem 0 0.8rem 0; font-size: 1rem;
     }
+    .section-header-compact {
+        font-size: 0.82rem !important;
+        padding: 0.40rem 0.65rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     /* Tarjetas métricas */
     .metric-card {
         background: #1A1A1A; border-left: 4px solid #888888;
@@ -3253,7 +3260,7 @@ with tab2:
                 _col_rangos_topo, _col_generales, _col_conf_tec, _col_mod_corr, _col_rango_exp = st.columns(5, gap="small")
 
                 with _col_rangos_topo:
-                    st.markdown('<div class="section-header">🎯 Rangos de topograma de esta adquisición</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header section-header-compact">🎯 Rangos de topograma de esta adquisición</div>', unsafe_allow_html=True)
                     if _topos_adq:
                         if len(_topos_adq) == 1:
                             _actual["topo1_inicio_ref"] = selectbox_con_placeholder("Inicio Topograma 1", _refs_ini_adq, value=_actual.get("topo1_inicio_ref", _refs_ini_adq[0]), key=f"topo1_iniref_{_exp_id}")
@@ -3275,7 +3282,7 @@ with tab2:
                         st.info("Sin topogramas disponibles.")
 
                 with _col_generales:
-                    st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header section-header-compact">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
                     _actual["tipo_exp"] = selectbox_con_placeholder("Tipo de exploración", TIPOS_EXPLORACION, value=_actual.get("tipo_exp", TIPOS_EXPLORACION[0]), key=f"tipoexp_{_exp_id}")
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         _actual["doble_muestreo"] = selectbox_con_placeholder("Doble muestreo (eje Z)", ["NO", "SI"], value=_actual.get("doble_muestreo", "NO"), key=f"dm_{_exp_id}")
@@ -3285,7 +3292,7 @@ with tab2:
                     _actual["voz_adq"] = selectbox_con_placeholder("Instrucción de voz", INSTRUCCIONES_VOZ, value=_actual.get("voz_adq", INSTRUCCIONES_VOZ[0]), key=f"voz_{_exp_id}")
 
                 with _col_conf_tec:
-                    st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header section-header-compact">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
                     _actual["conf_det"] = selectbox_con_placeholder("Configuración de detectores", CONF_DETECTORES, value=_actual.get("conf_det", CONF_DETECTORES[0]), key=f"confdet_{_exp_id}")
                     _actual["sfov"] = selectbox_con_placeholder("SFOV", SFOV_OPCIONES, value=_actual.get("sfov", SFOV_OPCIONES[0]), key=f"sfov_{_exp_id}")
                     _grosor_opciones = [str(g) for g in GROSOR_PROSP]
@@ -3299,7 +3306,7 @@ with tab2:
                     _actual["retardo"] = selectbox_con_placeholder("Retardo (Delay)", RETARDOS, value=_actual.get("retardo", RETARDOS[0]), key=f"delay_{_exp_id}")
 
                 with _col_mod_corr:
-                    st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header section-header-compact">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
                     _actual["mod_corriente"] = selectbox_con_placeholder("Modulación", MODULACION_CORRIENTE, value=_actual.get("mod_corriente", MODULACION_CORRIENTE[0]), key=f"mod_{_exp_id}")
                     _label_kv = "kV"
                     if _actual["mod_corriente"] == "CARE DOSE 4D":
@@ -3321,7 +3328,7 @@ with tab2:
                         _actual["mas_val"] = selectbox_con_placeholder("mAs", MAS_OPCIONES, value=_actual.get("mas_val", MAS_OPCIONES[0]), key=f"mas_{_exp_id}")
 
                 with _col_rango_exp:
-                    st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header section-header-compact">📍 Rango de Exploración</div>', unsafe_allow_html=True)
                     _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
                     _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
                     _actual["inicio_ref"] = selectbox_con_placeholder("Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}")
