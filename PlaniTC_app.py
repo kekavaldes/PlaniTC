@@ -2416,7 +2416,7 @@ with tab1b:
     st.session_state["t1ma"] = 40
     topo1_kv = 100
     topo1_ma = 40
-    col_t1a, col_t1b = st.columns(2)
+    col_t1a, col_t1b, col_t1c = st.columns(3)
     with col_t1a:
         st.markdown("""
         <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
@@ -2427,7 +2427,6 @@ with tab1b:
         <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
         <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
         """, unsafe_allow_html=True)
-    col_t1c, col_t1d = st.columns(2)
     with col_t1c:
         centro_inicio_topo = st.selectbox(
             "Centraje inicio de topograma",
@@ -2437,15 +2436,34 @@ with tab1b:
             placeholder="Seleccionar",
             key="t1_centraje_inicio"
         )
+
+    col_t1d, col_t1e, col_t1f = st.columns(3)
     with col_t1d:
-        topo1_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                         format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1l")
-    topo1_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                     format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar", key="t1dir")
-    topo1_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                     format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar", key="t1vz")
+        topo1_long = st.selectbox(
+            "Longitud de topograma (mm)",
+            [None] + LONGITUDES_TOPO,
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else str(x),
+            key="t1l"
+        )
+    with col_t1e:
+        topo1_dir = st.selectbox(
+            "Dirección topograma",
+            [None] + DIRECCIONES,
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else x,
+            placeholder="Seleccionar",
+            key="t1dir"
+        )
+    with col_t1f:
+        topo1_voz = st.selectbox(
+            "Instrucción de voz",
+            [None] + INSTRUCCIONES_VOZ,
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else x,
+            placeholder="Seleccionar",
+            key="t1vz"
+        )
 
     aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=st.session_state.get("aplica_topo2", False))
     st.session_state["aplica_topo2"] = aplica_topo2
@@ -2601,21 +2619,40 @@ with tab1b:
                     st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
             st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
-            col_t2a, col_t2b = st.columns(2)
+            col_t2a, col_t2b, col_t2c = st.columns(3)
             with col_t2a:
                 topo2_kv = 100
                 st.text_input("kV", value="100", disabled=True, key="t2kv_fijo")
             with col_t2b:
                 topo2_ma = 40
                 st.text_input("mA", value="40", disabled=True, key="t2ma_fijo")
-            topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                            format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2l")
-            topo2_dir = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                            format_func=lambda x: "Seleccionar" if x is None else x,
-                            placeholder="Seleccionar", key="t2dir")
-            topo2_voz = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                            format_func=lambda x: "Seleccionar" if x is None else x,
-                            placeholder="Seleccionar", key="t2vz")
+            with col_t2c:
+                topo2_long = st.selectbox(
+                    "Longitud de topograma (mm)",
+                    [None] + LONGITUDES_TOPO,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else str(x),
+                    key="t2l"
+                )
+            col_t2d, col_t2e = st.columns(2)
+            with col_t2d:
+                topo2_dir = st.selectbox(
+                    "Dirección topograma",
+                    [None] + DIRECCIONES,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2dir"
+                )
+            with col_t2e:
+                topo2_voz = st.selectbox(
+                    "Instrucción de voz",
+                    [None] + INSTRUCCIONES_VOZ,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2vz"
+                )
 
             st.markdown("---")
 
