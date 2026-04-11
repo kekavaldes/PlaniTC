@@ -2919,6 +2919,19 @@ with tab2:
                 key=f"nombre_{_exp_id}",
             )
 
+            _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
+            _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
+            if _es_bolus:
+                _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
+                _pos_actual = _actual.get("posicion_corte", "BOTON AORTICO")
+                _pos_idx = _posiciones_corte.index(_pos_actual) if _pos_actual in _posiciones_corte else 0
+                _actual["posicion_corte"] = st.selectbox(
+                    "POSICIÓN DE CORTE",
+                    _posiciones_corte,
+                    index=_pos_idx,
+                    key=f"poscorte_{_exp_id}",
+                )
+
             # Mostrar topogramas en Adquisición aunque el flag visual no haya quedado marcado.
             # Se consideran disponibles si fueron iniciados o si ya existe una configuración válida
             # en la pestaña de Topograma.
@@ -3007,8 +3020,6 @@ with tab2:
                     _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topos_adq[1]["inicio_ref"], _topos_adq[1]["inicio_mm"])
                     _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
 
-                _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
-                _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
                 _modo_topograma_adq = "line" if _es_bolus else "rect"
                 _paleta_exp = ["#00D2FF", "#FF7A59", "#6EEB83", "#C084FC", "#FFD166", "#FF4D6D", "#7BDFF2", "#A3E635"]
                 _color_exp = _paleta_exp[(max(1, int(_actual.get("orden", 1))) - 1) % len(_paleta_exp)]
@@ -3052,16 +3063,6 @@ with tab2:
                     else:
                         st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
 
-                    if _es_bolus:
-                        _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
-                        _pos_actual = _actual.get("posicion_corte", "BOTON AORTICO")
-                        _pos_idx = _posiciones_corte.index(_pos_actual) if _pos_actual in _posiciones_corte else 0
-                        _actual["posicion_corte"] = st.selectbox(
-                            "POSICIÓN DE CORTE",
-                            _posiciones_corte,
-                            index=_pos_idx,
-                            key=f"poscorte_{_exp_id}",
-                        )
 
                     st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
                 else:
