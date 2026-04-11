@@ -19,6 +19,28 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
+def _pil_to_b64_jpeg(img, max_width=900):
+    """Convierte una imagen PIL a base64 JPEG para usarla en canvas HTML."""
+    if img is None:
+        return None
+    import io
+    import base64
+    try:
+        im = img.copy()
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        elif im.mode == "L":
+            im = im.convert("RGB")
+        if max_width and im.width > max_width:
+            ratio = max_width / float(im.width)
+            im = im.resize((int(im.width * ratio), int(im.height * ratio)))
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=90)
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
+    except Exception:
+        return None
+
+
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
     return
@@ -540,40 +562,6 @@ def obtener_imagen_posicionamiento_topograma(posicion: str, entrada: str, pos_tu
 
     return None
 
-
-
-# Imágenes de posición de corte para bolus
-DIR_POSICION_CORTE = BASE_DIR / "POSICION DE CORTE"
-ZIP_POSICION_CORTE = BASE_DIR / "POSICION DE CORTE.zip"
-CACHE_POSICION_CORTE = BASE_DIR / "_cache_posicion_corte"
-
-def _asegurar_posicion_corte_extraida():
-    try:
-        if DIR_POSICION_CORTE.exists() and any(DIR_POSICION_CORTE.iterdir()):
-            return DIR_POSICION_CORTE
-        if ZIP_POSICION_CORTE.exists():
-            CACHE_POSICION_CORTE.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(ZIP_POSICION_CORTE, 'r') as zf:
-                zf.extractall(CACHE_POSICION_CORTE)
-            interna = CACHE_POSICION_CORTE / "POSICION DE CORTE"
-            if interna.exists():
-                return interna
-    except Exception:
-        return None
-    return DIR_POSICION_CORTE if DIR_POSICION_CORTE.exists() else None
-
-def obtener_imagen_posicion_corte(nombre_posicion):
-    if not nombre_posicion:
-        return None
-    carpeta = _asegurar_posicion_corte_extraida()
-    if carpeta is None or not Path(carpeta).exists():
-        return None
-    objetivo = normalizar_nombre_archivo_topograma(str(nombre_posicion))
-    for ruta in Path(carpeta).glob('*'):
-        if ruta.is_file() and ruta.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp'}:
-            if normalizar_nombre_archivo_topograma(ruta.stem) == objetivo:
-                return ruta
-    return None
 
 # Adquisición
 TIPOS_EXPLORACION = ["HELICOIDAL", "SECUENCIAL CONTIGUO", "SECUENCIAL ESPACIADO"]
@@ -1118,37 +1106,45 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
 
 
 
-
-def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key=None, color="#00D2FF", show_labels=False, show_titles=True, show_subtitles=True):
+def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key="global"):
     """
-    modo="rect" -> rectángulo movible y redimensionable
-    modo="line" -> línea horizontal única movible
-    modo="roi"  -> círculo movible y redimensionable
+    Renderiza uno o dos topogramas con interacción independiente por imagen.
+    - modo="rect": muestra un rectángulo movible y redimensionable.
+    - modo="line": muestra una sola línea horizontal movible para simular un único corte.
     """
     if not topos:
         return None
 
-    multiple = len(topos) > 1
-    if modo == "roi":
-        canvas_css_width = 300 if multiple else 360
-        canvas_css_height = 300 if multiple else 360
-        canvas_width = 560
-        canvas_height = 560
-    else:
-        canvas_css_width = 227 if multiple else 307
-        canvas_css_height = 333 if multiple else 387
-        canvas_width = 420
-        canvas_height = 640
+    modo = "line" if str(modo).lower() == "line" else "rect"
+    es_linea = modo == "line"
+    storage_key = str(storage_key or "global")
+
+    palette = [
+        {"stroke": "#00D2FF", "fill": "rgba(0, 210, 255, 0.14)", "handle": "#FFD700", "label": "Celeste"},
+        {"stroke": "#8B5CF6", "fill": "rgba(139, 92, 246, 0.16)", "handle": "#F59E0B", "label": "Violeta"},
+        {"stroke": "#22C55E", "fill": "rgba(34, 197, 94, 0.16)", "handle": "#FACC15", "label": "Verde"},
+        {"stroke": "#FF6B6B", "fill": "rgba(255, 107, 107, 0.16)", "handle": "#FFE066", "label": "Coral"},
+        {"stroke": "#F97316", "fill": "rgba(249, 115, 22, 0.16)", "handle": "#FDE047", "label": "Naranja"},
+        {"stroke": "#14B8A6", "fill": "rgba(20, 184, 166, 0.16)", "handle": "#FDE68A", "label": "Turquesa"},
+    ]
+
+    color_index = sum(ord(ch) for ch in storage_key) % len(palette)
+    color_cfg = palette[color_index]
+
+    canvas_css_width = 227 if len(topos) > 1 else 307
+    canvas_css_height = 333 if len(topos) > 1 else 387
+    canvas_width = 420
+    canvas_height = 640
     min_col_width = canvas_css_width
 
     cols_html = []
     topo_payload = []
-    fill_color = "rgba(0, 210, 255, 0.18)"
 
     for i, topo in enumerate(topos):
         img_b64 = topo.get("img_b64")
         if not img_b64:
             continue
+
         titulo = topo.get("titulo", f"Topograma {i+1}")
         subtitulo = topo.get("subtitulo", "")
         inicio_ref = topo.get("inicio_ref", "—")
@@ -1157,6 +1153,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         fin_mm = topo.get("fin_mm", 0)
         y_ini = topo.get("y_ini", get_y_position_with_offset(inicio_ref, inicio_mm))
         y_fin = topo.get("y_fin", get_y_position_with_offset(fin_ref, fin_mm))
+
         y1 = max(0.05, min(y_ini, y_fin))
         y2 = min(0.95, max(y_ini, y_fin))
         rect_h = max(0.10, y2 - y1)
@@ -1164,110 +1161,404 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         rect_x = 0.22
         rect_w = 0.56
         line_y = max(0.04, min(0.96, (y_ini + y_fin) / 2 if (y_ini is not None and y_fin is not None) else 0.5))
-        circle_x = topo.get("circle_x", 0.5)
-        circle_y = topo.get("circle_y", 0.5)
-        circle_r = topo.get("circle_r", 0.08)
+        info_html = ""
 
-        title_html = f'<div style="font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;">{titulo}</div>' if show_titles else ''
-        subtitle_html = f'<div style="margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:18px;">{subtitulo}</div>' if show_subtitles and subtitulo else ''
-        labels_html = ''
-        if show_labels:
-            labels_html = (
-                f'<div style="margin-top:4px; font-size:13px; color:#fff; text-align:center; line-height:1.45;">'
-                f'Campo: <b id="lblSizeInd{i}">—</b>&nbsp;&nbsp;|&nbsp;&nbsp;Centro: <b id="lblCenterInd{i}">—</b><br>'
-                f'Alto aprox.: <b id="lblHeightInd{i}">—</b> mm&nbsp;&nbsp;|&nbsp;&nbsp;Ancho aprox.: <b id="lblWidthInd{i}">—</b> %'
-                f'</div>'
-            )
-
-        cols_html.append(
-            f'<div style="flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;">'
-            f'{title_html}'
-            f'<canvas id="topoCanvasInd{i}" width="{canvas_width}" height="{canvas_height}" style="width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:{'ns-resize' if modo == 'line' else 'grab'}; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto; touch-action:none;"></canvas>'
-            f'{subtitle_html}{labels_html}</div>'
-        )
+        cols_html.append(f"""
+        <div style=\"flex:0 0 {canvas_css_width}px; width:{canvas_css_width}px; min-width:{min_col_width}px; max-width:{canvas_css_width}px;\">
+          <div style=\"font-size:16px;font-weight:700;color:#fff;margin:0 0 6px 0;text-align:center;\">{titulo}</div>
+          <canvas id=\"topoCanvasInd{i}\" width=\"{canvas_width}\" height=\"{canvas_height}\"
+            style=\"width:{canvas_css_width}px; height:{canvas_css_height}px; cursor:{'ns-resize' if es_linea else 'grab'}; border:1px solid #444; border-radius:8px; background:#000; display:block; margin:0 auto; touch-action:none;\"></canvas>
+          <div style=\"margin-top:6px; font-size:12px; color:#ccc; text-align:center; min-height:32px;\">{subtitulo}</div>
+          {info_html}
+        </div>
+        """)
 
         topo_payload.append({
-            "img_b64": img_b64, "rect_x": rect_x, "rect_y": rect_y, "rect_w": rect_w, "rect_h": rect_h,
-            "line_y": line_y, "circle_x": circle_x, "circle_y": circle_y, "circle_r": circle_r,
-            "stroke": color, "fill": fill_color, "handle": color,
+            "img_b64": img_b64,
+            "rect_x": rect_x,
+            "rect_y": rect_y,
+            "rect_w": rect_w,
+            "rect_h": rect_h,
+            "line_y": line_y,
+            "stroke": color_cfg["stroke"],
+            "fill": color_cfg["fill"],
+            "handle": color_cfg["handle"],
+            "color_label": color_cfg["label"],
         })
 
     if not cols_html:
         return None
 
     instruccion = (
-        "Arrastra la línea para ubicar el corte único en cada topograma." if modo == "line" else
-        "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño." if modo == "roi" else
+        "Arrastra la línea para ubicar el corte único en cada topograma."
+        if es_linea else
         "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño en cada topograma."
     )
-    topo_json = json.dumps(topo_payload)
-    mode_json = json.dumps(modo)
-    storage_json = json.dumps(storage_key or "default")
-    show_labels_json = json.dumps(show_labels)
-    html = f'''<div style="text-align:center; margin:0;"><div style="display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;">{instruccion}</div><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;">{''.join(cols_html)}</div></div>
+
+    html = f"""
+<div style=\"text-align:center; margin:0 0 0 0;\">
+  <div style=\"display:inline-block; font-size:11px; color:#aaa; margin-bottom:2px;\">
+    {instruccion}
+  </div>
+  <div style=\"display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; justify-content:center; margin-bottom:0;\">
+    {''.join(cols_html)}
+  </div>
+</div>
 <script>
 (function() {{
-  var topoData = {topo_json};
-  var mode = {mode_json};
-  var storageKey = {storage_json};
-  var showLabels = {show_labels_json};
+  var topoData = {json.dumps(topo_payload)};
+  var mode = {json.dumps(modo)};
+  var storageKey = {json.dumps(storage_key)};
+
   topoData.forEach(function(data, idx) {{
     var canvas = document.getElementById('topoCanvasInd' + idx);
     if (!canvas) return;
+
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
-    var rectState = {{x:data.rect_x, y:data.rect_y, w:data.rect_w, h:data.rect_h}};
-    var lineState = {{y:data.line_y}};
-    var circleState = {{x:data.circle_x, y:data.circle_y, r:data.circle_r}};
-    var persistKey = 'planitc_interactivo_' + storageKey + '_' + idx + '_' + mode;
-    var dragMode = null, dragOffsetX = 0, dragOffsetY = 0;
-    var handleSize = 18, minW = 0.12, minH = 0.10, minR = 0.03;
+    var rectState = {{
+      x: data.rect_x,
+      y: data.rect_y,
+      w: data.rect_w,
+      h: data.rect_h
+    }};
+    var lineState = {{ y: data.line_y }};
+    var styleState = {{
+      stroke: data.stroke,
+      fill: data.fill,
+      handle: data.handle
+    }};
+    var persistKey = 'planitc_topograma_' + storageKey + '_' + idx + '_' + mode;
+
+    var dragMode = null;
+    var dragOffsetX = 0;
+    var dragOffsetY = 0;
+    var handleSize = 18;
+    var minW = 0.12;
+    var minH = 0.10;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
+
     function loadPersistedState() {{
       try {{
-        var raw = window.localStorage.getItem(persistKey); if (!raw) return;
+        var raw = window.localStorage.getItem(persistKey);
+        if (!raw) return;
         var saved = JSON.parse(raw);
-        if (mode === 'line' && typeof saved.line_y === 'number') lineState.y = saved.line_y;
-        if (mode === 'roi') {{ if (typeof saved.circle_x === 'number') circleState.x = saved.circle_x; if (typeof saved.circle_y === 'number') circleState.y = saved.circle_y; if (typeof saved.circle_r === 'number') circleState.r = saved.circle_r; }}
-        if (mode === 'rect') {{ if (typeof saved.rect_x === 'number') rectState.x = saved.rect_x; if (typeof saved.rect_y === 'number') rectState.y = saved.rect_y; if (typeof saved.rect_w === 'number') rectState.w = saved.rect_w; if (typeof saved.rect_h === 'number') rectState.h = saved.rect_h; }}
-      }} catch (e) {{}}
+        if (mode === 'line') {{
+          if (typeof saved.line_y === 'number') lineState.y = saved.line_y;
+        }} else {{
+          if (typeof saved.rect_x === 'number') rectState.x = saved.rect_x;
+          if (typeof saved.rect_y === 'number') rectState.y = saved.rect_y;
+          if (typeof saved.rect_w === 'number') rectState.w = saved.rect_w;
+          if (typeof saved.rect_h === 'number') rectState.h = saved.rect_h;
+        }}
+      }} catch (err) {{
+        console.warn('No se pudo recuperar estado del topograma', err);
+      }}
     }}
+
     function savePersistedState() {{
       try {{
-        var payload = mode === 'line' ? {{line_y: lineState.y}} : (mode === 'roi' ? {{circle_x: circleState.x, circle_y: circleState.y, circle_r: circleState.r}} : {{rect_x: rectState.x, rect_y: rectState.y, rect_w: rectState.w, rect_h: rectState.h}});
+        var payload = mode === 'line'
+          ? {{ line_y: lineState.y }}
+          : {{
+              rect_x: rectState.x,
+              rect_y: rectState.y,
+              rect_w: rectState.w,
+              rect_h: rectState.h
+            }};
         window.localStorage.setItem(persistKey, JSON.stringify(payload));
-      }} catch (e) {{}}
+      }} catch (err) {{
+        console.warn('No se pudo guardar estado del topograma', err);
+      }}
     }}
+
     loadPersistedState();
-    function clampRect() {{ rectState.w = Math.max(minW, Math.min(0.92, rectState.w)); rectState.h = Math.max(minH, Math.min(0.92, rectState.h)); rectState.x = Math.max(0.02, Math.min(0.98 - rectState.w, rectState.x)); rectState.y = Math.max(0.02, Math.min(0.98 - rectState.h, rectState.y)); }}
-    function clampLine() {{ lineState.y = Math.max(0.03, Math.min(0.97, lineState.y)); }}
-    function clampCircle() {{ circleState.r = Math.max(minR, Math.min(0.42, circleState.r)); circleState.x = Math.max(circleState.r, Math.min(1 - circleState.r, circleState.x)); circleState.y = Math.max(circleState.r, Math.min(1 - circleState.r, circleState.y)); }}
-    function getRectPx() {{ return {{x: rectState.x*W, y: rectState.y*H, w: rectState.w*W, h: rectState.h*H}}; }}
-    function getLinePx() {{ return lineState.y * H; }}
-    function getCirclePx() {{ return {{x: circleState.x*W, y: circleState.y*H, r: circleState.r*Math.min(W,H)}}; }}
-    function isInResizeHandle(mx,my,rp) {{ return mx >= rp.x+rp.w-handleSize && mx <= rp.x+rp.w+4 && my >= rp.y+rp.h-handleSize && my <= rp.y+rp.h+4; }}
-    function isInsideRect(mx,my,rp) {{ return mx >= rp.x && mx <= rp.x+rp.w && my >= rp.y && my <= rp.y+rp.h; }}
-    function isOnLine(my, lineY) {{ return Math.abs(my-lineY) <= 12; }}
-    function isInsideCircle(mx,my,cp) {{ return Math.hypot(mx-cp.x, my-cp.y) <= cp.r; }}
-    function isOnCircleHandle(mx,my,cp) {{ return Math.hypot(mx-(cp.x+cp.r), my-cp.y) <= 14; }}
-    function updateLabels() {{ if (!showLabels || mode !== 'rect') return; var lblSize = document.getElementById('lblSizeInd' + idx); var lblCenter = document.getElementById('lblCenterInd' + idx); var lblHeight = document.getElementById('lblHeightInd' + idx); var lblWidth = document.getElementById('lblWidthInd' + idx); var centerX = Math.round((rectState.x + rectState.w / 2) * 100); var centerY = Math.round((rectState.y + rectState.h / 2) * 100); var widthPct = Math.round(rectState.w * 100); var heightMm = Math.round(rectState.h * 600); if (lblSize) lblSize.textContent = widthPct + '% × ' + Math.round(rectState.h * 100) + '%'; if (lblCenter) lblCenter.textContent = 'X ' + centerX + '% · Y ' + centerY + '%'; if (lblHeight) lblHeight.textContent = heightMm; if (lblWidth) lblWidth.textContent = widthPct; }}
-    function draw() {{
-      clampRect(); clampLine(); clampCircle(); ctx.clearRect(0,0,W,H); ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
-      if (img.width && img.height) {{ var scale = Math.min(W / img.width, H / img.height); var drawW = img.width * scale, drawH = img.height * scale; var dx = (W - drawW) / 2, dy = (H - drawH) / 2; ctx.drawImage(img, dx, dy, drawW, drawH); }}
-      if (mode === 'line') {{ var ly = getLinePx(); ctx.strokeStyle = data.stroke; ctx.lineWidth = 4; ctx.setLineDash([12,7]); ctx.beginPath(); ctx.moveTo(W*0.12, ly); ctx.lineTo(W*0.88, ly); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = data.stroke; ctx.beginPath(); ctx.arc(W*0.12, ly, 6, 0, Math.PI*2); ctx.arc(W*0.88, ly, 6, 0, Math.PI*2); ctx.fill(); return; }}
-      if (mode === 'roi') {{ var cp = getCirclePx(); ctx.fillStyle = 'rgba(0, 210, 255, 0.12)'; ctx.beginPath(); ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = data.stroke; ctx.lineWidth = 4; ctx.setLineDash([10,6]); ctx.beginPath(); ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = data.handle; ctx.beginPath(); ctx.arc(cp.x + cp.r, cp.y, 8, 0, Math.PI*2); ctx.fill(); return; }}
-      var rp = getRectPx(); ctx.fillStyle = data.fill; ctx.fillRect(rp.x, rp.y, rp.w, rp.h); ctx.strokeStyle = data.stroke; ctx.lineWidth = 3; ctx.setLineDash([10,6]); ctx.strokeRect(rp.x, rp.y, rp.w, rp.h); ctx.setLineDash([]); ctx.fillStyle = data.handle; ctx.fillRect(rp.x+rp.w-handleSize, rp.y+rp.h-handleSize, handleSize, handleSize); ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.strokeRect(rp.x+rp.w-handleSize, rp.y+rp.h-handleSize, handleSize, handleSize); updateLabels();
+
+    function clampRect() {{
+      rectState.w = Math.max(minW, Math.min(0.92, rectState.w));
+      rectState.h = Math.max(minH, Math.min(0.92, rectState.h));
+      rectState.x = Math.max(0.02, Math.min(0.98 - rectState.w, rectState.x));
+      rectState.y = Math.max(0.02, Math.min(0.98 - rectState.h, rectState.y));
     }}
-    function getMousePos(e) {{ var rect = canvas.getBoundingClientRect(); return {{x:(e.clientX - rect.left) * (W / rect.width), y:(e.clientY - rect.top) * (H / rect.height)}}; }}
-    canvas.addEventListener('mousedown', function(e) {{ var pos = getMousePos(e); if (mode === 'line') {{ if (isOnLine(pos.y, getLinePx())) dragMode = 'line'; return; }} if (mode === 'roi') {{ var cp = getCirclePx(); if (isOnCircleHandle(pos.x,pos.y,cp)) dragMode = 'resize-circle'; else if (isInsideCircle(pos.x,pos.y,cp)) {{ dragMode = 'move-circle'; dragOffsetX = pos.x - cp.x; dragOffsetY = pos.y - cp.y; }} return; }} var rp = getRectPx(); if (isInResizeHandle(pos.x,pos.y,rp)) dragMode = 'resize'; else if (isInsideRect(pos.x,pos.y,rp)) {{ dragMode = 'move'; dragOffsetX = pos.x-rp.x; dragOffsetY = pos.y-rp.y; }} }});
-    canvas.addEventListener('mousemove', function(e) {{ var pos = getMousePos(e); if (!dragMode) return; if (mode === 'line' && dragMode === 'line') {{ lineState.y = pos.y / H; draw(); savePersistedState(); return; }} if (mode === 'roi') {{ var cp = getCirclePx(); if (dragMode === 'move-circle') {{ circleState.x = (pos.x - dragOffsetX) / W; circleState.y = (pos.y - dragOffsetY) / H; }} else if (dragMode === 'resize-circle') {{ circleState.r = Math.hypot(pos.x - cp.x, pos.y - cp.y) / Math.min(W,H); }} draw(); savePersistedState(); return; }} if (dragMode === 'move') {{ rectState.x = (pos.x - dragOffsetX) / W; rectState.y = (pos.y - dragOffsetY) / H; }} else if (dragMode === 'resize') {{ rectState.w = (pos.x / W) - rectState.x; rectState.h = (pos.y / H) - rectState.y; }} draw(); savePersistedState(); }});
-    function endDrag() {{ dragMode = null; }}
-    canvas.addEventListener('mouseup', endDrag); canvas.addEventListener('mouseleave', endDrag); img.onload = function() {{ draw(); }}; if (img.complete) draw();
+
+    function clampLine() {{
+      lineState.y = Math.max(0.03, Math.min(0.97, lineState.y));
+    }}
+
+    function getRectPx() {{
+      return {{
+        x: rectState.x * W,
+        y: rectState.y * H,
+        w: rectState.w * W,
+        h: rectState.h * H
+      }};
+    }}
+
+    function getLinePx() {{
+      return lineState.y * H;
+    }}
+
+    function isInResizeHandle(mx, my, rp) {{
+      return mx >= rp.x + rp.w - handleSize && mx <= rp.x + rp.w + 4 &&
+             my >= rp.y + rp.h - handleSize && my <= rp.y + rp.h + 4;
+    }}
+
+    function isInsideRect(mx, my, rp) {{
+      return mx >= rp.x && mx <= rp.x + rp.w && my >= rp.y && my <= rp.y + rp.h;
+    }}
+
+    function isOnLine(my, lineY) {{
+      return Math.abs(my - lineY) <= 12;
+    }}
+
+    function updateLabels() {{
+      if (mode === 'line') {{
+        var lblLinePos = document.getElementById('lblLinePosInd' + idx);
+        var yPct = Math.round(lineState.y * 100);
+        var yMm = Math.round(lineState.y * 600);
+        if (lblLinePos) lblLinePos.textContent = 'Y ' + yPct + '% · ' + yMm + ' mm';
+        return;
+      }}
+
+      var lblSize = document.getElementById('lblSizeInd' + idx);
+      var lblCenter = document.getElementById('lblCenterInd' + idx);
+      var lblHeight = document.getElementById('lblHeightInd' + idx);
+      var lblWidth = document.getElementById('lblWidthInd' + idx);
+
+      var centerX = Math.round((rectState.x + rectState.w / 2) * 100);
+      var centerY = Math.round((rectState.y + rectState.h / 2) * 100);
+      var widthPct = Math.round(rectState.w * 100);
+      var heightMm = Math.round(rectState.h * 600);
+
+      if (lblSize) lblSize.textContent = widthPct + '% × ' + Math.round(rectState.h * 100) + '%';
+      if (lblCenter) lblCenter.textContent = 'X ' + centerX + '% · Y ' + centerY + '%';
+      if (lblHeight) lblHeight.textContent = heightMm;
+      if (lblWidth) lblWidth.textContent = widthPct;
+    }}
+
+    function draw() {{
+      clampRect();
+      clampLine();
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+
+      if (img.width && img.height) {{
+        var scale = Math.min(W / img.width, H / img.height);
+        var drawW = img.width * scale;
+        var drawH = img.height * scale;
+        var dx = (W - drawW) / 2;
+        var dy = (H - drawH) / 2;
+        ctx.drawImage(img, dx, dy, drawW, drawH);
+      }}
+
+      if (mode === 'line') {{
+        var lineY = getLinePx();
+        ctx.strokeStyle = styleState.stroke;
+        ctx.lineWidth = 4;
+        ctx.setLineDash([12, 7]);
+        ctx.beginPath();
+        ctx.moveTo(W * 0.12, lineY);
+        ctx.lineTo(W * 0.88, lineY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = styleState.stroke;
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('CORTE', W * 0.12 + 6, Math.max(18, lineY - 8));
+
+        ctx.beginPath();
+        ctx.arc(W * 0.12, lineY, 6, 0, Math.PI * 2);
+        ctx.arc(W * 0.88, lineY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        updateLabels();
+        return;
+      }}
+
+      var rp = getRectPx();
+
+      ctx.fillStyle = styleState.fill;
+      ctx.fillRect(rp.x, rp.y, rp.w, rp.h);
+
+      ctx.strokeStyle = styleState.stroke;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 6]);
+      ctx.strokeRect(rp.x, rp.y, rp.w, rp.h);
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = styleState.stroke;
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('SFOV / DFOV', rp.x + 8, Math.max(16, rp.y + 16));
+
+      ctx.fillStyle = styleState.handle;
+      ctx.fillRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
+
+      updateLabels();
+    }}
+
+    function getMousePos(e) {{
+      var rect = canvas.getBoundingClientRect();
+      var scaleX = W / rect.width;
+      var scaleY = H / rect.height;
+      return {{
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      }};
+    }}
+
+    function updateCursor(mx, my) {{
+      if (mode === 'line') {{
+        canvas.style.cursor = isOnLine(my, getLinePx()) ? 'ns-resize' : 'default';
+        return;
+      }}
+
+      var rp = getRectPx();
+      if (isInResizeHandle(mx, my, rp)) canvas.style.cursor = 'nwse-resize';
+      else if (isInsideRect(mx, my, rp)) canvas.style.cursor = 'grab';
+      else canvas.style.cursor = 'default';
+    }}
+
+    canvas.addEventListener('mousedown', function(e) {{
+      var pos = getMousePos(e);
+
+      if (mode === 'line') {{
+        if (isOnLine(pos.y, getLinePx())) {{
+          dragMode = 'line';
+          canvas.style.cursor = 'ns-resize';
+        }}
+        return;
+      }}
+
+      var rp = getRectPx();
+      if (isInResizeHandle(pos.x, pos.y, rp)) {{
+        dragMode = 'resize';
+        canvas.style.cursor = 'nwse-resize';
+      }} else if (isInsideRect(pos.x, pos.y, rp)) {{
+        dragMode = 'move';
+        dragOffsetX = pos.x - rp.x;
+        dragOffsetY = pos.y - rp.y;
+        canvas.style.cursor = 'grabbing';
+      }}
+    }});
+
+    canvas.addEventListener('mousemove', function(e) {{
+      var pos = getMousePos(e);
+      updateCursor(pos.x, pos.y);
+
+      if (!dragMode) return;
+
+      if (mode === 'line' && dragMode === 'line') {{
+        lineState.y = pos.y / H;
+        clampLine();
+        draw();
+        savePersistedState();
+        return;
+      }}
+
+      if (dragMode === 'move') {{
+        rectState.x = (pos.x - dragOffsetX) / W;
+        rectState.y = (pos.y - dragOffsetY) / H;
+      }} else if (dragMode === 'resize') {{
+        rectState.w = (pos.x / W) - rectState.x;
+        rectState.h = (pos.y / H) - rectState.y;
+      }}
+
+      clampRect();
+      draw();
+      savePersistedState();
+    }});
+
+    function endDrag() {{
+      dragMode = null;
+      canvas.style.cursor = mode === 'line' ? 'ns-resize' : 'grab';
+    }}
+
+    canvas.addEventListener('mouseup', endDrag);
+    canvas.addEventListener('mouseleave', endDrag);
+
+    canvas.addEventListener('touchstart', function(e) {{
+      e.preventDefault();
+      var t = e.touches[0];
+      var pos = getMousePos(t);
+
+      if (mode === 'line') {{
+        if (isOnLine(pos.y, getLinePx())) dragMode = 'line';
+        return;
+      }}
+
+      var rp = getRectPx();
+      if (isInResizeHandle(pos.x, pos.y, rp)) {{
+        dragMode = 'resize';
+      }} else if (isInsideRect(pos.x, pos.y, rp)) {{
+        dragMode = 'move';
+        dragOffsetX = pos.x - rp.x;
+        dragOffsetY = pos.y - rp.y;
+      }}
+    }}, {{passive:false}});
+
+    canvas.addEventListener('touchmove', function(e) {{
+      e.preventDefault();
+      if (!dragMode) return;
+
+      var t = e.touches[0];
+      var pos = getMousePos(t);
+
+      if (mode === 'line' && dragMode === 'line') {{
+        lineState.y = pos.y / H;
+        clampLine();
+        draw();
+        savePersistedState();
+        return;
+      }}
+
+      if (dragMode === 'move') {{
+        rectState.x = (pos.x - dragOffsetX) / W;
+        rectState.y = (pos.y - dragOffsetY) / H;
+      }} else if (dragMode === 'resize') {{
+        rectState.w = (pos.x / W) - rectState.x;
+        rectState.h = (pos.y / H) - rectState.y;
+      }}
+
+      clampRect();
+      draw();
+      savePersistedState();
+    }}, {{passive:false}});
+
+    canvas.addEventListener('touchend', endDrag);
+
+    img.onload = function() {{ draw(); }};
+    if (img.complete) draw();
   }});
 }})();
-</script>'''
+</script>
+"""
     return html
+
+
+
+def _pil_to_b64_jpeg(img, max_width=900):
+    """Convierte una imagen PIL a base64 JPEG para usarla en canvas HTML."""
+    if img is None:
+        return None
+    try:
+        im = img.copy()
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        elif im.mode == "L":
+            im = im.convert("RGB")
+        if max_width and im.width > max_width:
+            ratio = max_width / float(im.width)
+            im = im.resize((int(im.width * ratio), int(im.height * ratio)))
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=92)
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
+    except Exception:
+        return None
 
 
 def render_topogramas_programados_interactivos(topos, inicio_ref, fin_ref, width=760):
@@ -2530,14 +2821,6 @@ with tab2:
                 index=_nombre_idx,
                 key=f"nombre_{_exp_id}",
             )
-            _nombre_exp_upper = str(_actual.get("nombre", "")).upper().strip()
-            _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
-            _actual.setdefault("periodo_bolus", "1 sg")
-            _actual.setdefault("n_imagenes_bolus", 15)
-            _actual.setdefault("posicion_corte", "")
-            _actual.setdefault("umbral_bolus", "")
-            _actual["kvp_bolus"] = 100
-            _actual["mas_bolus"] = 20
 
             # Mostrar topogramas en Adquisición aunque el flag visual no haya quedado marcado.
             # Se consideran disponibles si fueron iniciados o si ya existe una configuración válida
@@ -2627,43 +2910,10 @@ with tab2:
                     _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topos_adq[1]["inicio_ref"], _topos_adq[1]["inicio_mm"])
                     _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
 
-                _palette = ["#00D2FF", "#FFB000", "#FF4D6D", "#7CFF6B", "#C77DFF", "#00E5A8"]
-                _exp_num = int(_exp_id.split("_")[-1]) if str(_exp_id).split("_")[-1].isdigit() else 1
-                _color_exploracion = _palette[(_exp_num - 1) % len(_palette)]
-                _html_topos_adq = render_topogramas_independientes_interactivos(
-                    _topos_adq,
-                    modo="line" if _es_bolus else "rect",
-                    storage_key=f"{_exp_id}_topos",
-                    color=_color_exploracion,
-                    show_labels=False,
-                )
-                _html_roi_corte = None
-                _pos_sel = _actual.get("posicion_corte", "")
-                if _es_bolus and _pos_sel:
-                    _ruta_pos = obtener_imagen_posicion_corte(_pos_sel)
-                    if _ruta_pos is not None:
-                        try:
-                            _img_roi = Image.open(_ruta_pos).convert("RGB")
-                            _html_roi_corte = render_topogramas_independientes_interactivos(
-                                [{"img_b64": _pil_to_b64_jpeg(_img_roi), "circle_x": 0.5, "circle_y": 0.5, "circle_r": 0.08}],
-                                modo="roi",
-                                storage_key=f"{_exp_id}_roi_{normalizar_nombre_archivo_topograma(_pos_sel)}",
-                                color=_color_exploracion,
-                                show_labels=False,
-                                show_titles=False,
-                                show_subtitles=False,
-                            )
-                        except Exception:
-                            _html_roi_corte = None
+                _modo_topograma_adq = "line" if "BOLUS TEST" in str(_actual.get("nombre", "")).upper() or "BOLUS TRACKING" in str(_actual.get("nombre", "")).upper() else "rect"
+                _html_topos_adq = render_topogramas_independientes_interactivos(_topos_adq, modo=_modo_topograma_adq, storage_key=_exp_id)
                 if _html_topos_adq:
-                    if _es_bolus and _html_roi_corte:
-                        _col_topo_bolus, _col_roi_bolus = st.columns([1.45, 1.05], gap="medium")
-                        with _col_topo_bolus:
-                            st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
-                        with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=430)
-                    else:
-                        st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
+                    st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
                     st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
                 else:
                     st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
@@ -2675,7 +2925,7 @@ with tab2:
             if not _topos_adq and not _errores_topos_adq:
                 st.info("Aún no hay topogramas disponibles para esta adquisición. Configúralos en la pestaña Topograma.")
 
-            if _topos_adq and not _es_bolus:
+            if _topos_adq:
                 st.markdown('<div class="section-header">🎯 Rangos de topograma de esta adquisición</div>', unsafe_allow_html=True)
                 if len(_topos_adq) == 1:
                     _c_topo = st.columns(1)[0]
