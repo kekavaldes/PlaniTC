@@ -1134,7 +1134,7 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
 
 
 
-def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key=None, color="#00D2FF", show_labels=False, roi_label="ROI"):
+def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key=None, color="#00D2FF", show_labels=False, roi_label="ROI", canvas_css_width=None, canvas_css_height=None, canvas_width=None, canvas_height=None):
     """
     Renderiza uno o más canvas interactivos.
     modo="rect"  -> rectángulo movible y redimensionable
@@ -1145,15 +1145,20 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return None
 
     if modo == "roi":
-        canvas_css_width = 360
-        canvas_css_height = 500
-        canvas_width = 520
-        canvas_height = 760
+        default_canvas_css_width = 360
+        default_canvas_css_height = 500
+        default_canvas_width = 520
+        default_canvas_height = 760
     else:
-        canvas_css_width = 227 if len(topos) > 1 else 307
-        canvas_css_height = 333 if len(topos) > 1 else 387
-        canvas_width = 420
-        canvas_height = 640
+        default_canvas_css_width = 227 if len(topos) > 1 else 307
+        default_canvas_css_height = 333 if len(topos) > 1 else 387
+        default_canvas_width = 420
+        default_canvas_height = 640
+
+    canvas_css_width = canvas_css_width or default_canvas_css_width
+    canvas_css_height = canvas_css_height or default_canvas_css_height
+    canvas_width = canvas_width or default_canvas_width
+    canvas_height = canvas_height or default_canvas_height
     min_col_width = canvas_css_width
 
     cols_html = []
@@ -3026,6 +3031,8 @@ with tab2:
                     storage_key=_exp_id,
                     color=_color_exp,
                     show_labels=False,
+                    canvas_css_width=210 if _es_bolus and len(_topos_adq) > 1 else (292 if _es_bolus else None),
+                    canvas_css_height=308 if _es_bolus and len(_topos_adq) > 1 else (370 if _es_bolus else None),
                 )
                 _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
                 _ruta_posicion_corte = (
@@ -3052,15 +3059,19 @@ with tab2:
                         color=_color_exp,
                         show_labels=False,
                         roi_label="ROI",
+                        canvas_css_width=392,
+                        canvas_css_height=548,
+                        canvas_width=560,
+                        canvas_height=820,
                     )
 
                 if _html_topos_adq:
                     if _es_bolus and _html_roi_corte:
-                        _col_topo_bolus, _col_roi_bolus = st.columns([1.35, 1.15], gap="medium")
+                        _col_topo_bolus, _col_roi_bolus = st.columns([1.22, 1.28], gap="medium")
                         with _col_topo_bolus:
-                            st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
+                            st.components.v1.html(_html_topos_adq, height=470 if len(_topos_adq) > 1 else 560)
                         with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=720)
+                            st.components.v1.html(_html_roi_corte, height=790)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
                         st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
