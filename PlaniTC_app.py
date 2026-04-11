@@ -1386,10 +1386,11 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     }}
 
     function isOnCircleHandle(mx, my, cp) {{
-      var hx = cp.x + cp.r * 0.72;
-      var hy = cp.y + cp.r * 0.72;
-      var circleHandleHit = 7;
-      return Math.abs(mx - hx) <= circleHandleHit && Math.abs(my - hy) <= circleHandleHit;
+      var dx = mx - cp.x;
+      var dy = my - cp.y;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      var edgeTolerance = 10;
+      return Math.abs(dist - cp.r) <= edgeTolerance;
     }}
 
     function updateLabels() {{
@@ -1485,14 +1486,6 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.fillStyle = strokeColor;
       ctx.font = 'bold 12px sans-serif';
       ctx.fillText(roiLabel, Math.max(10, cp.x - cp.r), Math.max(18, cp.y - cp.r - 8));
-      var hx = cp.x + cp.r * 0.72;
-      var hy = cp.y + cp.r * 0.72;
-      var circleHandleVisual = 4;
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(hx - circleHandleVisual, hy - circleHandleVisual, circleHandleVisual * 2, circleHandleVisual * 2);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(hx - circleHandleVisual, hy - circleHandleVisual, circleHandleVisual * 2, circleHandleVisual * 2);
     }}
 
     function draw() {{
