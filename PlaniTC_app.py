@@ -3491,38 +3491,48 @@ with tab2:
                 st.markdown("""
                 <style>
                 .adq-grid-wrap{margin-top:4px;}
-                .adq-row{margin-bottom:10px;}
-                .adq-row:last-child{margin-bottom:6px;}
+                .adq-row{margin-bottom:8px;}
+                .adq-row:last-child{margin-bottom:4px;}
                 .adq-icon-box{
-                    min-height:118px;
+                    min-height:92px;
+                    max-height:92px;
                     display:flex;
                     align-items:center;
                     justify-content:center;
-                    font-size:2.35rem;
+                    font-size:1.45rem;
+                    line-height:1;
                     color:#b8d6e6;
-                    border-radius:14px;
-                    background:rgba(255,255,255,0.04);
-                    border:1px solid rgba(184,214,230,0.18);
+                    border-radius:12px;
+                    background:rgba(255,255,255,0.035);
+                    border:1px solid rgba(184,214,230,0.16);
+                    margin-top:18px;
                 }
                 .adq-pair-label{
                     color:#d8edf7;
-                    font-size:0.74rem;
+                    font-size:0.72rem;
                     font-weight:700;
                     letter-spacing:0.03em;
                     text-transform:uppercase;
                     white-space:nowrap;
                     margin:0 0 4px 2px;
-                    line-height:1.1;
+                    line-height:1.05;
+                    min-height:18px;
+                    display:flex;
+                    align-items:flex-end;
                 }
                 .adq-grid-wrap [data-baseweb="select"] > div,
                 .adq-grid-wrap input{
                     background-color:#6f8fa6 !important;
                     border-radius:10px !important;
                     min-height:38px !important;
+                    height:38px !important;
                 }
                 .adq-grid-wrap [data-baseweb="select"] *{color:white !important;}
                 .adq-grid-wrap input{color:white !important;}
                 .adq-grid-wrap div[data-testid="stHorizontalBlock"]{align-items:stretch;}
+                .adq-grid-wrap div[data-testid="column"] > div[data-testid="stVerticalBlock"]{
+                    height:100%;
+                }
                 </style>
                 """, unsafe_allow_html=True)
 
