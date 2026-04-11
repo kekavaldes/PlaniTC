@@ -2358,13 +2358,21 @@ with tab1b:
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
         refs_inicio_topo = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+        st.session_state["t1kv"] = 100
+        st.session_state["t1ma"] = 40
+        topo1_kv = 100
+        topo1_ma = 40
         col_t1a, col_t1b = st.columns(2)
         with col_t1a:
-            topo1_kv   = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else str(x), placeholder="Seleccionar", key="t1kv")
+            st.markdown("""
+            <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
+            <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
+            """, unsafe_allow_html=True)
         with col_t1b:
-            topo1_ma   = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1ma")
+            st.markdown("""
+            <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
+            <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
+            """, unsafe_allow_html=True)
         col_t1c, col_t1d = st.columns(2)
         with col_t1c:
             centro_inicio_topo = st.selectbox(
@@ -2412,8 +2420,6 @@ with tab1b:
         """, unsafe_allow_html=True)
 
         _topo_campos_completos = all([
-            topo1_kv is not None,
-            topo1_ma is not None,
             topo1_pos is not None,
             topo1_long is not None,
             topo1_dir is not None,
@@ -2422,8 +2428,6 @@ with tab1b:
 
         if not _topo_campos_completos:
             _campos_faltantes = []
-            if topo1_kv   is None: _campos_faltantes.append("kV")
-            if topo1_ma   is None: _campos_faltantes.append("mA")
             if topo1_pos  is None: _campos_faltantes.append("Posición tubo")
             if topo1_long is None: _campos_faltantes.append("Longitud")
             if topo1_dir  is None: _campos_faltantes.append("Dirección")
@@ -2601,11 +2605,11 @@ with tab1b:
             st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
             col_t2a, col_t2b = st.columns(2)
             with col_t2a:
-                topo2_kv = st.selectbox("kV", [None, 70, 80, 100, 120, 140], index=0,
-                                format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2kv")
+                topo2_kv = 100
+                st.text_input("kV", value="100", disabled=True, key="t2kv_fijo")
             with col_t2b:
-                topo2_ma = st.selectbox("mA", [None, 30, 40, 50, 60, 80, 100], index=0,
-                                format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2ma")
+                topo2_ma = 40
+                st.text_input("mA", value="40", disabled=True, key="t2ma_fijo")
             topo2_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
                             format_func=lambda x: "Seleccionar" if x is None else str(x), key="t2l")
             topo2_dir = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
@@ -2618,22 +2622,14 @@ with tab1b:
             st.markdown("---")
 
             _topo2_campos_completos = all([
-                topo2_kv is not None,
-                topo2_ma is not None,
                 topo2_pos is not None,
                 topo2_long is not None,
                 topo2_dir is not None,
                 topo2_voz is not None,
-                topo2_posicion is not None,
-                topo2_entrada is not None,
             ])
 
             if not _topo2_campos_completos:
                 _campos_faltantes_t2 = []
-                if topo2_posicion is None: _campos_faltantes_t2.append("Posición paciente")
-                if topo2_entrada  is None: _campos_faltantes_t2.append("Entrada")
-                if topo2_kv       is None: _campos_faltantes_t2.append("kV")
-                if topo2_ma       is None: _campos_faltantes_t2.append("mA")
                 if topo2_pos      is None: _campos_faltantes_t2.append("Posición tubo")
                 if topo2_long     is None: _campos_faltantes_t2.append("Longitud")
                 if topo2_dir      is None: _campos_faltantes_t2.append("Dirección")
