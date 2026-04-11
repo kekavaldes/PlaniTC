@@ -2156,7 +2156,6 @@ with tab1:
             format="DD/MM/YYYY",
             key="fecha_nacimiento"
         )
-
     edad = calcular_edad(fecha_nacimiento, date.today())
     with col_edad:
         st.text_input(
