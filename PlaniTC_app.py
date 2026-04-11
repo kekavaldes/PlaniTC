@@ -3067,6 +3067,27 @@ with tab2:
                     canvas_css_width=186 if _es_bolus and len(_topos_adq) > 1 else (260 if _es_bolus else None),
                     canvas_css_height=290 if _es_bolus and len(_topos_adq) > 1 else (360 if _es_bolus else None),
                 )
+                _html_topo1_bolus = None
+                _html_topo2_bolus = None
+                if _es_bolus and len(_topos_adq) >= 2:
+                    _html_topo1_bolus = render_topogramas_independientes_interactivos(
+                        [_topos_adq[0]],
+                        modo=_modo_topograma_adq,
+                        storage_key=f"{_exp_id}_topo1",
+                        color=_color_exp,
+                        show_labels=False,
+                        canvas_css_width=182,
+                        canvas_css_height=290,
+                    )
+                    _html_topo2_bolus = render_topogramas_independientes_interactivos(
+                        [_topos_adq[1]],
+                        modo=_modo_topograma_adq,
+                        storage_key=f"{_exp_id}_topo2",
+                        color=_color_exp,
+                        show_labels=False,
+                        canvas_css_width=182,
+                        canvas_css_height=290,
+                    )
                 _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
                 _ruta_posicion_corte = (
                     obtener_imagen_posicion_corte(_posicion_corte_seleccionada)
@@ -3092,17 +3113,26 @@ with tab2:
                         color=_color_exp,
                         show_labels=False,
                         roi_label="ROI",
-                        canvas_css_width=430 if len(_topos_adq) == 1 else 380,
+                        canvas_css_width=470 if len(_topos_adq) == 1 else 430,
                         canvas_css_height=370 if len(_topos_adq) == 1 else 308,
-                        canvas_width=760,
+                        canvas_width=860,
                         canvas_height=640,
                     )
 
                 if _html_topos_adq:
-                    if _es_bolus and _html_roi_corte:
+                    if _es_bolus and _html_roi_corte and _html_topo1_bolus and _html_topo2_bolus and len(_topos_adq) >= 2:
+                        _col_topo1_bolus, _col_topo2_bolus, _col_roi_bolus = st.columns([0.9, 0.9, 1.95], gap="medium")
+                        with _col_topo1_bolus:
+                            st.components.v1.html(_html_topo1_bolus, height=420)
+                        with _col_topo2_bolus:
+                            st.components.v1.html(_html_topo2_bolus, height=420)
+                        with _col_roi_bolus:
+                            st.components.v1.html(_html_roi_corte, height=500)
+                            st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
+                    elif _es_bolus and _html_roi_corte:
                         _col_topo_bolus, _col_roi_bolus = st.columns([0.88, 1.92], gap="medium")
                         with _col_topo_bolus:
-                            st.components.v1.html(_html_topos_adq, height=790 if len(_topos_adq) > 1 else 560)
+                            st.components.v1.html(_html_topos_adq, height=560)
                         with _col_roi_bolus:
                             st.components.v1.html(_html_roi_corte, height=500 if len(_topos_adq) > 1 else 590)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
