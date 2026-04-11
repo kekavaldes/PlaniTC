@@ -2922,9 +2922,11 @@ with tab2:
             _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
             _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
             if _es_bolus:
-                _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
-                _pos_actual = _actual.get("posicion_corte", "BOTON AORTICO")
-                _pos_idx = _posiciones_corte.index(_pos_actual) if _pos_actual in _posiciones_corte else 0
+                _posiciones_corte = ["Seleccionar", "BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
+                _pos_actual = _actual.get("posicion_corte", "Seleccionar")
+                if _pos_actual not in _posiciones_corte:
+                    _pos_actual = "Seleccionar"
+                _pos_idx = _posiciones_corte.index(_pos_actual)
                 _actual["posicion_corte"] = st.selectbox(
                     "POSICIÓN DE CORTE",
                     _posiciones_corte,
@@ -3030,7 +3032,12 @@ with tab2:
                     color=_color_exp,
                     show_labels=False,
                 )
-                _ruta_posicion_corte = obtener_imagen_posicion_corte(_actual.get("posicion_corte", "BOTON AORTICO")) if _es_bolus else None
+                _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
+                _ruta_posicion_corte = (
+                    obtener_imagen_posicion_corte(_posicion_corte_seleccionada)
+                    if _es_bolus and _posicion_corte_seleccionada != "Seleccionar"
+                    else None
+                )
                 _img_pos_corte = None
                 if _ruta_posicion_corte is not None:
                     try:
