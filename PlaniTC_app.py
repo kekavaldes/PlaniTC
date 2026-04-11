@@ -19,28 +19,6 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
-def _pil_to_b64_jpeg(img, max_width=900):
-    """Convierte una imagen PIL a base64 JPEG para usarla en canvas HTML."""
-    if img is None:
-        return None
-    import io
-    import base64
-    try:
-        im = img.copy()
-        if im.mode not in ("RGB", "L"):
-            im = im.convert("RGB")
-        elif im.mode == "L":
-            im = im.convert("RGB")
-        if max_width and im.width > max_width:
-            ratio = max_width / float(im.width)
-            im = im.resize((int(im.width * ratio), int(im.height * ratio)))
-        buf = io.BytesIO()
-        im.save(buf, format="JPEG", quality=90)
-        return base64.b64encode(buf.getvalue()).decode("utf-8")
-    except Exception:
-        return None
-
-
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
     return
