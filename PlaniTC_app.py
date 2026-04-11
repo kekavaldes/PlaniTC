@@ -152,6 +152,18 @@ st.markdown("""
     }
     /* Selectbox flecha */
     .stSelectbox svg { fill: #FFFFFF !important; }
+    /* Mostrar texto completo en selectbox sin puntos suspensivos */
+    .stSelectbox [data-baseweb="select"] span,
+    .stSelectbox [data-baseweb="select"] div {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        line-height: 1.15 !important;
+    }
+    .stSelectbox [data-baseweb="select"] > div {
+        min-height: 3rem !important;
+        align-items: center !important;
+    }
     /* Menu desplegable fondo */
     [data-baseweb="popover"], [data-baseweb="menu"],
     [role="listbox"], [data-baseweb="select"] ul {
@@ -1475,7 +1487,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.setLineDash([]);
       ctx.fillStyle = strokeColor;
       ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('DFOV', rp.x + 8, Math.max(16, rp.y + 16));
+      // Etiqueta DFOV eliminada por solicitud del usuario
     }}
 
     function drawLine() {{
@@ -2884,7 +2896,7 @@ with tab2:
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
         st.session_state["exploracion_adq_activa"] = ids_validos[0]
 
-    col_nav, col_det = st.columns([0.72, 2.58], gap="small")
+    col_nav, col_det = st.columns([0.58, 2.72], gap="small")
 
     with col_nav:
         st.markdown('<div class="section-header">📋 Exploraciones</div>', unsafe_allow_html=True)
@@ -2894,13 +2906,13 @@ with tab2:
             background: #1b1b1b !important;
             color: #ffffff !important;
             border: 1px solid #3a3a3a !important;
-            border-radius: 14px !important;
-            min-height: 42px !important;
-            font-size: 0.96rem !important;
+            border-radius: 12px !important;
+            min-height: 36px !important;
+            font-size: 0.88rem !important;
             font-weight: 600 !important;
             text-align: left !important;
             justify-content: flex-start !important;
-            padding-left: 12px !important;
+            padding: 0.30rem 0.55rem !important;
             box-shadow: none !important;
         }
         div[data-testid="stButton"] button[kind="secondary"]:hover {
@@ -2912,13 +2924,13 @@ with tab2:
             background: linear-gradient(180deg, #0d2f5c 0%, #0a2340 100%) !important;
             color: #ffffff !important;
             border: 1px solid #4da3ff !important;
-            border-radius: 14px !important;
-            min-height: 44px !important;
-            font-size: 0.98rem !important;
+            border-radius: 12px !important;
+            min-height: 38px !important;
+            font-size: 0.90rem !important;
             font-weight: 700 !important;
             text-align: left !important;
             justify-content: flex-start !important;
-            padding-left: 12px !important;
+            padding: 0.30rem 0.55rem !important;
             box-shadow: 0 0 0 1px rgba(77,163,255,0.15) inset !important;
         }
         div[data-testid="stButton"] button[kind="primary"]:hover {
