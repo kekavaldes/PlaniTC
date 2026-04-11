@@ -1318,7 +1318,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     var dragMode = null;
     var dragOffsetX = 0;
     var dragOffsetY = 0;
-    var handleSize = 10;
+    var handleSize = 6;
     var minW = 0.12;
     var minH = 0.10;
     var minR = modo === 'roi' ? 0.004 : 0.05;
@@ -1366,8 +1366,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     }}
 
     function isInResizeHandle(mx, my, rp) {{
-      return mx >= rp.x + rp.w - handleSize && mx <= rp.x + rp.w + 4 &&
-             my >= rp.y + rp.h - handleSize && my <= rp.y + rp.h + 4;
+      var extraHit = 2;
+      return mx >= rp.x + rp.w - handleSize - extraHit && mx <= rp.x + rp.w + extraHit &&
+             my >= rp.y + rp.h - handleSize - extraHit && my <= rp.y + rp.h + extraHit;
     }}
 
     function isInsideRect(mx, my, rp) {{
@@ -2952,11 +2953,10 @@ with tab2:
             _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
             _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
             if _es_bolus:
-                _posiciones_corte = [None, "BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
-                _pos_actual = _actual.get("posicion_corte", "Seleccionar")
+                _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
+                _pos_actual = _actual.get("posicion_corte", None)
                 if _pos_actual not in _posiciones_corte:
-                    _pos_actual = "Seleccionar"
-                _pos_idx = _posiciones_corte.index(_pos_actual)
+                    _pos_actual = None
                 _actual["posicion_corte"] = selectbox_con_placeholder(
                     "POSICIÓN DE CORTE",
                     _posiciones_corte,
@@ -3067,7 +3067,7 @@ with tab2:
                 _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
                 _ruta_posicion_corte = (
                     obtener_imagen_posicion_corte(_posicion_corte_seleccionada)
-                    if _es_bolus and _posicion_corte_seleccionada != "Seleccionar"
+                    if _es_bolus and _posicion_corte_seleccionada not in [None, "Seleccionar", ""]
                     else None
                 )
                 _img_pos_corte = None
