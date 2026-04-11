@@ -2136,14 +2136,17 @@ with tab1:
     if "sexo_clearance" not in st.session_state:
         st.session_state["sexo_clearance"] = None
 
-    col_ingreso_izq, col_ingreso_der = st.columns([1, 1])
+    col_ingreso_izq, col_ingreso_der = st.columns([1, 1], gap="large")
 
     # ── Columna izquierda: Datos del Paciente ──
     with col_ingreso_izq:
         st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
-        nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
 
-        col_fn, col_edad = st.columns(2)
+        col_nombre, _ = st.columns([1, 1])
+        with col_nombre:
+            nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
+
+        col_fn, col_edad, _ = st.columns([1, 1, 0.8])
         with col_fn:
             fecha_nacimiento = st.date_input(
                 "Fecha de nacimiento",
@@ -2161,37 +2164,45 @@ with tab1:
     # ── Columna derecha: Preparación del paciente ──
     with col_ingreso_der:
         st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
-        peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
-        embarazo = st.selectbox(
-            "¿Embarazo?",
-            [None, "SI", "NO", "PROBABLE"],
-            index=0,
-            key="embarazo",
-            format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar"
-        )
-        requiere_creatinina = st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
+
+        prep_col_1, prep_col_2 = st.columns([1, 1], gap="large")
+
+        with prep_col_1:
+            peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
+            embarazo = st.selectbox(
+                "¿Embarazo?",
+                [None, "SI", "NO", "PROBABLE"],
+                index=0,
+                key="embarazo",
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar"
+            )
+            requiere_creatinina = st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
+
+        with prep_col_2:
+            st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
 
         if requiere_creatinina:
-            sexo_clearance = st.selectbox(
-                "Sexo",
-                [None, "Femenino", "Masculino"],
-                index=0,
-                key="sexo_clearance",
-                format_func=lambda x: "Seleccionar" if x is None else x
-            )
-            creatinina_serica = st.number_input(
-                "Creatinina sérica (mg/dL)",
-                min_value=0.1,
-                max_value=20.0,
-                value=1.0,
-                step=0.1,
-                key="creatinina_serica"
-            )
+            col_creat_1, col_creat_2, _ = st.columns([1, 1, 0.8])
+            with col_creat_1:
+                sexo_clearance = st.selectbox(
+                    "Sexo",
+                    [None, "Femenino", "Masculino"],
+                    index=0,
+                    key="sexo_clearance",
+                    format_func=lambda x: "Seleccionar" if x is None else x
+                )
+            with col_creat_2:
+                creatinina_serica = st.number_input(
+                    "Creatinina sérica (mg/dL)",
+                    min_value=0.1,
+                    max_value=20.0,
+                    value=1.0,
+                    step=0.1,
+                    key="creatinina_serica"
+                )
             clearance = calc_clearance_cockcroft_gault(edad, peso, creatinina_serica, sexo_clearance) if sexo_clearance else None
             render_clearance_result(clearance)
-
-        st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
 
         if not st.session_state["contraste_ev"]:
             st.session_state["vvp"] = None
