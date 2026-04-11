@@ -3150,7 +3150,7 @@ with tab2:
                 _cargar_widgets_desde_store(_exp)
             st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
 
-        st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
         if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq", type="secondary"):
             _actual_prev = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state.get("exploracion_adq_activa")), None)
             if _actual_prev is not None:
@@ -3468,17 +3468,17 @@ with tab2:
             else:
                 st.markdown("""
                 <style>
-                .adq-grid-wrap{margin-top:4px;}
-                .adq-row{margin-bottom:10px;}
-                .adq-row:last-child{margin-bottom:6px;}
+                .adq-grid-wrap{margin-top:2px;}
+                .adq-row{margin-bottom:6px;}
+                .adq-row:last-child{margin-bottom:4px;}
                 .adq-icon-box{
-                    min-height:118px;
+                    min-height:78px;
                     display:flex;
                     align-items:center;
                     justify-content:center;
-                    font-size:2.35rem;
+                    font-size:1.35rem;
                     color:#b8d6e6;
-                    border-radius:14px;
+                    border-radius:10px;
                     background:rgba(255,255,255,0.04);
                     border:1px solid rgba(184,214,230,0.18);
                 }
@@ -3731,7 +3731,7 @@ with tab2:
                     _adq_pair(_c4, "Instrucción voz", _render_voz)
 
                 # Fila 4: rango de exploración
-                st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
                 _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
                 _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
                 _row4_icon, _row4_body = st.columns([0.12, 1], gap="small")
