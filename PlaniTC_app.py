@@ -3047,7 +3047,6 @@ with tab2:
                         with _col_topo_bolus:
                             st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
                         with _col_roi_bolus:
-                            st.markdown('<div class="section-header">🎯 Posición de corte</div>', unsafe_allow_html=True)
                             st.components.v1.html(_html_roi_corte, height=720)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
