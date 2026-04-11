@@ -2412,58 +2412,94 @@ with tab1b:
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
     st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
     refs_inicio_topo = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+    _refs_ini_topo_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+    _refs_fin_topo_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
     st.session_state["t1kv"] = 100
     st.session_state["t1ma"] = 40
     topo1_kv = 100
     topo1_ma = 40
-    col_t1a, col_t1b, col_t1c = st.columns(3)
-    with col_t1a:
-        st.markdown("""
-        <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
-        <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
-        """, unsafe_allow_html=True)
-    with col_t1b:
-        st.markdown("""
-        <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
-        <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
-        """, unsafe_allow_html=True)
-    with col_t1c:
-        centro_inicio_topo = st.selectbox(
-            "Centraje inicio de topograma",
-            refs_inicio_topo,
-            index=0,
-            format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar",
-            key="t1_centraje_inicio"
-        )
 
-    col_t1d, col_t1e, col_t1f = st.columns(3)
-    with col_t1d:
-        topo1_long = st.selectbox(
-            "Longitud de topograma (mm)",
-            [None] + LONGITUDES_TOPO,
-            index=0,
-            format_func=lambda x: "Seleccionar" if x is None else str(x),
-            key="t1l"
-        )
-    with col_t1e:
-        topo1_dir = st.selectbox(
-            "Dirección topograma",
-            [None] + DIRECCIONES,
-            index=0,
-            format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar",
-            key="t1dir"
-        )
-    with col_t1f:
-        topo1_voz = st.selectbox(
-            "Instrucción de voz",
-            [None] + INSTRUCCIONES_VOZ,
-            index=0,
-            format_func=lambda x: "Seleccionar" if x is None else x,
-            placeholder="Seleccionar",
-            key="t1vz"
-        )
+    col_topo1_rango, col_topo1_param = st.columns([0.95, 1.35])
+
+    with col_topo1_rango:
+        st.markdown('<div class="section-header">🎯 Rango Topograma 1</div>', unsafe_allow_html=True)
+        col_rt1a, col_rt1b = st.columns(2)
+        with col_rt1a:
+            st.session_state["topo1_inicio_ref_global"] = selectbox_con_placeholder(
+                "Inicio Topograma 1",
+                _refs_ini_topo_cfg,
+                value=st.session_state.get("topo1_inicio_ref_global", _refs_ini_topo_cfg[0]),
+                key="topo1_inicio_ref_global_widget",
+            )
+            st.session_state["topo1_ini_mm_global"] = st.number_input(
+                "mm inicio Topograma 1",
+                value=int(st.session_state.get("topo1_ini_mm_global", 0)),
+                step=10,
+                key="topo1_ini_mm_global_widget",
+            )
+        with col_rt1b:
+            st.session_state["topo1_fin_ref_global"] = selectbox_con_placeholder(
+                "Fin Topograma 1",
+                _refs_fin_topo_cfg,
+                value=st.session_state.get("topo1_fin_ref_global", _refs_fin_topo_cfg[0]),
+                key="topo1_fin_ref_global_widget",
+            )
+            st.session_state["topo1_fin_mm_global"] = st.number_input(
+                "mm fin Topograma 1",
+                value=int(st.session_state.get("topo1_fin_mm_global", 400)),
+                step=10,
+                key="topo1_fin_mm_global_widget",
+            )
+
+    with col_topo1_param:
+        col_t1a, col_t1b, col_t1c = st.columns(3)
+        with col_t1a:
+            st.markdown("""
+            <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
+            <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
+            """, unsafe_allow_html=True)
+        with col_t1b:
+            st.markdown("""
+            <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
+            <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
+            """, unsafe_allow_html=True)
+        with col_t1c:
+            centro_inicio_topo = st.selectbox(
+                "Centraje inicio de topograma",
+                refs_inicio_topo,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="t1_centraje_inicio"
+            )
+
+        col_t1d, col_t1e, col_t1f = st.columns(3)
+        with col_t1d:
+            topo1_long = st.selectbox(
+                "Longitud de topograma (mm)",
+                [None] + LONGITUDES_TOPO,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else str(x),
+                key="t1l"
+            )
+        with col_t1e:
+            topo1_dir = st.selectbox(
+                "Dirección topograma",
+                [None] + DIRECCIONES,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="t1dir"
+            )
+        with col_t1f:
+            topo1_voz = st.selectbox(
+                "Instrucción de voz",
+                [None] + INSTRUCCIONES_VOZ,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="t1vz"
+            )
 
     aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=st.session_state.get("aplica_topo2", False))
     st.session_state["aplica_topo2"] = aplica_topo2
@@ -2523,36 +2559,6 @@ with tab1b:
             st.session_state["topograma_iniciado"] = False
             st.rerun()
 
-    st.markdown('<div class="section-header">🎯 Rango Topograma 1</div>', unsafe_allow_html=True)
-    _refs_ini_topo_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-    _refs_fin_topo_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
-    col_rt1a, col_rt1b = st.columns(2)
-    with col_rt1a:
-        st.session_state["topo1_inicio_ref_global"] = selectbox_con_placeholder(
-            "Inicio Topograma 1",
-            _refs_ini_topo_cfg,
-            value=st.session_state.get("topo1_inicio_ref_global", _refs_ini_topo_cfg[0]),
-            key="topo1_inicio_ref_global_widget",
-        )
-        st.session_state["topo1_ini_mm_global"] = st.number_input(
-            "mm inicio Topograma 1",
-            value=int(st.session_state.get("topo1_ini_mm_global", 0)),
-            step=10,
-            key="topo1_ini_mm_global_widget",
-        )
-    with col_rt1b:
-        st.session_state["topo1_fin_ref_global"] = selectbox_con_placeholder(
-            "Fin Topograma 1",
-            _refs_fin_topo_cfg,
-            value=st.session_state.get("topo1_fin_ref_global", _refs_fin_topo_cfg[0]),
-            key="topo1_fin_ref_global_widget",
-        )
-        st.session_state["topo1_fin_mm_global"] = st.number_input(
-            "mm fin Topograma 1",
-            value=int(st.session_state.get("topo1_fin_mm_global", 400)),
-            step=10,
-            key="topo1_fin_mm_global_widget",
-        )
 
     if aplica_topo2:
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
@@ -2620,58 +2626,94 @@ with tab1b:
 
             st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
             refs_inicio_topo2 = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+            _refs_ini_topo2_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+            _refs_fin_topo2_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
             st.session_state["t2kv"] = 100
             st.session_state["t2ma"] = 40
             topo2_kv = 100
             topo2_ma = 40
-            col_t2a, col_t2b, col_t2c = st.columns(3)
-            with col_t2a:
-                st.markdown("""
-                <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
-                <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
-                """, unsafe_allow_html=True)
-            with col_t2b:
-                st.markdown("""
-                <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
-                <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
-                """, unsafe_allow_html=True)
-            with col_t2c:
-                centro_inicio_topo2 = st.selectbox(
-                    "Centraje inicio de topograma",
-                    refs_inicio_topo2,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2_centraje_inicio"
-                )
 
-            col_t2d, col_t2e, col_t2f = st.columns(3)
-            with col_t2d:
-                topo2_long = st.selectbox(
-                    "Longitud de topograma (mm)",
-                    [None] + LONGITUDES_TOPO,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else str(x),
-                    key="t2l"
-                )
-            with col_t2e:
-                topo2_dir = st.selectbox(
-                    "Dirección topograma",
-                    [None] + DIRECCIONES,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2dir"
-                )
-            with col_t2f:
-                topo2_voz = st.selectbox(
-                    "Instrucción de voz",
-                    [None] + INSTRUCCIONES_VOZ,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t2vz"
-                )
+            col_topo2_rango, col_topo2_param = st.columns([0.95, 1.35])
+
+            with col_topo2_rango:
+                st.markdown('<div class="section-header">🎯 Rango Topograma 2</div>', unsafe_allow_html=True)
+                col_rt2a, col_rt2b = st.columns(2)
+                with col_rt2a:
+                    st.session_state["topo2_inicio_ref_global"] = selectbox_con_placeholder(
+                        "Inicio Topograma 2",
+                        _refs_ini_topo2_cfg,
+                        value=st.session_state.get("topo2_inicio_ref_global", _refs_ini_topo2_cfg[0]),
+                        key="topo2_inicio_ref_global_widget",
+                    )
+                    st.session_state["topo2_ini_mm_global"] = st.number_input(
+                        "mm inicio Topograma 2",
+                        value=int(st.session_state.get("topo2_ini_mm_global", 0)),
+                        step=10,
+                        key="topo2_ini_mm_global_widget",
+                    )
+                with col_rt2b:
+                    st.session_state["topo2_fin_ref_global"] = selectbox_con_placeholder(
+                        "Fin Topograma 2",
+                        _refs_fin_topo2_cfg,
+                        value=st.session_state.get("topo2_fin_ref_global", _refs_fin_topo2_cfg[0]),
+                        key="topo2_fin_ref_global_widget",
+                    )
+                    st.session_state["topo2_fin_mm_global"] = st.number_input(
+                        "mm fin Topograma 2",
+                        value=int(st.session_state.get("topo2_fin_mm_global", 400)),
+                        step=10,
+                        key="topo2_fin_mm_global_widget",
+                    )
+
+            with col_topo2_param:
+                col_t2a, col_t2b, col_t2c = st.columns(3)
+                with col_t2a:
+                    st.markdown("""
+                    <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
+                    <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
+                    """, unsafe_allow_html=True)
+                with col_t2b:
+                    st.markdown("""
+                    <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
+                    <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
+                    """, unsafe_allow_html=True)
+                with col_t2c:
+                    centro_inicio_topo2 = st.selectbox(
+                        "Centraje inicio de topograma",
+                        refs_inicio_topo2,
+                        index=0,
+                        format_func=lambda x: "Seleccionar" if x is None else x,
+                        placeholder="Seleccionar",
+                        key="t2_centraje_inicio"
+                    )
+
+                col_t2d, col_t2e, col_t2f = st.columns(3)
+                with col_t2d:
+                    topo2_long = st.selectbox(
+                        "Longitud de topograma (mm)",
+                        [None] + LONGITUDES_TOPO,
+                        index=0,
+                        format_func=lambda x: "Seleccionar" if x is None else str(x),
+                        key="t2l"
+                    )
+                with col_t2e:
+                    topo2_dir = st.selectbox(
+                        "Dirección topograma",
+                        [None] + DIRECCIONES,
+                        index=0,
+                        format_func=lambda x: "Seleccionar" if x is None else x,
+                        placeholder="Seleccionar",
+                        key="t2dir"
+                    )
+                with col_t2f:
+                    topo2_voz = st.selectbox(
+                        "Instrucción de voz",
+                        [None] + INSTRUCCIONES_VOZ,
+                        index=0,
+                        format_func=lambda x: "Seleccionar" if x is None else x,
+                        placeholder="Seleccionar",
+                        key="t2vz"
+                    )
 
             st.markdown("---")
 
@@ -2707,36 +2749,6 @@ with tab1b:
                     st.session_state["topograma2_iniciado"] = False
                     st.rerun()
 
-            st.markdown('<div class="section-header">🎯 Rango Topograma 2</div>', unsafe_allow_html=True)
-            _refs_ini_topo2_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-            _refs_fin_topo2_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
-            col_rt2a, col_rt2b = st.columns(2)
-            with col_rt2a:
-                st.session_state["topo2_inicio_ref_global"] = selectbox_con_placeholder(
-                    "Inicio Topograma 2",
-                    _refs_ini_topo2_cfg,
-                    value=st.session_state.get("topo2_inicio_ref_global", _refs_ini_topo2_cfg[0]),
-                    key="topo2_inicio_ref_global_widget",
-                )
-                st.session_state["topo2_ini_mm_global"] = st.number_input(
-                    "mm inicio Topograma 2",
-                    value=int(st.session_state.get("topo2_ini_mm_global", 0)),
-                    step=10,
-                    key="topo2_ini_mm_global_widget",
-                )
-            with col_rt2b:
-                st.session_state["topo2_fin_ref_global"] = selectbox_con_placeholder(
-                    "Fin Topograma 2",
-                    _refs_fin_topo2_cfg,
-                    value=st.session_state.get("topo2_fin_ref_global", _refs_fin_topo2_cfg[0]),
-                    key="topo2_fin_ref_global_widget",
-                )
-                st.session_state["topo2_fin_mm_global"] = st.number_input(
-                    "mm fin Topograma 2",
-                    value=int(st.session_state.get("topo2_fin_mm_global", 400)),
-                    step=10,
-                    key="topo2_fin_mm_global_widget",
-                )
 
         with col_t2_img:
             st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
