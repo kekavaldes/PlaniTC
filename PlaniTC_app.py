@@ -2136,10 +2136,8 @@ with tab1:
     if "sexo_clearance" not in st.session_state:
         st.session_state["sexo_clearance"] = None
 
-    fecha_nacimiento_ref = st.session_state.get("fecha_nacimiento", date.today())
-    edad = calcular_edad(fecha_nacimiento_ref, date.today())
-
     st.markdown('<div class="section-header">📋 Datos del paciente</div>', unsafe_allow_html=True)
+
     st.text_input(
         "Nombre del paciente",
         placeholder="Escribe el nombre del paciente",
@@ -2150,12 +2148,13 @@ with tab1:
     with col_fn:
         fecha_nacimiento = st.date_input(
             "Fecha de nacimiento",
-            value=fecha_nacimiento_ref,
+            value=st.session_state.get("fecha_nacimiento", date.today()),
             min_value=date(1900, 1, 1),
             max_value=date.today(),
             format="DD/MM/YYYY",
             key="fecha_nacimiento"
         )
+
     edad = calcular_edad(fecha_nacimiento, date.today())
     with col_edad:
         st.text_input(
