@@ -2136,38 +2136,36 @@ with tab1:
     if "sexo_clearance" not in st.session_state:
         st.session_state["sexo_clearance"] = None
 
-    col_ingreso_izq, col_ingreso_der = st.columns([1, 1], gap="large")
+    col_ingreso_izq, col_ingreso_der = st.columns([1, 1])
 
     # ── Columna izquierda: Datos del Paciente ──
     with col_ingreso_izq:
         st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
+        nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
 
-        col_nombre, _ = st.columns([1, 1])
-        with col_nombre:
-            nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
-
-        col_fn, col_edad, _ = st.columns([1, 1, 0.8])
-        with col_fn:
-            fecha_nacimiento = st.date_input(
-                "Fecha de nacimiento",
-                min_value=date(1900, 1, 1),
-                max_value=date.today(),
-                format="DD/MM/YYYY",
-                key="fecha_nacimiento"
-            )
-        edad = calcular_edad(fecha_nacimiento, date.today())
-        with col_edad:
-            st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True)
+        col_fn_wrap, col_sp_fn = st.columns([1, 1])
+        with col_fn_wrap:
+            col_fn, col_edad = st.columns([1, 1])
+            with col_fn:
+                fecha_nacimiento = st.date_input(
+                    "Fecha de nacimiento",
+                    min_value=date(1900, 1, 1),
+                    max_value=date.today(),
+                    format="DD/MM/YYYY",
+                    key="fecha_nacimiento"
+                )
+            edad = calcular_edad(fecha_nacimiento, date.today())
+            with col_edad:
+                st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True)
 
         diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
     # ── Columna derecha: Preparación del paciente ──
     with col_ingreso_der:
         st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
+        col_prep_izq, col_prep_der = st.columns(2)
 
-        prep_col_1, prep_col_2 = st.columns([1, 1], gap="large")
-
-        with prep_col_1:
+        with col_prep_izq:
             peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
             embarazo = st.selectbox(
                 "¿Embarazo?",
@@ -2179,12 +2177,7 @@ with tab1:
             )
             requiere_creatinina = st.checkbox("¿Requiere creatinina?", key="requiere_creatinina")
 
-        with prep_col_2:
-            st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
-
-        if requiere_creatinina:
-            col_creat_1, col_creat_2, _ = st.columns([1, 1, 0.8])
-            with col_creat_1:
+            if requiere_creatinina:
                 sexo_clearance = st.selectbox(
                     "Sexo",
                     [None, "Femenino", "Masculino"],
@@ -2192,7 +2185,6 @@ with tab1:
                     key="sexo_clearance",
                     format_func=lambda x: "Seleccionar" if x is None else x
                 )
-            with col_creat_2:
                 creatinina_serica = st.number_input(
                     "Creatinina sérica (mg/dL)",
                     min_value=0.1,
@@ -2201,32 +2193,35 @@ with tab1:
                     step=0.1,
                     key="creatinina_serica"
                 )
-            clearance = calc_clearance_cockcroft_gault(edad, peso, creatinina_serica, sexo_clearance) if sexo_clearance else None
-            render_clearance_result(clearance)
+                clearance = calc_clearance_cockcroft_gault(edad, peso, creatinina_serica, sexo_clearance) if sexo_clearance else None
+                render_clearance_result(clearance)
 
-        if not st.session_state["contraste_ev"]:
-            st.session_state["vvp"] = None
-            st.session_state["metodo_inyeccion"] = None
-            st.session_state["cantidad_contraste"] = None
-        else:
-            st.selectbox(
-                "VVP",
-                [None, "24G", "22G", "20G", "18G", "CVC"],
-                key="vvp",
-                format_func=lambda x: "Seleccionar" if x is None else x
-            )
-            st.selectbox(
-                "Método de inyección",
-                [None, "INYECTORA AUTOMÁTICA", "INYECCIÓN MANUAL"],
-                key="metodo_inyeccion",
-                format_func=lambda x: "Seleccionar" if x is None else x
-            )
-            st.selectbox(
-                "Cantidad de medio de contraste",
-                [None] + [f"{i} cc" for i in range(10, 151, 10)],
-                key="cantidad_contraste",
-                format_func=lambda x: "Seleccionar" if x is None else x
-            )
+        with col_prep_der:
+            st.checkbox("¿Se requiere medio de contraste EV?", key="contraste_ev")
+
+            if not st.session_state["contraste_ev"]:
+                st.session_state["vvp"] = None
+                st.session_state["metodo_inyeccion"] = None
+                st.session_state["cantidad_contraste"] = None
+            else:
+                st.selectbox(
+                    "VVP",
+                    [None, "24G", "22G", "20G", "18G", "CVC"],
+                    key="vvp",
+                    format_func=lambda x: "Seleccionar" if x is None else x
+                )
+                st.selectbox(
+                    "Método de inyección",
+                    [None, "INYECTORA AUTOMÁTICA", "INYECCIÓN MANUAL"],
+                    key="metodo_inyeccion",
+                    format_func=lambda x: "Seleccionar" if x is None else x
+                )
+                st.selectbox(
+                    "Cantidad de medio de contraste",
+                    [None] + [f"{i} cc" for i in range(10, 151, 10)],
+                    key="cantidad_contraste",
+                    format_func=lambda x: "Seleccionar" if x is None else x
+                )
 
 with tab1b:
     col_top_info1, col_top_info2 = st.columns([1.3, 1.0])
