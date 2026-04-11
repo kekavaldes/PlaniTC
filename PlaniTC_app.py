@@ -1257,7 +1257,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return None
 
     help_text = {
-        "rect": "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño.",
+        "rect": "Arrastra el recuadro para moverlo. Usa cualquiera de sus bordes o esquinas para cambiar su tamaño.",
         "line": "Arrastra la línea para ubicar el corte de planificación.",
         "roi": "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño. Ahora permite un tamaño mínimo mucho más pequeño.",
     }.get(modo, "")
@@ -1368,10 +1368,22 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       return {{ x: circleState.x * W, y: circleState.y * H, r: circleState.r * Math.min(W, H) }};
     }}
 
-    function isInResizeHandle(mx, my, rp) {{
-      var extraHit = 2;
-      return mx >= rp.x + rp.w - handleSize - extraHit && mx <= rp.x + rp.w + extraHit &&
-             my >= rp.y + rp.h - handleSize - extraHit && my <= rp.y + rp.h + extraHit;
+    function getRectResizeMode(mx, my, rp) {{
+      var edgeHit = Math.max(12, handleSize + 4);
+      var onLeft = Math.abs(mx - rp.x) <= edgeHit && my >= rp.y - edgeHit && my <= rp.y + rp.h + edgeHit;
+      var onRight = Math.abs(mx - (rp.x + rp.w)) <= edgeHit && my >= rp.y - edgeHit && my <= rp.y + rp.h + edgeHit;
+      var onTop = Math.abs(my - rp.y) <= edgeHit && mx >= rp.x - edgeHit && mx <= rp.x + rp.w + edgeHit;
+      var onBottom = Math.abs(my - (rp.y + rp.h)) <= edgeHit && mx >= rp.x - edgeHit && mx <= rp.x + rp.w + edgeHit;
+
+      if (onLeft && onTop) return 'resize-rect-nw';
+      if (onRight && onTop) return 'resize-rect-ne';
+      if (onLeft && onBottom) return 'resize-rect-sw';
+      if (onRight && onBottom) return 'resize-rect-se';
+      if (onLeft) return 'resize-rect-w';
+      if (onRight) return 'resize-rect-e';
+      if (onTop) return 'resize-rect-n';
+      if (onBottom) return 'resize-rect-s';
+      return null;
     }}
 
     function isInsideRect(mx, my, rp) {{
@@ -1456,12 +1468,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.setLineDash([]);
       ctx.fillStyle = strokeColor;
       ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('SFOV / DFOV', rp.x + 8, Math.max(16, rp.y + 16));
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
+      ctx.fillText('FOV', rp.x + 8, Math.max(16, rp.y + 16));
     }}
 
     function drawLine() {{
@@ -1530,7 +1537,11 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return;
       }}
       var rp = getRectPx();
-      if (isInResizeHandle(mx, my, rp)) canvas.style.cursor = 'nwse-resize';
+      var resizeMode = getRectResizeMode(mx, my, rp);
+      if (resizeMode === 'resize-rect-n' || resizeMode === 'resize-rect-s') canvas.style.cursor = 'ns-resize';
+      else if (resizeMode === 'resize-rect-e' || resizeMode === 'resize-rect-w') canvas.style.cursor = 'ew-resize';
+      else if (resizeMode === 'resize-rect-ne' || resizeMode === 'resize-rect-sw') canvas.style.cursor = 'nesw-resize';
+      else if (resizeMode === 'resize-rect-nw' || resizeMode === 'resize-rect-se') canvas.style.cursor = 'nwse-resize';
       else if (isInsideRect(mx, my, rp)) canvas.style.cursor = 'grab';
       else canvas.style.cursor = 'default';
     }}
@@ -1555,9 +1566,13 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return;
       }}
       var rp = getRectPx();
-      if (isInResizeHandle(pos.x, pos.y, rp)) {{
-        dragMode = 'resize-rect';
-        canvas.style.cursor = 'nwse-resize';
+      var rectResizeMode = getRectResizeMode(pos.x, pos.y, rp);
+      if (rectResizeMode) {{
+        dragMode = rectResizeMode;
+        if (rectResizeMode === 'resize-rect-n' || rectResizeMode === 'resize-rect-s') canvas.style.cursor = 'ns-resize';
+        else if (rectResizeMode === 'resize-rect-e' || rectResizeMode === 'resize-rect-w') canvas.style.cursor = 'ew-resize';
+        else if (rectResizeMode === 'resize-rect-ne' || rectResizeMode === 'resize-rect-sw') canvas.style.cursor = 'nesw-resize';
+        else canvas.style.cursor = 'nwse-resize';
       }} else if (isInsideRect(pos.x, pos.y, rp)) {{
         dragMode = 'move-rect';
         dragOffsetX = pos.x - rp.x;
@@ -1588,9 +1603,32 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         rectState.x = (pos.x - dragOffsetX) / W;
         rectState.y = (pos.y - dragOffsetY) / H;
         clampRect();
-      }} else if (dragMode === 'resize-rect') {{
-        rectState.w = (pos.x / W) - rectState.x;
-        rectState.h = (pos.y / H) - rectState.y;
+      }} else if (dragMode && dragMode.indexOf('resize-rect') === 0) {{
+        var left = rectState.x;
+        var top = rectState.y;
+        var right = rectState.x + rectState.w;
+        var bottom = rectState.y + rectState.h;
+        var px = pos.x / W;
+        var py = pos.y / H;
+
+        if (dragMode === 'resize-rect-e' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-se') right = px;
+        if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = px;
+        if (dragMode === 'resize-rect-s' || dragMode === 'resize-rect-se' || dragMode === 'resize-rect-sw') bottom = py;
+        if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = py;
+
+        if (right - left < minW) {{
+          if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = right - minW;
+          else right = left + minW;
+        }}
+        if (bottom - top < minH) {{
+          if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = bottom - minH;
+          else bottom = top + minH;
+        }}
+
+        rectState.x = left;
+        rectState.y = top;
+        rectState.w = right - left;
+        rectState.h = bottom - top;
         clampRect();
       }}
       draw();
@@ -1625,8 +1663,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return;
       }}
       var rp = getRectPx();
-      if (isInResizeHandle(pos.x, pos.y, rp)) {{
-        dragMode = 'resize-rect';
+      var rectResizeMode = getRectResizeMode(pos.x, pos.y, rp);
+      if (rectResizeMode) {{
+        dragMode = rectResizeMode;
       }} else if (isInsideRect(pos.x, pos.y, rp)) {{
         dragMode = 'move-rect';
         dragOffsetX = pos.x - rp.x;
@@ -1656,9 +1695,32 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         rectState.x = (pos.x - dragOffsetX) / W;
         rectState.y = (pos.y - dragOffsetY) / H;
         clampRect();
-      }} else if (dragMode === 'resize-rect') {{
-        rectState.w = (pos.x / W) - rectState.x;
-        rectState.h = (pos.y / H) - rectState.y;
+      }} else if (dragMode && dragMode.indexOf('resize-rect') === 0) {{
+        var left = rectState.x;
+        var top = rectState.y;
+        var right = rectState.x + rectState.w;
+        var bottom = rectState.y + rectState.h;
+        var px = pos.x / W;
+        var py = pos.y / H;
+
+        if (dragMode === 'resize-rect-e' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-se') right = px;
+        if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = px;
+        if (dragMode === 'resize-rect-s' || dragMode === 'resize-rect-se' || dragMode === 'resize-rect-sw') bottom = py;
+        if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = py;
+
+        if (right - left < minW) {{
+          if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = right - minW;
+          else right = left + minW;
+        }}
+        if (bottom - top < minH) {{
+          if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = bottom - minH;
+          else bottom = top + minH;
+        }}
+
+        rectState.x = left;
+        rectState.y = top;
+        rectState.w = right - left;
+        rectState.h = bottom - top;
         clampRect();
       }}
       draw();
@@ -3139,10 +3201,10 @@ with tab2:
                             st.components.v1.html(_html_roi_corte, height=540 if len(_topos_adq) > 1 else 620)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
-                        st.components.v1.html(_html_topos_adq, height=790 if len(_topos_adq) > 1 else 590)
+                        _alto_topos = 430 if len(_topos_adq) > 1 else 470
+                        st.components.v1.html(_html_topos_adq, height=_alto_topos)
 
-
-                    st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='margin-top:-34px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
                 else:
                     st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
 
@@ -3155,49 +3217,52 @@ with tab2:
 
             if _topos_adq and not _es_bolus:
                 st.markdown('<div class="section-header">🎯 Rangos de topograma de esta adquisición</div>', unsafe_allow_html=True)
+                st.markdown("<div style='margin-top:-6px;'></div>", unsafe_allow_html=True)
                 if len(_topos_adq) == 1:
-                    _c_topo = st.columns(1)[0]
-                    with _c_topo:
-                        st.caption("Topograma 1")
-                        _c11, _c12 = st.columns(2)
-                        with _c11:
-                            _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
-                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
-                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
-                        with _c12:
-                            _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
-                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
-                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+                    st.caption("Topograma 1")
+                    _p1, _p2, _p3, _p4 = st.columns(4, gap="small")
+                    with _p1:
+                        _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                        _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
+                        _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
+                    with _p2:
+                        _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                    with _p3:
+                        _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                        _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
+                        _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
+                    with _p4:
+                        _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
                 else:
-                    _tc1, _tc2 = st.columns(2, gap="small")
-                    with _tc1:
-                        st.caption("Topograma 1")
-                        _c11, _c12 = st.columns(2)
-                        with _c11:
-                            _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
-                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
-                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
-                        with _c12:
-                            _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
-                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
-                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
-                    with _tc2:
-                        st.caption("Topograma 2")
-                        _c21, _c22 = st.columns(2)
-                        with _c21:
-                            _v = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
-                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
-                            _actual["topo2_inicio_ref"] = st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}")
-                            _actual["topo2_ini_mm"] = st.number_input("mm inicio Topograma 2", value=int(_actual.get("topo2_ini_mm", 0)), step=10, key=f"topo2_inimm_{_exp_id}")
-                        with _c22:
-                            _v = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
-                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
-                            _actual["topo2_fin_ref"] = st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}")
-                            _actual["topo2_fin_mm"] = st.number_input("mm fin Topograma 2", value=int(_actual.get("topo2_fin_mm", 400)), step=10, key=f"topo2_finmm_{_exp_id}")
+                    st.caption("Topograma 1")
+                    _p11, _p12, _p13, _p14 = st.columns(4, gap="small")
+                    with _p11:
+                        _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                        _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
+                        _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
+                    with _p12:
+                        _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                    with _p13:
+                        _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                        _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
+                        _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
+                    with _p14:
+                        _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+
+                    st.caption("Topograma 2")
+                    _p21, _p22, _p23, _p24 = st.columns(4, gap="small")
+                    with _p21:
+                        _v = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
+                        _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
+                        _actual["topo2_inicio_ref"] = st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}")
+                    with _p22:
+                        _actual["topo2_ini_mm"] = st.number_input("mm inicio Topograma 2", value=int(_actual.get("topo2_ini_mm", 0)), step=10, key=f"topo2_inimm_{_exp_id}")
+                    with _p23:
+                        _v = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
+                        _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
+                        _actual["topo2_fin_ref"] = st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}")
+                    with _p24:
+                        _actual["topo2_fin_mm"] = st.number_input("mm fin Topograma 2", value=int(_actual.get("topo2_fin_mm", 400)), step=10, key=f"topo2_finmm_{_exp_id}")
 
 
 
