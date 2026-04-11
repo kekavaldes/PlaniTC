@@ -2135,48 +2135,25 @@ with tab1:
         st.session_state["cantidad_contraste"] = None
     if "sexo_clearance" not in st.session_state:
         st.session_state["sexo_clearance"] = None
-    if "nombre_paciente" not in st.session_state:
-        st.session_state["nombre_paciente"] = ""
-    if "fecha_nacimiento" not in st.session_state:
-        st.session_state["fecha_nacimiento"] = date.today()
-    if "diagnostico_paciente" not in st.session_state:
-        st.session_state["diagnostico_paciente"] = ""
 
-    st.markdown('<div class="section-header">📋 Datos del paciente</div>', unsafe_allow_html=True)
+    # ── Datos del Paciente (movido desde Topograma) ──
+    st.markdown('<div class="section-header">📋 Datos del Paciente</div>', unsafe_allow_html=True)
+    nombre = st.text_input("Nombre del paciente", placeholder="Ej: Juan Pérez")
 
-    st.text_input(
-        "Nombre del paciente",
-        placeholder="Escribe el nombre del paciente",
-        key="nombre_paciente"
-    )
-
-    col_fn, col_edad = st.columns([2, 1])
+    col_fn, col_edad = st.columns(2)
     with col_fn:
         fecha_nacimiento = st.date_input(
             "Fecha de nacimiento",
-            value=st.session_state["fecha_nacimiento"],
             min_value=date(1900, 1, 1),
             max_value=date.today(),
             format="DD/MM/YYYY",
             key="fecha_nacimiento"
         )
-
     edad = calcular_edad(fecha_nacimiento, date.today())
-
     with col_edad:
-        st.text_input(
-            "Edad",
-            value=f"{edad} años" if edad is not None else "",
-            disabled=True,
-            key="edad_visual"
-        )
+        st.text_input("Edad", value=f"{edad} años" if edad is not None else "", disabled=True)
 
-    st.text_area(
-        "Diagnóstico",
-        placeholder="Escribe el diagnóstico o la indicación clínica",
-        height=120,
-        key="diagnostico_paciente"
-    )
+    diagnostico = st.text_area("Diagnóstico", placeholder="Indicación clínica del examen", height=100)
 
     st.markdown('<div class="section-header">💉 Preparación del paciente</div>', unsafe_allow_html=True)
     peso = st.number_input("Peso (kg)", min_value=0, max_value=250, value=70)
