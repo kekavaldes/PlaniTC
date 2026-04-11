@@ -2232,10 +2232,10 @@ with tab1:
                 )
 
 with tab1b:
-    st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
-    col_top_info1, col_top_info2 = st.columns([1.65, 0.8])
+    col_exam_block, col_pos_block, col_topo_img = st.columns([1.05, 1.15, 1.2])
 
-    with col_top_info1:
+    with col_exam_block:
+        st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
         region_anat = st.selectbox(
             "Región anatómica",
             [None] + list(REGIONES.keys()),
@@ -2259,11 +2259,10 @@ with tab1b:
         )
         st.session_state["examen"] = examen if examen else ""
 
-    with col_top_info2:
         if region_anat_seleccionada is None:
             st.markdown("""
             <div style="color:#555; text-align:center; padding:1rem; border:1px dashed #333;
-                        border-radius:8px; margin-top:0.4rem; min-height:120px; display:flex;
+                        border-radius:8px; margin-top:0.4rem; min-height:140px; display:flex;
                         align-items:center; justify-content:center;">
                 Selecciona una región anatómica
             </div>
@@ -2272,221 +2271,76 @@ with tab1b:
             img_b64 = REGION_IMAGES.get(region_anat_real, None)
             if img_b64:
                 st.markdown(
-                    f"<div style='text-align:center; margin-top:0.35rem;'><img src='data:image/png;base64,{img_b64}' style='width:100%; max-width:220px; max-height:150px; object-fit:contain; border-radius:10px; border:1px solid #333;'></div>",
+                    f"<div style='text-align:center; margin-top:0.35rem;'><img src='data:image/png;base64,{img_b64}' style='width:100%; max-width:240px; max-height:170px; object-fit:contain; border-radius:10px; border:1px solid #333;'></div>",
                     unsafe_allow_html=True
                 )
             else:
                 st.markdown("""
                 <div style="color:#777; text-align:center; padding:1rem; border:1px dashed #333;
-                            border-radius:8px; margin-top:0.4rem; min-height:120px; display:flex;
+                            border-radius:8px; margin-top:0.4rem; min-height:140px; display:flex;
                             align-items:center; justify-content:center;">
                     No hay imagen disponible
                 </div>
                 """, unsafe_allow_html=True)
 
-    col_topo_cfg, col_topo_img = st.columns([1, 1])
-
-    with col_topo_cfg:
+    with col_pos_block:
         st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente</div>', unsafe_allow_html=True)
-        col_pos_fields, col_pos_preview = st.columns([1.45, 0.85])
-
-        with col_pos_fields:
-            col_pos_topo, col_ent_topo = st.columns(2)
-            with col_pos_topo:
-                posicion = st.selectbox(
-                    "Posición paciente",
-                    [None] + POSICIONES_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="posicion_topo"
-                )
-                st.session_state["posicion"] = posicion if posicion else ""
-            with col_ent_topo:
-                entrada = st.selectbox(
-                    "Entrada",
-                    [None] + ENTRADAS_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="entrada_topo"
-                )
-                st.session_state["entrada"] = entrada if entrada else ""
-
-            col_tubo, col_extremidades = st.columns(2)
-            with col_tubo:
-                topo1_pos = st.selectbox(
-                    "Posición tubo",
-                    [None] + POS_TUBO,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
-                    key="t1pt"
-                )
-            with col_extremidades:
-                posicion_extremidades = st.selectbox(
-                    "Posición extremidades",
-                    [
-                        "Seleccionar",
-                        "brazos arriba",
-                        "brazos abajo",
-                        "eleva brazo derecho",
-                        "eleva brazo izquierdo",
-                        "flexión extremidad inferior derecha",
-                        "flexión extremidad inferior izquierda"
-                    ],
-                    key="pos_extremidades"
-                )
-
-        with col_pos_preview:
-            imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
-                st.session_state.get("posicion", ""),
-                st.session_state.get("entrada", ""),
-                st.session_state.get("t1pt", None),
-            )
-            if imagen_posicionamiento is not None:
-                st.image(str(imagen_posicionamiento), width=250)
-            else:
-                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
-
-        def _get_posicion_key(pos, ent):
-            if not pos or not ent:
-                return None
-            pos = pos.upper()
-            ent = ent.upper()
-            if "PRONO" in pos:
-                return "prono_cabeza" if "CABEZA" in ent else "prono_pies"
-            elif "LATERAL" in pos:
-                return "lateral_cabeza" if "CABEZA" in ent else "lateral_pies"
-            else:
-                return "supino_cabeza" if "CABEZA" in ent else "supino_pies"
-
-        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
-        refs_inicio_topo = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-        st.session_state["t1kv"] = 100
-        st.session_state["t1ma"] = 40
-        topo1_kv = 100
-        topo1_ma = 40
-        col_t1a, col_t1b = st.columns(2)
-        with col_t1a:
-            st.markdown("""
-            <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
-            <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
-            """, unsafe_allow_html=True)
-        with col_t1b:
-            st.markdown("""
-            <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
-            <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
-            """, unsafe_allow_html=True)
-        col_t1c, col_t1d = st.columns(2)
-        with col_t1c:
-            centro_inicio_topo = st.selectbox(
-                "Centraje inicio de topograma",
-                refs_inicio_topo,
+        col_pos_topo, col_ent_topo = st.columns(2)
+        with col_pos_topo:
+            posicion = st.selectbox(
+                "Posición paciente",
+                [None] + POSICIONES_PACIENTE,
                 index=0,
                 format_func=lambda x: "Seleccionar" if x is None else x,
                 placeholder="Seleccionar",
-                key="t1_centraje_inicio"
+                key="posicion_topo"
             )
-        with col_t1d:
-            topo1_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
-                             format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1l")
-        topo1_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
-                         format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t1dir")
-        topo1_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
-                         format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar", key="t1vz")
-
-        aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=st.session_state.get("aplica_topo2", False))
-        st.session_state["aplica_topo2"] = aplica_topo2
-
-        st.markdown("---")
-
-        # Botón de inicio con símbolo de trisector de radiación
-        st.markdown("""
-        <style>
-        .btn-iniciar button {
-            background-color: #1A1A1A !important;
-            border: 2px solid #FFD700 !important;
-            color: #FFD700 !important;
-            font-size: 1.1rem !important;
-            font-weight: 700 !important;
-            border-radius: 10px !important;
-            padding: 0.6rem 1.5rem !important;
-            width: 100% !important;
-            letter-spacing: 0.05em !important;
-        }
-        .btn-iniciar button:hover {
-            background-color: #FFD700 !important;
-            color: #000000 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        _topo_campos_completos = all([
-            topo1_pos is not None,
-            topo1_long is not None,
-            topo1_dir is not None,
-            topo1_voz is not None,
-        ])
-
-        if not _topo_campos_completos:
-            _campos_faltantes = []
-            if topo1_pos  is None: _campos_faltantes.append("Posición tubo")
-            if topo1_long is None: _campos_faltantes.append("Longitud")
-            if topo1_dir  is None: _campos_faltantes.append("Dirección")
-            if topo1_voz  is None: _campos_faltantes.append("Instrucción de voz")
-            st.markdown(f"""
-            <div style="background:#1A1100; border:1px solid #554400; border-radius:8px;
-                        padding:0.6rem 1rem; margin-bottom:0.5rem; font-size:0.82rem; color:#FFAA00;">
-                ⚠️ Completa todos los campos antes de iniciar:<br>
-                <span style="color:#FF8800;">{'  ·  '.join(_campos_faltantes)}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown('<div class="btn-iniciar">', unsafe_allow_html=True)
-        if st.button("☢️  INICIAR TOPOGRAMA", key="btn_iniciar_topo",
-                     use_container_width=True, disabled=not _topo_campos_completos):
-            st.session_state["topograma_iniciado"] = True
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        if st.session_state.get("topograma_iniciado", False):
-            if st.button("↺  Repetir topograma", key="btn_reset_topo", use_container_width=True):
-                st.session_state["topograma_iniciado"] = False
-                st.rerun()
-
-        st.markdown('<div class="section-header">🎯 Rango Topograma 1</div>', unsafe_allow_html=True)
-        _refs_ini_topo_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-        _refs_fin_topo_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
-        col_rt1a, col_rt1b = st.columns(2)
-        with col_rt1a:
-            st.session_state["topo1_inicio_ref_global"] = selectbox_con_placeholder(
-                "Inicio Topograma 1",
-                _refs_ini_topo_cfg,
-                value=st.session_state.get("topo1_inicio_ref_global", _refs_ini_topo_cfg[0]),
-                key="topo1_inicio_ref_global_widget",
+            st.session_state["posicion"] = posicion if posicion else ""
+        with col_ent_topo:
+            entrada = st.selectbox(
+                "Entrada",
+                [None] + ENTRADAS_PACIENTE,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="entrada_topo"
             )
-            st.session_state["topo1_ini_mm_global"] = st.number_input(
-                "mm inicio Topograma 1",
-                value=int(st.session_state.get("topo1_ini_mm_global", 0)),
-                step=10,
-                key="topo1_ini_mm_global_widget",
+            st.session_state["entrada"] = entrada if entrada else ""
+
+        col_tubo, col_extremidades = st.columns(2)
+        with col_tubo:
+            topo1_pos = st.selectbox(
+                "Posición tubo",
+                [None] + POS_TUBO,
+                index=0,
+                format_func=lambda x: "Seleccionar" if x is None else x,
+                placeholder="Seleccionar",
+                key="t1pt"
             )
-        with col_rt1b:
-            st.session_state["topo1_fin_ref_global"] = selectbox_con_placeholder(
-                "Fin Topograma 1",
-                _refs_fin_topo_cfg,
-                value=st.session_state.get("topo1_fin_ref_global", _refs_fin_topo_cfg[0]),
-                key="topo1_fin_ref_global_widget",
+        with col_extremidades:
+            posicion_extremidades = st.selectbox(
+                "Posición extremidades",
+                [
+                    "Seleccionar",
+                    "brazos arriba",
+                    "brazos abajo",
+                    "eleva brazo derecho",
+                    "eleva brazo izquierdo",
+                    "flexión extremidad inferior derecha",
+                    "flexión extremidad inferior izquierda"
+                ],
+                key="pos_extremidades"
             )
-            st.session_state["topo1_fin_mm_global"] = st.number_input(
-                "mm fin Topograma 1",
-                value=int(st.session_state.get("topo1_fin_mm_global", 400)),
-                step=10,
-                key="topo1_fin_mm_global_widget",
-            )
+
+        imagen_posicionamiento = obtener_imagen_posicionamiento_topograma(
+            st.session_state.get("posicion", ""),
+            st.session_state.get("entrada", ""),
+            st.session_state.get("t1pt", None),
+        )
+        if imagen_posicionamiento is not None:
+            st.image(str(imagen_posicionamiento), width=250)
+        else:
+            st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
     with col_topo_img:
         _region_prev   = st.session_state.get("region_anat", "CUERPO")
@@ -2494,8 +2348,6 @@ with tab1b:
         _pos_tubo_prev = st.session_state.get("t1pt", "ARRIBA 0°")
         _posicion_prev = st.session_state.get("posicion", "")
         _entrada_prev  = st.session_state.get("entrada", "")
-
-        # Se eliminó la vista previa de la imagen resultante según posición / entrada.
 
         def _tubo_to_proy_prev(pos_tubo, region, examen):
             if not pos_tubo:
@@ -2512,10 +2364,10 @@ with tab1b:
             st.markdown(f"""
             <div style="
                 border: 1px solid #333; border-radius: 8px;
-                background: #0A0A0A; height: 380px;
+                background: #0A0A0A; min-height: 430px;
                 display: flex; flex-direction: column;
                 align-items: center; justify-content: center;
-                text-align: center; gap: 16px;">
+                text-align: center; gap: 16px; padding: 1rem;">
                 <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
                 <div style="color:#333; font-size:0.8rem;">
                     Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
@@ -2535,7 +2387,7 @@ with tab1b:
                 st.markdown(f"""
                 <div style="font-size:11px; color:#888; margin-top:6px; text-align:center;">
                     Proyección: {_proy_prev} · Tubo: {_pos_tubo_prev}
-                    · {topo1_long} mm · {topo1_kv} kV · {topo1_ma} mA
+                    · {st.session_state.get('t1l', '—')} mm · 100 kV · 40 mA
                 </div>
                 """, unsafe_allow_html=True)
                 st.markdown("""<div class="alert-info">
@@ -2543,6 +2395,146 @@ with tab1b:
                 </div>""", unsafe_allow_html=True)
             else:
                 st.warning(_err_topo or "No se encontró una imagen de topograma para esta combinación.")
+
+
+    def _get_posicion_key(pos, ent):
+        if not pos or not ent:
+            return None
+        pos = pos.upper()
+        ent = ent.upper()
+        if "PRONO" in pos:
+            return "prono_cabeza" if "CABEZA" in ent else "prono_pies"
+        elif "LATERAL" in pos:
+            return "lateral_cabeza" if "CABEZA" in ent else "lateral_pies"
+        else:
+            return "supino_cabeza" if "CABEZA" in ent else "supino_pies"
+
+    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
+    refs_inicio_topo = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+    st.session_state["t1kv"] = 100
+    st.session_state["t1ma"] = 40
+    topo1_kv = 100
+    topo1_ma = 40
+    col_t1a, col_t1b = st.columns(2)
+    with col_t1a:
+        st.markdown("""
+        <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
+        <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
+        """, unsafe_allow_html=True)
+    with col_t1b:
+        st.markdown("""
+        <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
+        <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
+        """, unsafe_allow_html=True)
+    col_t1c, col_t1d = st.columns(2)
+    with col_t1c:
+        centro_inicio_topo = st.selectbox(
+            "Centraje inicio de topograma",
+            refs_inicio_topo,
+            index=0,
+            format_func=lambda x: "Seleccionar" if x is None else x,
+            placeholder="Seleccionar",
+            key="t1_centraje_inicio"
+        )
+    with col_t1d:
+        topo1_long = st.selectbox("Longitud de topograma (mm)", [None] + LONGITUDES_TOPO, index=0,
+                         format_func=lambda x: "Seleccionar" if x is None else str(x), key="t1l")
+    topo1_dir  = st.selectbox("Dirección topograma", [None] + DIRECCIONES, index=0,
+                     format_func=lambda x: "Seleccionar" if x is None else x,
+            placeholder="Seleccionar", key="t1dir")
+    topo1_voz  = st.selectbox("Instrucción de voz", [None] + INSTRUCCIONES_VOZ, index=0,
+                     format_func=lambda x: "Seleccionar" if x is None else x,
+            placeholder="Seleccionar", key="t1vz")
+
+    aplica_topo2 = st.checkbox("¿Aplica Topograma 2?", value=st.session_state.get("aplica_topo2", False))
+    st.session_state["aplica_topo2"] = aplica_topo2
+
+    st.markdown("---")
+
+    # Botón de inicio con símbolo de trisector de radiación
+    st.markdown("""
+    <style>
+    .btn-iniciar button {
+        background-color: #1A1A1A !important;
+        border: 2px solid #FFD700 !important;
+        color: #FFD700 !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        border-radius: 10px !important;
+        padding: 0.6rem 1.5rem !important;
+        width: 100% !important;
+        letter-spacing: 0.05em !important;
+    }
+    .btn-iniciar button:hover {
+        background-color: #FFD700 !important;
+        color: #000000 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    _topo_campos_completos = all([
+        topo1_pos is not None,
+        topo1_long is not None,
+        topo1_dir is not None,
+        topo1_voz is not None,
+    ])
+
+    if not _topo_campos_completos:
+        _campos_faltantes = []
+        if topo1_pos  is None: _campos_faltantes.append("Posición tubo")
+        if topo1_long is None: _campos_faltantes.append("Longitud")
+        if topo1_dir  is None: _campos_faltantes.append("Dirección")
+        if topo1_voz  is None: _campos_faltantes.append("Instrucción de voz")
+        st.markdown(f"""
+        <div style="background:#1A1100; border:1px solid #554400; border-radius:8px;
+                    padding:0.6rem 1rem; margin-bottom:0.5rem; font-size:0.82rem; color:#FFAA00;">
+            ⚠️ Completa todos los campos antes de iniciar:<br>
+            <span style="color:#FF8800;">{'  ·  '.join(_campos_faltantes)}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown('<div class="btn-iniciar">', unsafe_allow_html=True)
+    if st.button("☢️  INICIAR TOPOGRAMA", key="btn_iniciar_topo",
+                 use_container_width=True, disabled=not _topo_campos_completos):
+        st.session_state["topograma_iniciado"] = True
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.session_state.get("topograma_iniciado", False):
+        if st.button("↺  Repetir topograma", key="btn_reset_topo", use_container_width=True):
+            st.session_state["topograma_iniciado"] = False
+            st.rerun()
+
+    st.markdown('<div class="section-header">🎯 Rango Topograma 1</div>', unsafe_allow_html=True)
+    _refs_ini_topo_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+    _refs_fin_topo_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
+    col_rt1a, col_rt1b = st.columns(2)
+    with col_rt1a:
+        st.session_state["topo1_inicio_ref_global"] = selectbox_con_placeholder(
+            "Inicio Topograma 1",
+            _refs_ini_topo_cfg,
+            value=st.session_state.get("topo1_inicio_ref_global", _refs_ini_topo_cfg[0]),
+            key="topo1_inicio_ref_global_widget",
+        )
+        st.session_state["topo1_ini_mm_global"] = st.number_input(
+            "mm inicio Topograma 1",
+            value=int(st.session_state.get("topo1_ini_mm_global", 0)),
+            step=10,
+            key="topo1_ini_mm_global_widget",
+        )
+    with col_rt1b:
+        st.session_state["topo1_fin_ref_global"] = selectbox_con_placeholder(
+            "Fin Topograma 1",
+            _refs_fin_topo_cfg,
+            value=st.session_state.get("topo1_fin_ref_global", _refs_fin_topo_cfg[0]),
+            key="topo1_fin_ref_global_widget",
+        )
+        st.session_state["topo1_fin_mm_global"] = st.number_input(
+            "mm fin Topograma 1",
+            value=int(st.session_state.get("topo1_fin_mm_global", 400)),
+            step=10,
+            key="topo1_fin_mm_global_widget",
+        )
 
     if aplica_topo2:
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
