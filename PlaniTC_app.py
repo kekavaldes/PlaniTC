@@ -152,18 +152,6 @@ st.markdown("""
     }
     /* Selectbox flecha */
     .stSelectbox svg { fill: #FFFFFF !important; }
-    /* Mostrar texto completo en selectbox sin puntos suspensivos */
-    .stSelectbox [data-baseweb="select"] span,
-    .stSelectbox [data-baseweb="select"] div {
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
-        line-height: 1.15 !important;
-    }
-    .stSelectbox [data-baseweb="select"] > div {
-        min-height: 3rem !important;
-        align-items: center !important;
-    }
     /* Menu desplegable fondo */
     [data-baseweb="popover"], [data-baseweb="menu"],
     [role="listbox"], [data-baseweb="select"] ul {
@@ -196,13 +184,6 @@ st.markdown("""
         color: #FFFFFF; padding: 0.5rem 1rem;
         border-radius: 6px; font-weight: 600;
         margin: 1rem 0 0.8rem 0; font-size: 1rem;
-    }
-    .section-header-compact {
-        font-size: 0.82rem !important;
-        padding: 0.40rem 0.65rem !important;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
     /* Tarjetas métricas */
     .metric-card {
@@ -1276,7 +1257,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return None
 
     help_text = {
-        "rect": "Arrastra el recuadro para moverlo. Usa cualquiera de sus bordes o esquinas para cambiar su tamaño.",
+        "rect": "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño.",
         "line": "Arrastra la línea para ubicar el corte de planificación.",
         "roi": "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño. Ahora permite un tamaño mínimo mucho más pequeño.",
     }.get(modo, "")
@@ -1387,22 +1368,10 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       return {{ x: circleState.x * W, y: circleState.y * H, r: circleState.r * Math.min(W, H) }};
     }}
 
-    function getRectResizeMode(mx, my, rp) {{
-      var edgeHit = Math.max(12, handleSize + 4);
-      var onLeft = Math.abs(mx - rp.x) <= edgeHit && my >= rp.y - edgeHit && my <= rp.y + rp.h + edgeHit;
-      var onRight = Math.abs(mx - (rp.x + rp.w)) <= edgeHit && my >= rp.y - edgeHit && my <= rp.y + rp.h + edgeHit;
-      var onTop = Math.abs(my - rp.y) <= edgeHit && mx >= rp.x - edgeHit && mx <= rp.x + rp.w + edgeHit;
-      var onBottom = Math.abs(my - (rp.y + rp.h)) <= edgeHit && mx >= rp.x - edgeHit && mx <= rp.x + rp.w + edgeHit;
-
-      if (onLeft && onTop) return 'resize-rect-nw';
-      if (onRight && onTop) return 'resize-rect-ne';
-      if (onLeft && onBottom) return 'resize-rect-sw';
-      if (onRight && onBottom) return 'resize-rect-se';
-      if (onLeft) return 'resize-rect-w';
-      if (onRight) return 'resize-rect-e';
-      if (onTop) return 'resize-rect-n';
-      if (onBottom) return 'resize-rect-s';
-      return null;
+    function isInResizeHandle(mx, my, rp) {{
+      var extraHit = 2;
+      return mx >= rp.x + rp.w - handleSize - extraHit && mx <= rp.x + rp.w + extraHit &&
+             my >= rp.y + rp.h - handleSize - extraHit && my <= rp.y + rp.h + extraHit;
     }}
 
     function isInsideRect(mx, my, rp) {{
@@ -1464,9 +1433,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
       if (img.width && img.height) {{
-        var scale = (modo === 'roi')
-          ? Math.max(W / img.width, H / img.height)
-          : Math.min(W / img.width, H / img.height);
+        var scale = Math.min(W / img.width, H / img.height);
         var drawW = img.width * scale;
         var drawH = img.height * scale;
         var dx = (W - drawW) / 2;
@@ -1487,7 +1454,12 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.setLineDash([]);
       ctx.fillStyle = strokeColor;
       ctx.font = 'bold 12px sans-serif';
-      // Etiqueta DFOV eliminada por solicitud del usuario
+      ctx.fillText('SFOV / DFOV', rp.x + 8, Math.max(16, rp.y + 16));
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(rp.x + rp.w - handleSize, rp.y + rp.h - handleSize, handleSize, handleSize);
     }}
 
     function drawLine() {{
@@ -1556,11 +1528,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return;
       }}
       var rp = getRectPx();
-      var resizeMode = getRectResizeMode(mx, my, rp);
-      if (resizeMode === 'resize-rect-n' || resizeMode === 'resize-rect-s') canvas.style.cursor = 'ns-resize';
-      else if (resizeMode === 'resize-rect-e' || resizeMode === 'resize-rect-w') canvas.style.cursor = 'ew-resize';
-      else if (resizeMode === 'resize-rect-ne' || resizeMode === 'resize-rect-sw') canvas.style.cursor = 'nesw-resize';
-      else if (resizeMode === 'resize-rect-nw' || resizeMode === 'resize-rect-se') canvas.style.cursor = 'nwse-resize';
+      if (isInResizeHandle(mx, my, rp)) canvas.style.cursor = 'nwse-resize';
       else if (isInsideRect(mx, my, rp)) canvas.style.cursor = 'grab';
       else canvas.style.cursor = 'default';
     }}
@@ -1585,13 +1553,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return;
       }}
       var rp = getRectPx();
-      var rectResizeMode = getRectResizeMode(pos.x, pos.y, rp);
-      if (rectResizeMode) {{
-        dragMode = rectResizeMode;
-        if (rectResizeMode === 'resize-rect-n' || rectResizeMode === 'resize-rect-s') canvas.style.cursor = 'ns-resize';
-        else if (rectResizeMode === 'resize-rect-e' || rectResizeMode === 'resize-rect-w') canvas.style.cursor = 'ew-resize';
-        else if (rectResizeMode === 'resize-rect-ne' || rectResizeMode === 'resize-rect-sw') canvas.style.cursor = 'nesw-resize';
-        else canvas.style.cursor = 'nwse-resize';
+      if (isInResizeHandle(pos.x, pos.y, rp)) {{
+        dragMode = 'resize-rect';
+        canvas.style.cursor = 'nwse-resize';
       }} else if (isInsideRect(pos.x, pos.y, rp)) {{
         dragMode = 'move-rect';
         dragOffsetX = pos.x - rp.x;
@@ -1622,32 +1586,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         rectState.x = (pos.x - dragOffsetX) / W;
         rectState.y = (pos.y - dragOffsetY) / H;
         clampRect();
-      }} else if (dragMode && dragMode.indexOf('resize-rect') === 0) {{
-        var left = rectState.x;
-        var top = rectState.y;
-        var right = rectState.x + rectState.w;
-        var bottom = rectState.y + rectState.h;
-        var px = pos.x / W;
-        var py = pos.y / H;
-
-        if (dragMode === 'resize-rect-e' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-se') right = px;
-        if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = px;
-        if (dragMode === 'resize-rect-s' || dragMode === 'resize-rect-se' || dragMode === 'resize-rect-sw') bottom = py;
-        if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = py;
-
-        if (right - left < minW) {{
-          if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = right - minW;
-          else right = left + minW;
-        }}
-        if (bottom - top < minH) {{
-          if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = bottom - minH;
-          else bottom = top + minH;
-        }}
-
-        rectState.x = left;
-        rectState.y = top;
-        rectState.w = right - left;
-        rectState.h = bottom - top;
+      }} else if (dragMode === 'resize-rect') {{
+        rectState.w = (pos.x / W) - rectState.x;
+        rectState.h = (pos.y / H) - rectState.y;
         clampRect();
       }}
       draw();
@@ -1682,9 +1623,8 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         return;
       }}
       var rp = getRectPx();
-      var rectResizeMode = getRectResizeMode(pos.x, pos.y, rp);
-      if (rectResizeMode) {{
-        dragMode = rectResizeMode;
+      if (isInResizeHandle(pos.x, pos.y, rp)) {{
+        dragMode = 'resize-rect';
       }} else if (isInsideRect(pos.x, pos.y, rp)) {{
         dragMode = 'move-rect';
         dragOffsetX = pos.x - rp.x;
@@ -1714,32 +1654,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
         rectState.x = (pos.x - dragOffsetX) / W;
         rectState.y = (pos.y - dragOffsetY) / H;
         clampRect();
-      }} else if (dragMode && dragMode.indexOf('resize-rect') === 0) {{
-        var left = rectState.x;
-        var top = rectState.y;
-        var right = rectState.x + rectState.w;
-        var bottom = rectState.y + rectState.h;
-        var px = pos.x / W;
-        var py = pos.y / H;
-
-        if (dragMode === 'resize-rect-e' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-se') right = px;
-        if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = px;
-        if (dragMode === 'resize-rect-s' || dragMode === 'resize-rect-se' || dragMode === 'resize-rect-sw') bottom = py;
-        if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = py;
-
-        if (right - left < minW) {{
-          if (dragMode === 'resize-rect-w' || dragMode === 'resize-rect-nw' || dragMode === 'resize-rect-sw') left = right - minW;
-          else right = left + minW;
-        }}
-        if (bottom - top < minH) {{
-          if (dragMode === 'resize-rect-n' || dragMode === 'resize-rect-ne' || dragMode === 'resize-rect-nw') top = bottom - minH;
-          else bottom = top + minH;
-        }}
-
-        rectState.x = left;
-        rectState.y = top;
-        rectState.w = right - left;
-        rectState.h = bottom - top;
+      }} else if (dragMode === 'resize-rect') {{
+        rectState.w = (pos.x / W) - rectState.x;
+        rectState.h = (pos.y / H) - rectState.y;
         clampRect();
       }}
       draw();
@@ -2430,37 +2347,6 @@ with tab1b:
                 st.session_state["topograma_iniciado"] = False
                 st.rerun()
 
-        st.markdown('<div class="section-header">🎯 Rango Topograma 1</div>', unsafe_allow_html=True)
-        _refs_ini_topo_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-        _refs_fin_topo_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
-        col_rt1a, col_rt1b = st.columns(2)
-        with col_rt1a:
-            st.session_state["topo1_inicio_ref_global"] = selectbox_con_placeholder(
-                "Inicio Topograma 1",
-                _refs_ini_topo_cfg,
-                value=st.session_state.get("topo1_inicio_ref_global", _refs_ini_topo_cfg[0]),
-                key="topo1_inicio_ref_global_widget",
-            )
-            st.session_state["topo1_ini_mm_global"] = st.number_input(
-                "mm inicio Topograma 1",
-                value=int(st.session_state.get("topo1_ini_mm_global", 0)),
-                step=10,
-                key="topo1_ini_mm_global_widget",
-            )
-        with col_rt1b:
-            st.session_state["topo1_fin_ref_global"] = selectbox_con_placeholder(
-                "Fin Topograma 1",
-                _refs_fin_topo_cfg,
-                value=st.session_state.get("topo1_fin_ref_global", _refs_fin_topo_cfg[0]),
-                key="topo1_fin_ref_global_widget",
-            )
-            st.session_state["topo1_fin_mm_global"] = st.number_input(
-                "mm fin Topograma 1",
-                value=int(st.session_state.get("topo1_fin_mm_global", 400)),
-                step=10,
-                key="topo1_fin_mm_global_widget",
-            )
-
     with col_topo_img:
         _region_prev   = st.session_state.get("region_anat", "CUERPO")
         _examen_prev   = st.session_state.get("examen", "")
@@ -2639,37 +2525,6 @@ with tab1b:
                 if st.button("↺  Repetir topograma 2", key="btn_reset_topo2", use_container_width=True):
                     st.session_state["topograma2_iniciado"] = False
                     st.rerun()
-
-            st.markdown('<div class="section-header">🎯 Rango Topograma 2</div>', unsafe_allow_html=True)
-            _refs_ini_topo2_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-            _refs_fin_topo2_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
-            col_rt2a, col_rt2b = st.columns(2)
-            with col_rt2a:
-                st.session_state["topo2_inicio_ref_global"] = selectbox_con_placeholder(
-                    "Inicio Topograma 2",
-                    _refs_ini_topo2_cfg,
-                    value=st.session_state.get("topo2_inicio_ref_global", _refs_ini_topo2_cfg[0]),
-                    key="topo2_inicio_ref_global_widget",
-                )
-                st.session_state["topo2_ini_mm_global"] = st.number_input(
-                    "mm inicio Topograma 2",
-                    value=int(st.session_state.get("topo2_ini_mm_global", 0)),
-                    step=10,
-                    key="topo2_ini_mm_global_widget",
-                )
-            with col_rt2b:
-                st.session_state["topo2_fin_ref_global"] = selectbox_con_placeholder(
-                    "Fin Topograma 2",
-                    _refs_fin_topo2_cfg,
-                    value=st.session_state.get("topo2_fin_ref_global", _refs_fin_topo2_cfg[0]),
-                    key="topo2_fin_ref_global_widget",
-                )
-                st.session_state["topo2_fin_mm_global"] = st.number_input(
-                    "mm fin Topograma 2",
-                    value=int(st.session_state.get("topo2_fin_mm_global", 400)),
-                    step=10,
-                    key="topo2_fin_mm_global_widget",
-                )
 
         with col_t2_img:
             st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
@@ -2958,7 +2813,7 @@ with tab2:
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
         st.session_state["exploracion_adq_activa"] = ids_validos[0]
 
-    col_nav, col_det = st.columns([0.58, 2.72], gap="small")
+    col_nav, col_det = st.columns([0.72, 2.58], gap="small")
 
     with col_nav:
         st.markdown('<div class="section-header">📋 Exploraciones</div>', unsafe_allow_html=True)
@@ -2968,13 +2823,13 @@ with tab2:
             background: #1b1b1b !important;
             color: #ffffff !important;
             border: 1px solid #3a3a3a !important;
-            border-radius: 12px !important;
-            min-height: 36px !important;
-            font-size: 0.88rem !important;
+            border-radius: 14px !important;
+            min-height: 42px !important;
+            font-size: 0.96rem !important;
             font-weight: 600 !important;
             text-align: left !important;
             justify-content: flex-start !important;
-            padding: 0.30rem 0.55rem !important;
+            padding-left: 12px !important;
             box-shadow: none !important;
         }
         div[data-testid="stButton"] button[kind="secondary"]:hover {
@@ -2986,13 +2841,13 @@ with tab2:
             background: linear-gradient(180deg, #0d2f5c 0%, #0a2340 100%) !important;
             color: #ffffff !important;
             border: 1px solid #4da3ff !important;
-            border-radius: 12px !important;
-            min-height: 38px !important;
-            font-size: 0.90rem !important;
+            border-radius: 14px !important;
+            min-height: 44px !important;
+            font-size: 0.98rem !important;
             font-weight: 700 !important;
             text-align: left !important;
             justify-content: flex-start !important;
-            padding: 0.30rem 0.55rem !important;
+            padding-left: 12px !important;
             box-shadow: 0 0 0 1px rgba(77,163,255,0.15) inset !important;
         }
         div[data-testid="stButton"] button[kind="primary"]:hover {
@@ -3186,27 +3041,19 @@ with tab2:
 
             if _topos_adq:
                 if len(_topos_adq) >= 1:
-                    _topo1_inicio_ref = st.session_state.get("topo1_inicio_ref_global", _refs_ini_adq[0])
-                    _topo1_fin_ref = st.session_state.get("topo1_fin_ref_global", _refs_fin_adq[0])
-                    _topo1_inicio_mm = int(st.session_state.get("topo1_ini_mm_global", 0))
-                    _topo1_fin_mm = int(st.session_state.get("topo1_fin_mm_global", 400))
-                    _topos_adq[0]["inicio_ref"] = _topo1_inicio_ref
-                    _topos_adq[0]["fin_ref"] = _topo1_fin_ref
-                    _topos_adq[0]["inicio_mm"] = _topo1_inicio_mm
-                    _topos_adq[0]["fin_mm"] = _topo1_fin_mm
-                    _topos_adq[0]["y_ini"] = get_y_position_with_offset(_topo1_inicio_ref, _topo1_inicio_mm)
-                    _topos_adq[0]["y_fin"] = get_y_position_with_offset(_topo1_fin_ref, _topo1_fin_mm)
+                    _topos_adq[0]["inicio_ref"] = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                    _topos_adq[0]["fin_ref"] = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[0]["inicio_mm"] = _actual.get("topo1_ini_mm", 0)
+                    _topos_adq[0]["fin_mm"] = _actual.get("topo1_fin_mm", 0)
+                    _topos_adq[0]["y_ini"] = get_y_position_with_offset(_topos_adq[0]["inicio_ref"], _topos_adq[0]["inicio_mm"])
+                    _topos_adq[0]["y_fin"] = get_y_position_with_offset(_topos_adq[0]["fin_ref"], _topos_adq[0]["fin_mm"])
                 if len(_topos_adq) >= 2:
-                    _topo2_inicio_ref = st.session_state.get("topo2_inicio_ref_global", _refs_ini_adq[0])
-                    _topo2_fin_ref = st.session_state.get("topo2_fin_ref_global", _refs_fin_adq[0])
-                    _topo2_inicio_mm = int(st.session_state.get("topo2_ini_mm_global", 0))
-                    _topo2_fin_mm = int(st.session_state.get("topo2_fin_mm_global", 400))
-                    _topos_adq[1]["inicio_ref"] = _topo2_inicio_ref
-                    _topos_adq[1]["fin_ref"] = _topo2_fin_ref
-                    _topos_adq[1]["inicio_mm"] = _topo2_inicio_mm
-                    _topos_adq[1]["fin_mm"] = _topo2_fin_mm
-                    _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topo2_inicio_ref, _topo2_inicio_mm)
-                    _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topo2_fin_ref, _topo2_fin_mm)
+                    _topos_adq[1]["inicio_ref"] = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
+                    _topos_adq[1]["fin_ref"] = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
+                    _topos_adq[1]["inicio_mm"] = _actual.get("topo2_ini_mm", 0)
+                    _topos_adq[1]["fin_mm"] = _actual.get("topo2_fin_mm", 0)
+                    _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topos_adq[1]["inicio_ref"], _topos_adq[1]["inicio_mm"])
+                    _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
 
                 _modo_topograma_adq = "line" if _es_bolus else "rect"
                 _paleta_exp = ["#00D2FF", "#FF7A59", "#6EEB83", "#C084FC", "#FFD166", "#FF4D6D", "#7BDFF2", "#A3E635"]
@@ -3290,10 +3137,10 @@ with tab2:
                             st.components.v1.html(_html_roi_corte, height=540 if len(_topos_adq) > 1 else 620)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
-                        _alto_topos = 430 if len(_topos_adq) > 1 else 470
-                        st.components.v1.html(_html_topos_adq, height=_alto_topos)
+                        st.components.v1.html(_html_topos_adq, height=790 if len(_topos_adq) > 1 else 590)
 
-                    st.markdown("<div style='margin-top:-34px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
+
+                    st.markdown("<div style='margin-top:-18px; margin-bottom:0; padding:0;'></div>", unsafe_allow_html=True)
                 else:
                     st.warning("No se pudieron renderizar los topogramas en esta adquisición.")
 
@@ -3303,6 +3150,54 @@ with tab2:
 
             if not _topos_adq and not _errores_topos_adq:
                 st.info("Aún no hay topogramas disponibles para esta adquisición. Configúralos en la pestaña Topograma.")
+
+            if _topos_adq and not _es_bolus:
+                st.markdown('<div class="section-header">🎯 Rangos de topograma de esta adquisición</div>', unsafe_allow_html=True)
+                if len(_topos_adq) == 1:
+                    _c_topo = st.columns(1)[0]
+                    with _c_topo:
+                        st.caption("Topograma 1")
+                        _c11, _c12 = st.columns(2)
+                        with _c11:
+                            _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
+                            _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
+                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                        with _c12:
+                            _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
+                            _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
+                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+                else:
+                    _tc1, _tc2 = st.columns(2, gap="small")
+                    with _tc1:
+                        st.caption("Topograma 1")
+                        _c11, _c12 = st.columns(2)
+                        with _c11:
+                            _v = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
+                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
+                            _actual["topo1_inicio_ref"] = st.selectbox("Inicio Topograma 1", _refs_ini_adq, index=_idx, key=f"topo1_iniref_{_exp_id}")
+                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
+                        with _c12:
+                            _v = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
+                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
+                            _actual["topo1_fin_ref"] = st.selectbox("Fin Topograma 1", _refs_fin_adq, index=_idx, key=f"topo1_finref_{_exp_id}")
+                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
+                    with _tc2:
+                        st.caption("Topograma 2")
+                        _c21, _c22 = st.columns(2)
+                        with _c21:
+                            _v = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
+                            _idx = _refs_ini_adq.index(_v) if _v in _refs_ini_adq else 0
+                            _actual["topo2_inicio_ref"] = st.selectbox("Inicio Topograma 2", _refs_ini_adq, index=_idx, key=f"topo2_iniref_{_exp_id}")
+                            _actual["topo2_ini_mm"] = st.number_input("mm inicio Topograma 2", value=int(_actual.get("topo2_ini_mm", 0)), step=10, key=f"topo2_inimm_{_exp_id}")
+                        with _c22:
+                            _v = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
+                            _idx = _refs_fin_adq.index(_v) if _v in _refs_fin_adq else 0
+                            _actual["topo2_fin_ref"] = st.selectbox("Fin Topograma 2", _refs_fin_adq, index=_idx, key=f"topo2_finref_{_exp_id}")
+                            _actual["topo2_fin_mm"] = st.number_input("mm fin Topograma 2", value=int(_actual.get("topo2_fin_mm", 400)), step=10, key=f"topo2_finmm_{_exp_id}")
+
+
 
             col_adq1, col_adq2 = st.columns([1, 1], gap="small")
             _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
@@ -3339,62 +3234,107 @@ with tab2:
                 _actual["doble_muestreo"] = "NO"
                 _actual["pitch"] = 1.0
             else:
-                _col_generales, _col_conf_tec, _col_mod_corr, _col_rango_exp = st.columns(4, gap="small")
-
-                with _col_generales:
-                    st.markdown('<div class="section-header section-header-compact">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
+                with col_adq1:
+                    st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
+                    _tipo_idx = TIPOS_EXPLORACION.index(_actual.get("tipo_exp", TIPOS_EXPLORACION[0])) if _actual.get("tipo_exp", TIPOS_EXPLORACION[0]) in TIPOS_EXPLORACION else 0
                     _actual["tipo_exp"] = selectbox_con_placeholder("Tipo de exploración", TIPOS_EXPLORACION, value=_actual.get("tipo_exp", TIPOS_EXPLORACION[0]), key=f"tipoexp_{_exp_id}")
+
                     if _actual["tipo_exp"] == "HELICOIDAL":
+                        _dm_idx = ["NO", "SI"].index(_actual.get("doble_muestreo", "NO")) if _actual.get("doble_muestreo", "NO") in ["NO", "SI"] else 0
                         _actual["doble_muestreo"] = selectbox_con_placeholder("Doble muestreo (eje Z)", ["NO", "SI"], value=_actual.get("doble_muestreo", "NO"), key=f"dm_{_exp_id}")
                     else:
                         _actual["doble_muestreo"] = "NO"
-                        st.info("Doble muestreo no aplica")
+
+                    _voz_idx = INSTRUCCIONES_VOZ.index(_actual.get("voz_adq", INSTRUCCIONES_VOZ[0])) if _actual.get("voz_adq", INSTRUCCIONES_VOZ[0]) in INSTRUCCIONES_VOZ else 0
                     _actual["voz_adq"] = selectbox_con_placeholder("Instrucción de voz", INSTRUCCIONES_VOZ, value=_actual.get("voz_adq", INSTRUCCIONES_VOZ[0]), key=f"voz_{_exp_id}")
 
-                with _col_conf_tec:
-                    st.markdown('<div class="section-header section-header-compact">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
+                    _mod_idx = MODULACION_CORRIENTE.index(_actual.get("mod_corriente", MODULACION_CORRIENTE[0])) if _actual.get("mod_corriente", MODULACION_CORRIENTE[0]) in MODULACION_CORRIENTE else 0
+                    _actual["mod_corriente"] = selectbox_con_placeholder("Modulación", MODULACION_CORRIENTE, value=_actual.get("mod_corriente", MODULACION_CORRIENTE[0]), key=f"mod_{_exp_id}")
+
+                    _col_kv, _col_mas = st.columns(2)
+                    with _col_kv:
+                        _kv_actual = _actual.get("kvp", 120)
+                        _kv_idx = KVP_OPCIONES.index(_kv_actual) if _kv_actual in KVP_OPCIONES else 3
+                        _label_kv = "kV"
+                        if _actual["mod_corriente"] == "CARE DOSE 4D":
+                            _label_kv = "CARE kV"
+                        elif _actual["mod_corriente"] == "AUTO mA":
+                            _label_kv = "AUTO kV"
+                        _actual["kvp"] = selectbox_con_placeholder(_label_kv, KVP_OPCIONES, value=_actual.get("kvp", KVP_OPCIONES[0]), key=f"kv_{_exp_id}")
+
+                    with _col_mas:
+                        if _actual["mod_corriente"] == "CARE DOSE 4D":
+                            _mas_base = _actual.get("mas_val", 200)
+                            _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
+                            _actual["mas_val"] = selectbox_con_placeholder("mAs REF", MAS_OPCIONES, value=_actual.get("mas_val", MAS_OPCIONES[0]), key=f"masref_{_exp_id}")
+                            _ind_cal = _actual.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0])
+                            _ind_cal_idx = INDICE_CALIDAD.index(_ind_cal) if _ind_cal in INDICE_CALIDAD else (4 if len(INDICE_CALIDAD) > 4 else 0)
+                            _actual["ind_cal"] = selectbox_con_placeholder("Índice de calidad", INDICE_CALIDAD, value=_actual.get("ind_cal", INDICE_CALIDAD[0]), key=f"indcal_{_exp_id}")
+                        elif _actual["mod_corriente"] == "AUTO mA":
+                            _rango_ma = _actual.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0])
+                            _rango_idx = RANGO_MA.index(_rango_ma) if _rango_ma in RANGO_MA else (2 if len(RANGO_MA) > 2 else 0)
+                            _actual["rango_ma"] = selectbox_con_placeholder("Rango mA", RANGO_MA, value=_actual.get("rango_ma", RANGO_MA[0]), key=f"rangoma_{_exp_id}")
+                            try:
+                                _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
+                            except Exception:
+                                _actual["mas_val"] = 200
+                            _ind_ruido = _actual.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0])
+                            _ind_ruido_idx = INDICE_RUIDO.index(_ind_ruido) if _ind_ruido in INDICE_RUIDO else (2 if len(INDICE_RUIDO) > 2 else 0)
+                            _actual["ind_ruido"] = selectbox_con_placeholder("Índice de ruido", INDICE_RUIDO, value=_actual.get("ind_ruido", INDICE_RUIDO[0]), key=f"indruido_{_exp_id}")
+                        else:
+                            _mas_base = _actual.get("mas_val", 200)
+                            _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
+                            _actual["mas_val"] = selectbox_con_placeholder("mAs", MAS_OPCIONES, value=_actual.get("mas_val", MAS_OPCIONES[0]), key=f"mas_{_exp_id}")
+
+                with col_adq2:
+                    st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
+                    _conf_actual = _actual.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0])
+                    _conf_idx = CONF_DETECTORES.index(_conf_actual) if _conf_actual in CONF_DETECTORES else (4 if len(CONF_DETECTORES) > 4 else 0)
                     _actual["conf_det"] = selectbox_con_placeholder("Configuración de detectores", CONF_DETECTORES, value=_actual.get("conf_det", CONF_DETECTORES[0]), key=f"confdet_{_exp_id}")
+
+                    _sfov_actual = _actual.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0])
+                    _sfov_idx = SFOV_OPCIONES.index(_sfov_actual) if _sfov_actual in SFOV_OPCIONES else (2 if len(SFOV_OPCIONES) > 2 else 0)
                     _actual["sfov"] = selectbox_con_placeholder("SFOV", SFOV_OPCIONES, value=_actual.get("sfov", SFOV_OPCIONES[0]), key=f"sfov_{_exp_id}")
+
+                    _grosor_actual = str(_actual.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]))
                     _grosor_opciones = [str(g) for g in GROSOR_PROSP]
+                    _grosor_idx = _grosor_opciones.index(_grosor_actual) if _grosor_actual in _grosor_opciones else (2 if len(_grosor_opciones) > 2 else 0)
                     _actual["grosor_prosp"] = selectbox_con_placeholder("Corte prospectivo (mm)", _grosor_opciones, value=_actual.get("grosor_prosp", _grosor_opciones[0]), key=f"gpros_{_exp_id}")
-                    if _actual["tipo_exp"] == "HELICOIDAL":
-                        _actual["pitch"] = selectbox_con_placeholder("Pitch", PITCH_OPCIONES, value=_actual.get("pitch", PITCH_OPCIONES[0]), key=f"pitch_{_exp_id}")
-                    else:
-                        _actual["pitch"] = 1.0
-                        st.info("Pitch no aplica")
-                    _actual["rot_tubo"] = selectbox_con_placeholder("Rotación tubo (sg)", ROT_TUBO, value=_actual.get("rot_tubo", ROT_TUBO[0]), key=f"rot_{_exp_id}")
+
+                    _col_p, _col_r = st.columns(2)
+                    with _col_p:
+                        if _actual["tipo_exp"] == "HELICOIDAL":
+                            _pitch_actual = _actual.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0])
+                            _pitch_idx = PITCH_OPCIONES.index(_pitch_actual) if _pitch_actual in PITCH_OPCIONES else (6 if len(PITCH_OPCIONES) > 6 else 0)
+                            _actual["pitch"] = selectbox_con_placeholder("Pitch", PITCH_OPCIONES, value=_actual.get("pitch", PITCH_OPCIONES[0]), key=f"pitch_{_exp_id}")
+                        else:
+                            _actual["pitch"] = 1.0
+                            st.info("Pitch no aplica")
+                    with _col_r:
+                        _rot_actual = _actual.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0])
+                        _rot_idx = ROT_TUBO.index(_rot_actual) if _rot_actual in ROT_TUBO else (1 if len(ROT_TUBO) > 1 else 0)
+                        _actual["rot_tubo"] = selectbox_con_placeholder("Rotación tubo (sg)", ROT_TUBO, value=_actual.get("rot_tubo", ROT_TUBO[0]), key=f"rot_{_exp_id}")
+
+                    _ret_actual = _actual.get("retardo", RETARDOS[0])
+                    _ret_idx = RETARDOS.index(_ret_actual) if _ret_actual in RETARDOS else 0
                     _actual["retardo"] = selectbox_con_placeholder("Retardo (Delay)", RETARDOS, value=_actual.get("retardo", RETARDOS[0]), key=f"delay_{_exp_id}")
 
-                with _col_mod_corr:
-                    st.markdown('<div class="section-header section-header-compact">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
-                    _actual["mod_corriente"] = selectbox_con_placeholder("Modulación", MODULACION_CORRIENTE, value=_actual.get("mod_corriente", MODULACION_CORRIENTE[0]), key=f"mod_{_exp_id}")
-                    _label_kv = "kV"
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        _label_kv = "CARE kV"
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        _label_kv = "AUTO kV"
-                    _actual["kvp"] = selectbox_con_placeholder(_label_kv, KVP_OPCIONES, value=_actual.get("kvp", KVP_OPCIONES[0]), key=f"kv_{_exp_id}")
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        _actual["mas_val"] = selectbox_con_placeholder("mAs REF", MAS_OPCIONES, value=_actual.get("mas_val", MAS_OPCIONES[0]), key=f"masref_{_exp_id}")
-                        _actual["ind_cal"] = selectbox_con_placeholder("Índice de calidad", INDICE_CALIDAD, value=_actual.get("ind_cal", INDICE_CALIDAD[0]), key=f"indcal_{_exp_id}")
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        _actual["rango_ma"] = selectbox_con_placeholder("Rango mA", RANGO_MA, value=_actual.get("rango_ma", RANGO_MA[0]), key=f"rangoma_{_exp_id}")
-                        try:
-                            _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
-                        except Exception:
-                            _actual["mas_val"] = 200
-                        _actual["ind_ruido"] = selectbox_con_placeholder("Índice de ruido", INDICE_RUIDO, value=_actual.get("ind_ruido", INDICE_RUIDO[0]), key=f"indruido_{_exp_id}")
-                    else:
-                        _actual["mas_val"] = selectbox_con_placeholder("mAs", MAS_OPCIONES, value=_actual.get("mas_val", MAS_OPCIONES[0]), key=f"mas_{_exp_id}")
-
-                with _col_rango_exp:
-                    st.markdown('<div class="section-header section-header-compact">📍 Rango de Exploración</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
                     _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
                     _refs_fin_lista = REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])
-                    _actual["inicio_ref"] = selectbox_con_placeholder("Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}")
-                    _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
-                    _actual["fin_ref"] = selectbox_con_placeholder("Fin exploración", _refs_fin_lista, value=_actual.get("fin_ref", _refs_fin_lista[0]), key=f"finref_{_exp_id}")
-                    _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
+
+                    _col_ini, _col_fin = st.columns(2)
+                    with _col_ini:
+                        _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
+                        _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
+                        _actual["inicio_ref"] = selectbox_con_placeholder("Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}")
+                        _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
+                    with _col_fin:
+                        _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
+                        _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
+                        _actual["fin_ref"] = selectbox_con_placeholder("Fin exploración", _refs_fin_lista, value=_actual.get("fin_ref", _refs_fin_lista[0]), key=f"finref_{_exp_id}")
+                        _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
             _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
