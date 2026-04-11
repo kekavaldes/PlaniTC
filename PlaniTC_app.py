@@ -22,13 +22,13 @@ BASE_DIR = Path(__file__).parent
 
 def selectbox_con_placeholder(label, options, value=None, key=None, placeholder_text="Seleccionar", format_func=None, **kwargs):
     opciones = list(options)
-    tiene_placeholder = any(
-        (opt is None) or (isinstance(opt, str) and opt == placeholder_text)
-        for opt in opciones
-    )
-    opciones_finales = opciones if tiene_placeholder else [None] + opciones
+    opciones_sin_placeholder = [
+        opt for opt in opciones
+        if not ((opt is None) or (isinstance(opt, str) and opt == placeholder_text))
+    ]
+    opciones_finales = [None] + opciones_sin_placeholder
 
-    if value in opciones_finales:
+    if value in opciones_finales and value is not None:
         indice = opciones_finales.index(value)
     else:
         indice = 0
@@ -1318,7 +1318,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     var dragMode = null;
     var dragOffsetX = 0;
     var dragOffsetY = 0;
-    var handleSize = 18;
+    var handleSize = 10;
     var minW = 0.12;
     var minH = 0.10;
     var minR = modo === 'roi' ? 0.004 : 0.05;
@@ -2950,7 +2950,7 @@ with tab2:
             _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
             _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
             if _es_bolus:
-                _posiciones_corte = ["Seleccionar", "BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
+                _posiciones_corte = [None, "BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
                 _pos_actual = _actual.get("posicion_corte", "Seleccionar")
                 if _pos_actual not in _posiciones_corte:
                     _pos_actual = "Seleccionar"
