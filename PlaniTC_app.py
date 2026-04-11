@@ -2430,6 +2430,37 @@ with tab1b:
                 st.session_state["topograma_iniciado"] = False
                 st.rerun()
 
+        st.markdown('<div class="section-header">🎯 Rango Topograma 1</div>', unsafe_allow_html=True)
+        _refs_ini_topo_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+        _refs_fin_topo_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
+        col_rt1a, col_rt1b = st.columns(2)
+        with col_rt1a:
+            st.session_state["topo1_inicio_ref_global"] = selectbox_con_placeholder(
+                "Inicio Topograma 1",
+                _refs_ini_topo_cfg,
+                value=st.session_state.get("topo1_inicio_ref_global", _refs_ini_topo_cfg[0]),
+                key="topo1_inicio_ref_global_widget",
+            )
+            st.session_state["topo1_ini_mm_global"] = st.number_input(
+                "mm inicio Topograma 1",
+                value=int(st.session_state.get("topo1_ini_mm_global", 0)),
+                step=10,
+                key="topo1_ini_mm_global_widget",
+            )
+        with col_rt1b:
+            st.session_state["topo1_fin_ref_global"] = selectbox_con_placeholder(
+                "Fin Topograma 1",
+                _refs_fin_topo_cfg,
+                value=st.session_state.get("topo1_fin_ref_global", _refs_fin_topo_cfg[0]),
+                key="topo1_fin_ref_global_widget",
+            )
+            st.session_state["topo1_fin_mm_global"] = st.number_input(
+                "mm fin Topograma 1",
+                value=int(st.session_state.get("topo1_fin_mm_global", 400)),
+                step=10,
+                key="topo1_fin_mm_global_widget",
+            )
+
     with col_topo_img:
         _region_prev   = st.session_state.get("region_anat", "CUERPO")
         _examen_prev   = st.session_state.get("examen", "")
@@ -2608,6 +2639,37 @@ with tab1b:
                 if st.button("↺  Repetir topograma 2", key="btn_reset_topo2", use_container_width=True):
                     st.session_state["topograma2_iniciado"] = False
                     st.rerun()
+
+            st.markdown('<div class="section-header">🎯 Rango Topograma 2</div>', unsafe_allow_html=True)
+            _refs_ini_topo2_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+            _refs_fin_topo2_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
+            col_rt2a, col_rt2b = st.columns(2)
+            with col_rt2a:
+                st.session_state["topo2_inicio_ref_global"] = selectbox_con_placeholder(
+                    "Inicio Topograma 2",
+                    _refs_ini_topo2_cfg,
+                    value=st.session_state.get("topo2_inicio_ref_global", _refs_ini_topo2_cfg[0]),
+                    key="topo2_inicio_ref_global_widget",
+                )
+                st.session_state["topo2_ini_mm_global"] = st.number_input(
+                    "mm inicio Topograma 2",
+                    value=int(st.session_state.get("topo2_ini_mm_global", 0)),
+                    step=10,
+                    key="topo2_ini_mm_global_widget",
+                )
+            with col_rt2b:
+                st.session_state["topo2_fin_ref_global"] = selectbox_con_placeholder(
+                    "Fin Topograma 2",
+                    _refs_fin_topo2_cfg,
+                    value=st.session_state.get("topo2_fin_ref_global", _refs_fin_topo2_cfg[0]),
+                    key="topo2_fin_ref_global_widget",
+                )
+                st.session_state["topo2_fin_mm_global"] = st.number_input(
+                    "mm fin Topograma 2",
+                    value=int(st.session_state.get("topo2_fin_mm_global", 400)),
+                    step=10,
+                    key="topo2_fin_mm_global_widget",
+                )
 
         with col_t2_img:
             st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
@@ -3124,19 +3186,27 @@ with tab2:
 
             if _topos_adq:
                 if len(_topos_adq) >= 1:
-                    _topos_adq[0]["inicio_ref"] = _actual.get("topo1_inicio_ref", _refs_ini_adq[0])
-                    _topos_adq[0]["fin_ref"] = _actual.get("topo1_fin_ref", _refs_fin_adq[0])
-                    _topos_adq[0]["inicio_mm"] = _actual.get("topo1_ini_mm", 0)
-                    _topos_adq[0]["fin_mm"] = _actual.get("topo1_fin_mm", 0)
-                    _topos_adq[0]["y_ini"] = get_y_position_with_offset(_topos_adq[0]["inicio_ref"], _topos_adq[0]["inicio_mm"])
-                    _topos_adq[0]["y_fin"] = get_y_position_with_offset(_topos_adq[0]["fin_ref"], _topos_adq[0]["fin_mm"])
+                    _topo1_inicio_ref = st.session_state.get("topo1_inicio_ref_global", _refs_ini_adq[0])
+                    _topo1_fin_ref = st.session_state.get("topo1_fin_ref_global", _refs_fin_adq[0])
+                    _topo1_inicio_mm = int(st.session_state.get("topo1_ini_mm_global", 0))
+                    _topo1_fin_mm = int(st.session_state.get("topo1_fin_mm_global", 400))
+                    _topos_adq[0]["inicio_ref"] = _topo1_inicio_ref
+                    _topos_adq[0]["fin_ref"] = _topo1_fin_ref
+                    _topos_adq[0]["inicio_mm"] = _topo1_inicio_mm
+                    _topos_adq[0]["fin_mm"] = _topo1_fin_mm
+                    _topos_adq[0]["y_ini"] = get_y_position_with_offset(_topo1_inicio_ref, _topo1_inicio_mm)
+                    _topos_adq[0]["y_fin"] = get_y_position_with_offset(_topo1_fin_ref, _topo1_fin_mm)
                 if len(_topos_adq) >= 2:
-                    _topos_adq[1]["inicio_ref"] = _actual.get("topo2_inicio_ref", _refs_ini_adq[0])
-                    _topos_adq[1]["fin_ref"] = _actual.get("topo2_fin_ref", _refs_fin_adq[0])
-                    _topos_adq[1]["inicio_mm"] = _actual.get("topo2_ini_mm", 0)
-                    _topos_adq[1]["fin_mm"] = _actual.get("topo2_fin_mm", 0)
-                    _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topos_adq[1]["inicio_ref"], _topos_adq[1]["inicio_mm"])
-                    _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topos_adq[1]["fin_ref"], _topos_adq[1]["fin_mm"])
+                    _topo2_inicio_ref = st.session_state.get("topo2_inicio_ref_global", _refs_ini_adq[0])
+                    _topo2_fin_ref = st.session_state.get("topo2_fin_ref_global", _refs_fin_adq[0])
+                    _topo2_inicio_mm = int(st.session_state.get("topo2_ini_mm_global", 0))
+                    _topo2_fin_mm = int(st.session_state.get("topo2_fin_mm_global", 400))
+                    _topos_adq[1]["inicio_ref"] = _topo2_inicio_ref
+                    _topos_adq[1]["fin_ref"] = _topo2_fin_ref
+                    _topos_adq[1]["inicio_mm"] = _topo2_inicio_mm
+                    _topos_adq[1]["fin_mm"] = _topo2_fin_mm
+                    _topos_adq[1]["y_ini"] = get_y_position_with_offset(_topo2_inicio_ref, _topo2_inicio_mm)
+                    _topos_adq[1]["y_fin"] = get_y_position_with_offset(_topo2_fin_ref, _topo2_fin_mm)
 
                 _modo_topograma_adq = "line" if _es_bolus else "rect"
                 _paleta_exp = ["#00D2FF", "#FF7A59", "#6EEB83", "#C084FC", "#FFD166", "#FF4D6D", "#7BDFF2", "#A3E635"]
@@ -3269,29 +3339,7 @@ with tab2:
                 _actual["doble_muestreo"] = "NO"
                 _actual["pitch"] = 1.0
             else:
-                _col_rangos_topo, _col_generales, _col_conf_tec, _col_mod_corr, _col_rango_exp = st.columns(5, gap="small")
-
-                with _col_rangos_topo:
-                    st.markdown('<div class="section-header section-header-compact">🎯 Rangos de topograma de esta adquisición</div>', unsafe_allow_html=True)
-                    if _topos_adq:
-                        if len(_topos_adq) == 1:
-                            _actual["topo1_inicio_ref"] = selectbox_con_placeholder("Inicio Topograma 1", _refs_ini_adq, value=_actual.get("topo1_inicio_ref", _refs_ini_adq[0]), key=f"topo1_iniref_{_exp_id}")
-                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
-                            _actual["topo1_fin_ref"] = selectbox_con_placeholder("Fin Topograma 1", _refs_fin_adq, value=_actual.get("topo1_fin_ref", _refs_fin_adq[0]), key=f"topo1_finref_{_exp_id}")
-                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
-                        else:
-                            st.caption("Topograma 1")
-                            _actual["topo1_inicio_ref"] = selectbox_con_placeholder("Inicio Topograma 1", _refs_ini_adq, value=_actual.get("topo1_inicio_ref", _refs_ini_adq[0]), key=f"topo1_iniref_{_exp_id}")
-                            _actual["topo1_ini_mm"] = st.number_input("mm inicio Topograma 1", value=int(_actual.get("topo1_ini_mm", 0)), step=10, key=f"topo1_inimm_{_exp_id}")
-                            _actual["topo1_fin_ref"] = selectbox_con_placeholder("Fin Topograma 1", _refs_fin_adq, value=_actual.get("topo1_fin_ref", _refs_fin_adq[0]), key=f"topo1_finref_{_exp_id}")
-                            _actual["topo1_fin_mm"] = st.number_input("mm fin Topograma 1", value=int(_actual.get("topo1_fin_mm", 400)), step=10, key=f"topo1_finmm_{_exp_id}")
-                            st.caption("Topograma 2")
-                            _actual["topo2_inicio_ref"] = selectbox_con_placeholder("Inicio Topograma 2", _refs_ini_adq, value=_actual.get("topo2_inicio_ref", _refs_ini_adq[0]), key=f"topo2_iniref_{_exp_id}")
-                            _actual["topo2_ini_mm"] = st.number_input("mm inicio Topograma 2", value=int(_actual.get("topo2_ini_mm", 0)), step=10, key=f"topo2_inimm_{_exp_id}")
-                            _actual["topo2_fin_ref"] = selectbox_con_placeholder("Fin Topograma 2", _refs_fin_adq, value=_actual.get("topo2_fin_ref", _refs_fin_adq[0]), key=f"topo2_finref_{_exp_id}")
-                            _actual["topo2_fin_mm"] = st.number_input("mm fin Topograma 2", value=int(_actual.get("topo2_fin_mm", 400)), step=10, key=f"topo2_finmm_{_exp_id}")
-                    else:
-                        st.info("Sin topogramas disponibles.")
+                _col_generales, _col_conf_tec, _col_mod_corr, _col_rango_exp = st.columns(4, gap="small")
 
                 with _col_generales:
                     st.markdown('<div class="section-header section-header-compact">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
