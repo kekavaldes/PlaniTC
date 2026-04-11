@@ -1231,7 +1231,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     help_text = {
         "rect": "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño.",
         "line": "Arrastra la línea para ubicar el corte de planificación.",
-        "roi": "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño.",
+        "roi": "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño. Ahora permite un tamaño mínimo más pequeño.",
     }.get(modo, "")
 
     html = f'''
@@ -1293,7 +1293,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     var handleSize = 18;
     var minW = 0.12;
     var minH = 0.10;
-    var minR = modo === 'roi' ? 0.025 : 0.05;
+    var minR = modo === 'roi' ? 0.012 : 0.05;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
 
