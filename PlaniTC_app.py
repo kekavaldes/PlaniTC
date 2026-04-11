@@ -1387,7 +1387,8 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     function isOnCircleHandle(mx, my, cp) {{
       var hx = cp.x + cp.r * 0.72;
       var hy = cp.y + cp.r * 0.72;
-      return Math.abs(mx - hx) <= 14 && Math.abs(my - hy) <= 14;
+      var circleHandleHit = 7;
+      return Math.abs(mx - hx) <= circleHandleHit && Math.abs(my - hy) <= circleHandleHit;
     }}
 
     function updateLabels() {{
@@ -1485,11 +1486,12 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.fillText(roiLabel, Math.max(10, cp.x - cp.r), Math.max(18, cp.y - cp.r - 8));
       var hx = cp.x + cp.r * 0.72;
       var hy = cp.y + cp.r * 0.72;
+      var circleHandleVisual = 4;
       ctx.fillStyle = '#FFD700';
-      ctx.fillRect(hx - 8, hy - 8, 16, 16);
+      ctx.fillRect(hx - circleHandleVisual, hy - circleHandleVisual, circleHandleVisual * 2, circleHandleVisual * 2);
       ctx.strokeStyle = '#111';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(hx - 8, hy - 8, 16, 16);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(hx - circleHandleVisual, hy - circleHandleVisual, circleHandleVisual * 2, circleHandleVisual * 2);
     }}
 
     function draw() {{
