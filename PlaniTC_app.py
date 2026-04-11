@@ -2619,14 +2619,34 @@ with tab1b:
                     st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
             st.markdown('<div class="section-header">📡 Topograma 2</div>', unsafe_allow_html=True)
+            refs_inicio_topo2 = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+            st.session_state["t2kv"] = 100
+            st.session_state["t2ma"] = 40
+            topo2_kv = 100
+            topo2_ma = 40
             col_t2a, col_t2b, col_t2c = st.columns(3)
             with col_t2a:
-                topo2_kv = 100
-                st.text_input("kV", value="100", disabled=True, key="t2kv_fijo")
+                st.markdown("""
+                <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">kV</div>
+                <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">100</div>
+                """, unsafe_allow_html=True)
             with col_t2b:
-                topo2_ma = 40
-                st.text_input("mA", value="40", disabled=True, key="t2ma_fijo")
+                st.markdown("""
+                <div style="margin-bottom:0.25rem; color:#FAFAFA; font-size:0.95rem;">mA</div>
+                <div style="background:#1A1A1A; border:1px solid #3A3A3A; border-radius:8px; padding:0.55rem 0.75rem; color:#FFFFFF;">40</div>
+                """, unsafe_allow_html=True)
             with col_t2c:
+                centro_inicio_topo2 = st.selectbox(
+                    "Centraje inicio de topograma",
+                    refs_inicio_topo2,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_centraje_inicio"
+                )
+
+            col_t2d, col_t2e, col_t2f = st.columns(3)
+            with col_t2d:
                 topo2_long = st.selectbox(
                     "Longitud de topograma (mm)",
                     [None] + LONGITUDES_TOPO,
@@ -2634,8 +2654,7 @@ with tab1b:
                     format_func=lambda x: "Seleccionar" if x is None else str(x),
                     key="t2l"
                 )
-            col_t2d, col_t2e = st.columns(2)
-            with col_t2d:
+            with col_t2e:
                 topo2_dir = st.selectbox(
                     "Dirección topograma",
                     [None] + DIRECCIONES,
@@ -2644,7 +2663,7 @@ with tab1b:
                     placeholder="Seleccionar",
                     key="t2dir"
                 )
-            with col_t2e:
+            with col_t2f:
                 topo2_voz = st.selectbox(
                     "Instrucción de voz",
                     [None] + INSTRUCCIONES_VOZ,
