@@ -2774,12 +2774,10 @@ with tab2:
     if st.session_state["exploracion_adq_activa"] not in ids_validos:
         st.session_state["exploracion_adq_activa"] = ids_validos[0]
 
-    col_nav, col_det = st.columns([0.95, 2.4])
+    col_nav, col_det = st.columns([0.72, 2.58], gap="small")
 
     with col_nav:
         st.markdown('<div class="section-header">📋 Exploraciones</div>', unsafe_allow_html=True)
-        st.caption("Selecciona una exploración para editar sus parámetros.")
-
         st.markdown("""
         <style>
         div[data-testid="stButton"] button[kind="secondary"] {
@@ -2787,12 +2785,12 @@ with tab2:
             color: #ffffff !important;
             border: 1px solid #3a3a3a !important;
             border-radius: 14px !important;
-            min-height: 54px !important;
-            font-size: 1.05rem !important;
+            min-height: 42px !important;
+            font-size: 0.96rem !important;
             font-weight: 600 !important;
             text-align: left !important;
             justify-content: flex-start !important;
-            padding-left: 16px !important;
+            padding-left: 12px !important;
             box-shadow: none !important;
         }
         div[data-testid="stButton"] button[kind="secondary"]:hover {
@@ -2805,12 +2803,12 @@ with tab2:
             color: #ffffff !important;
             border: 1px solid #4da3ff !important;
             border-radius: 14px !important;
-            min-height: 58px !important;
-            font-size: 1.08rem !important;
+            min-height: 44px !important;
+            font-size: 0.98rem !important;
             font-weight: 700 !important;
             text-align: left !important;
             justify-content: flex-start !important;
-            padding-left: 16px !important;
+            padding-left: 12px !important;
             box-shadow: 0 0 0 1px rgba(77,163,255,0.15) inset !important;
         }
         div[data-testid="stButton"] button[kind="primary"]:hover {
@@ -2826,9 +2824,6 @@ with tab2:
             _icono = "⚡"
             _nombre_base = (_exp.get("nombre") or "SIN CONTRASTE").strip()
             _label = f"{_icono} {_nombre_base}"
-            _tipo_resumen = _exp.get("tipo_exp", "HELICOIDAL")
-            _voz_resumen = _exp.get("voz_adq", _exp.get("voz", "NINGUNA"))
-            st.caption(f"{_tipo_resumen} · Voz: {_voz_resumen}")
             if st.button(
                 _label,
                 key=f"btn_sel_{_exp['id']}",
@@ -2843,9 +2838,9 @@ with tab2:
                 st.session_state["exploracion_adq_activa"] = _exp["id"]
                 _sincronizar_desde_store(_exp)
                 _cargar_widgets_desde_store(_exp)
-            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
 
-        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
         if st.button("➕ Agregar exploración", use_container_width=True, key="agregar_exploracion_adq", type="secondary"):
             _actual_prev = next((e for e in st.session_state["exploraciones_adq"] if e.get("id") == st.session_state.get("exploracion_adq_activa")), None)
             if _actual_prev is not None:
