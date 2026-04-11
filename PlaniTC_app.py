@@ -296,6 +296,30 @@ EXCEL_TOPOGRAMAS = BASE_DIR / "imagenes topograma.xlsx"
 ZIP_TOPOGRAMAS = BASE_DIR / "IMAGENES TOPOGRAMA-2.zip"
 
 
+def _buscar_archivo_topogramas_excel():
+    candidatos = [
+        BASE_DIR / "imagenes topograma.xlsx",
+        BASE_DIR / "Imagenes topograma.xlsx",
+        BASE_DIR / "IMAGENES TOPOGRAMA.xlsx",
+        BASE_DIR / "imagenes_topograma.xlsx",
+        BASE_DIR / "topogramas.xlsx",
+    ]
+    for c in candidatos:
+        if c.exists():
+            return c
+
+    try:
+        for patron in ["*.xlsx", "*.xls"]:
+            for f in BASE_DIR.glob(patron):
+                nombre = _norm_topo_texto(f.stem)
+                if "topograma" in nombre:
+                    return f
+    except Exception:
+        pass
+
+    return None
+
+
 def _norm_topo_texto(valor):
     if valor is None:
         return ""
@@ -348,18 +372,39 @@ def _norm_topo_examen(valor):
 
 @st.cache_data
 def cargar_tabla_topogramas_adquiridos():
-    if not EXCEL_TOPOGRAMAS.exists():
+    archivo_excel = _buscar_archivo_topogramas_excel()
+    if archivo_excel is None:
         return pd.DataFrame()
-    df = pd.read_excel(EXCEL_TOPOGRAMAS)
+
+    try:
+        df = pd.read_excel(archivo_excel)
+    except Exception:
+        return pd.DataFrame()
+
     df.columns = [str(c).strip() for c in df.columns]
-    col_map = {
+    columnas_normalizadas = {_norm_topo_texto(c): c for c in df.columns}
+    renombres = {}
+
+    equivalencias = {
         "entrada del paciente": "entrada",
-        "Posición paciente": "posicion_paciente",
-        "Posición tubo": "pos_tubo",
+        "entrada": "entrada",
+        "posicion paciente": "posicion_paciente",
+        "paciente": "posicion_paciente",
+        "posicion tubo": "pos_tubo",
+        "tubo": "pos_tubo",
         "examen": "examen",
+        "protocolo": "examen",
         "nombre exacto de la imagen": "nombre_imagen",
+        "nombre imagen": "nombre_imagen",
+        "imagen": "nombre_imagen",
     }
-    df = df.rename(columns=col_map)
+
+    for col_norm, col_real in columnas_normalizadas.items():
+        destino = equivalencias.get(col_norm)
+        if destino:
+            renombres[col_real] = destino
+
+    df = df.rename(columns=renombres)
     cols_necesarias = ["entrada", "posicion_paciente", "pos_tubo", "examen", "nombre_imagen"]
     for c in cols_necesarias:
         if c not in df.columns:
