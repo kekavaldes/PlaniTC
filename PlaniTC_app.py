@@ -2561,59 +2561,62 @@ with tab1b:
 
     if aplica_topo2:
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        col_t2_pos, col_t2_img = st.columns([1, 1])
+        refs_inicio_topo2 = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+        _refs_ini_topo2_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
+        _refs_fin_topo2_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
+        st.session_state["t2kv"] = 100
+        st.session_state["t2ma"] = 40
+        topo2_kv = 100
+        topo2_ma = 40
 
-        with col_t2_pos:
+        col_t2_cfg, col_t2_img = st.columns([1, 1])
+
+        with col_t2_cfg:
             st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente — Topograma 2</div>', unsafe_allow_html=True)
-            col_t2_fields, col_t2_preview = st.columns([1.45, 0.85])
+            col_t2e, col_t2f = st.columns(2)
+            with col_t2e:
+                topo2_posicion = st.selectbox(
+                    "Posición paciente",
+                    [None] + POSICIONES_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_posicion_paciente"
+                )
+            with col_t2f:
+                topo2_entrada = st.selectbox(
+                    "Entrada",
+                    [None] + ENTRADAS_PACIENTE,
+                    index=0,
+                    format_func=lambda x: "Seleccionar" if x is None else x,
+                    placeholder="Seleccionar",
+                    key="t2_entrada"
+                )
 
-            with col_t2_fields:
-                col_t2e, col_t2f = st.columns(2)
-                with col_t2e:
-                    topo2_posicion = st.selectbox(
-                        "Posición paciente",
-                        [None] + POSICIONES_PACIENTE,
-                        index=0,
-                        format_func=lambda x: "Seleccionar" if x is None else x,
-                        placeholder="Seleccionar",
-                        key="t2_posicion_paciente"
-                    )
-                with col_t2f:
-                    topo2_entrada = st.selectbox(
-                        "Entrada",
-                        [None] + ENTRADAS,
-                        index=0,
-                        format_func=lambda x: "Seleccionar" if x is None else x,
-                        placeholder="Seleccionar",
-                        key="t2_entrada"
-                    )
-
+            col_t2g, col_t2h = st.columns(2)
+            with col_t2g:
                 topo2_pos = st.selectbox(
-                    "Posición del tubo",
-                    [None] + POSICIONES_TUBO,
+                    "Posición tubo",
+                    [None] + POS_TUBO,
                     index=0,
                     format_func=lambda x: "Seleccionar" if x is None else x,
                     placeholder="Seleccionar",
                     key="t2pt"
                 )
-
-            with col_t2_preview:
-                _ruta_topo2 = None
-                if topo2_posicion and topo2_entrada and topo2_pos:
-                    _ruta_topo2 = obtener_imagen_posicionamiento_topograma(topo2_posicion, topo2_entrada, topo2_pos)
-
-                if _ruta_topo2:
-                    st.image(str(_ruta_topo2), use_container_width=True)
-                else:
-                    st.markdown("""
-                    <div style="
-                        border:1px dashed #444; border-radius:10px; min-height:220px;
-                        display:flex; align-items:center; justify-content:center;
-                        color:#777; font-size:0.9rem; text-align:center;
-                        padding:1rem; background:#0B0B0B;">
-                        Imagen de posicionamiento Topograma 2
-                    </div>
-                    """, unsafe_allow_html=True)
+            with col_t2h:
+                topo2_extremidades = st.selectbox(
+                    "Posición extremidades",
+                    [
+                        "Seleccionar",
+                        "brazos arriba",
+                        "brazos abajo",
+                        "eleva brazo derecho",
+                        "eleva brazo izquierdo",
+                        "flexión extremidad inferior derecha",
+                        "flexión extremidad inferior izquierda"
+                    ],
+                    key="t2_pos_extremidades"
+                )
 
         with col_t2_img:
             st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
@@ -2633,10 +2636,10 @@ with tab1b:
                 st.markdown(f"""
                 <div style="
                     border: 1px solid #333; border-radius: 8px;
-                    background: #0A0A0A; height: 380px;
+                    background: #0A0A0A; min-height: 430px;
                     display: flex; flex-direction: column;
                     align-items: center; justify-content: center;
-                    text-align: center; gap: 16px;">
+                    text-align: center; gap: 16px; padding: 1rem;">
                     <div style="font-size: 3.5rem; opacity: 0.25;">☢️</div>
                     <div style="color:#333; font-size:0.8rem;">
                         Proyección: {_proy_prev_t2} · Tubo: {st.session_state.get("t2pt", "ARRIBA 0°")}
@@ -2656,7 +2659,7 @@ with tab1b:
                     st.markdown(f"""
                     <div style="font-size:11px; color:#888; margin-top:6px; text-align:center;">
                         Proyección: {_proy_prev_t2} · Tubo: {st.session_state.get("t2pt", "ARRIBA 0°")}
-                        · {st.session_state.get('t2l', '—')} mm · {st.session_state.get('t2kv', '—')} kV · {st.session_state.get('t2ma', '—')} mA
+                        · {st.session_state.get('t2l', '—')} mm · {topo2_kv} kV · {topo2_ma} mA
                     </div>
                     """, unsafe_allow_html=True)
                     st.markdown("""<div class="alert-info">
@@ -2665,16 +2668,22 @@ with tab1b:
                 else:
                     st.warning(_err_topo_t2 or "No se encontró una imagen de topograma para esta combinación.")
 
-        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="section-header">📡 Parámetros Topograma 2</div>', unsafe_allow_html=True)
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        col_t2_pos_img, col_t2_param_header = st.columns([1, 1])
 
-        refs_inicio_topo2 = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-        _refs_ini_topo2_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-        _refs_fin_topo2_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
-        st.session_state["t2kv"] = 100
-        st.session_state["t2ma"] = 40
-        topo2_kv = 100
-        topo2_ma = 40
+        with col_t2_pos_img:
+            imagen_posicionamiento_t2 = obtener_imagen_posicionamiento_topograma(
+                topo2_posicion if topo2_posicion else "",
+                topo2_entrada if topo2_entrada else "",
+                st.session_state.get("t2pt", None),
+            )
+            if imagen_posicionamiento_t2 is not None:
+                st.image(str(imagen_posicionamiento_t2), width=250)
+            else:
+                st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
+
+        with col_t2_param_header:
+            st.markdown('<div class="section-header">📡 Parámetros Topograma 2</div>', unsafe_allow_html=True)
 
         col_topo2_rango, col_topo2_param = st.columns([0.95, 1.35])
 
@@ -2768,10 +2777,10 @@ with tab1b:
 
         if not _topo2_campos_completos:
             _campos_faltantes_t2 = []
-            if topo2_pos      is None: _campos_faltantes_t2.append("Posición tubo")
-            if topo2_long     is None: _campos_faltantes_t2.append("Longitud")
-            if topo2_dir      is None: _campos_faltantes_t2.append("Dirección")
-            if topo2_voz      is None: _campos_faltantes_t2.append("Instrucción de voz")
+            if topo2_pos is None: _campos_faltantes_t2.append("Posición tubo")
+            if topo2_long is None: _campos_faltantes_t2.append("Longitud")
+            if topo2_dir is None: _campos_faltantes_t2.append("Dirección")
+            if topo2_voz is None: _campos_faltantes_t2.append("Instrucción de voz")
             st.markdown(f"""
             <div style="background:#1A1100; border:1px solid #554400; border-radius:8px;
                         padding:0.6rem 1rem; margin-bottom:0.5rem; font-size:0.82rem; color:#FFAA00;">
