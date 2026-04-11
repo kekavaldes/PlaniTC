@@ -19,6 +19,34 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
+
+def selectbox_con_placeholder(label, options, value=None, key=None, placeholder_text="Seleccionar", format_func=None, **kwargs):
+    opciones = list(options)
+    opciones_sin_placeholder = [
+        opt for opt in opciones
+        if not ((opt is None) or (isinstance(opt, str) and opt == placeholder_text))
+    ]
+    opciones_finales = [None] + opciones_sin_placeholder
+
+    if value in opciones_finales and value is not None:
+        indice = opciones_finales.index(value)
+    else:
+        indice = 0
+
+    if format_func is None:
+        format_func = lambda x: placeholder_text if (x is None or x == placeholder_text) else str(x)
+
+    return st.selectbox(
+        label,
+        opciones_finales,
+        index=indice,
+        key=key,
+        format_func=format_func,
+        placeholder=placeholder_text,
+        **kwargs,
+    )
+
+
 # ─── Control de acceso ───────────────────────────────────────────────────────
 def check_password():
     return
@@ -1231,7 +1259,7 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     help_text = {
         "rect": "Arrastra el recuadro para moverlo. Usa la esquina inferior derecha para cambiar su tamaño.",
         "line": "Arrastra la línea para ubicar el corte de planificación.",
-        "roi": "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño. Ahora permite un tamaño mínimo más pequeño.",
+        "roi": "Arrastra el círculo para mover el ROI. Usa el control lateral para ajustar su tamaño. Ahora permite un tamaño mínimo mucho más pequeño.",
     }.get(modo, "")
 
     html = f'''
@@ -1290,10 +1318,10 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     var dragMode = null;
     var dragOffsetX = 0;
     var dragOffsetY = 0;
-    var handleSize = 18;
+    var handleSize = 6;
     var minW = 0.12;
     var minH = 0.10;
-    var minR = modo === 'roi' ? 0.012 : 0.05;
+    var minR = modo === 'roi' ? 0.004 : 0.05;
     var img = new Image();
     img.src = 'data:image/jpeg;base64,' + data.img_b64;
 
@@ -1338,8 +1366,9 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     }}
 
     function isInResizeHandle(mx, my, rp) {{
-      return mx >= rp.x + rp.w - handleSize && mx <= rp.x + rp.w + 4 &&
-             my >= rp.y + rp.h - handleSize && my <= rp.y + rp.h + 4;
+      var extraHit = 2;
+      return mx >= rp.x + rp.w - handleSize - extraHit && mx <= rp.x + rp.w + extraHit &&
+             my >= rp.y + rp.h - handleSize - extraHit && my <= rp.y + rp.h + extraHit;
     }}
 
     function isInsideRect(mx, my, rp) {{
@@ -1357,9 +1386,11 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
     }}
 
     function isOnCircleHandle(mx, my, cp) {{
-      var hx = cp.x + cp.r * 0.72;
-      var hy = cp.y + cp.r * 0.72;
-      return Math.abs(mx - hx) <= 14 && Math.abs(my - hy) <= 14;
+      var dx = mx - cp.x;
+      var dy = my - cp.y;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      var edgeTolerance = 10;
+      return Math.abs(dist - cp.r) <= edgeTolerance;
     }}
 
     function updateLabels() {{
@@ -1455,13 +1486,6 @@ def render_topogramas_independientes_interactivos(topos, width=760, modo="rect",
       ctx.fillStyle = strokeColor;
       ctx.font = 'bold 12px sans-serif';
       ctx.fillText(roiLabel, Math.max(10, cp.x - cp.r), Math.max(18, cp.y - cp.r - 8));
-      var hx = cp.x + cp.r * 0.72;
-      var hy = cp.y + cp.r * 0.72;
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(hx - 8, hy - 8, 16, 16);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(hx - 8, hy - 8, 16, 16);
     }}
 
     function draw() {{
@@ -2912,25 +2936,24 @@ with tab2:
             ]
             _nombre_actual = _actual.get("nombre", _opciones_nombre_exp[0])
             _nombre_idx = _opciones_nombre_exp.index(_nombre_actual) if _nombre_actual in _opciones_nombre_exp else 0
-            _actual["nombre"] = st.selectbox(
+            _actual["nombre"] = selectbox_con_placeholder(
                 "Nombre de la exploración",
                 _opciones_nombre_exp,
-                index=_nombre_idx,
+                value=_nombre_actual,
                 key=f"nombre_{_exp_id}",
             )
 
             _nombre_exp_upper = str(_actual.get("nombre", "")).upper()
             _es_bolus = _nombre_exp_upper in ["BOLUS TEST", "BOLUS TRACKING"]
             if _es_bolus:
-                _posiciones_corte = ["Seleccionar", "BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
-                _pos_actual = _actual.get("posicion_corte", "Seleccionar")
+                _posiciones_corte = ["BOTON AORTICO", "BAJO CARINA", "CUPULAS DIAFRAGMATICAS"]
+                _pos_actual = _actual.get("posicion_corte", None)
                 if _pos_actual not in _posiciones_corte:
-                    _pos_actual = "Seleccionar"
-                _pos_idx = _posiciones_corte.index(_pos_actual)
-                _actual["posicion_corte"] = st.selectbox(
+                    _pos_actual = None
+                _actual["posicion_corte"] = selectbox_con_placeholder(
                     "POSICIÓN DE CORTE",
                     _posiciones_corte,
-                    index=_pos_idx,
+                    value=_pos_actual,
                     key=f"poscorte_{_exp_id}",
                 )
 
@@ -3037,7 +3060,7 @@ with tab2:
                 _posicion_corte_seleccionada = _actual.get("posicion_corte", "Seleccionar")
                 _ruta_posicion_corte = (
                     obtener_imagen_posicion_corte(_posicion_corte_seleccionada)
-                    if _es_bolus and _posicion_corte_seleccionada != "Seleccionar"
+                    if _es_bolus and _posicion_corte_seleccionada not in [None, "Seleccionar", ""]
                     else None
                 )
                 _img_pos_corte = None
@@ -3059,10 +3082,10 @@ with tab2:
                         color=_color_exp,
                         show_labels=False,
                         roi_label="ROI",
-                        canvas_css_width=392,
-                        canvas_css_height=548,
-                        canvas_width=560,
-                        canvas_height=820,
+                        canvas_css_width=292 if len(_topos_adq) == 1 else 210,
+                        canvas_css_height=370 if len(_topos_adq) == 1 else 308,
+                        canvas_width=420,
+                        canvas_height=640,
                     )
 
                 if _html_topos_adq:
@@ -3071,7 +3094,7 @@ with tab2:
                         with _col_topo_bolus:
                             st.components.v1.html(_html_topos_adq, height=470 if len(_topos_adq) > 1 else 560)
                         with _col_roi_bolus:
-                            st.components.v1.html(_html_roi_corte, height=790)
+                            st.components.v1.html(_html_roi_corte, height=500 if len(_topos_adq) > 1 else 590)
                             st.markdown(f"<div style='font-size:12px; color:#ccc; margin-top:6px; text-align:center;'>mAs fijo: <b>{_actual.get('mas_bolus', 20)}</b> &nbsp;&nbsp;|&nbsp;&nbsp; kV fijo: <b>{_actual.get('kvp_bolus', 100)}</b></div>", unsafe_allow_html=True)
                     else:
                         st.components.v1.html(_html_topos_adq, height=500 if len(_topos_adq) > 1 else 590)
@@ -3146,12 +3169,12 @@ with tab2:
                     _periodos_bolus = ["0,9 sg", "1 sg", "1,5 sg", "2 sg"]
                     _periodo_actual = _actual.get("periodo_bolus", "1 sg")
                     _periodo_idx = _periodos_bolus.index(_periodo_actual) if _periodo_actual in _periodos_bolus else 1
-                    _actual["periodo_bolus"] = st.selectbox("Periodo", _periodos_bolus, index=_periodo_idx, key=f"periodobolus_{_exp_id}")
+                    _actual["periodo_bolus"] = selectbox_con_placeholder("Periodo", _periodos_bolus, value=_periodo_actual, key=f"periodobolus_{_exp_id}")
 
                     _n_imgs_bolus = [10, 15, 20, 25, 30]
                     _n_actual = int(_actual.get("n_imagenes_bolus", 15)) if str(_actual.get("n_imagenes_bolus", 15)).isdigit() else 15
                     _n_idx = _n_imgs_bolus.index(_n_actual) if _n_actual in _n_imgs_bolus else 1
-                    _actual["n_imagenes_bolus"] = st.selectbox("N° de imágenes", _n_imgs_bolus, index=_n_idx, key=f"nimgbolus_{_exp_id}")
+                    _actual["n_imagenes_bolus"] = selectbox_con_placeholder("N° de imágenes", _n_imgs_bolus, value=_n_actual, key=f"nimgbolus_{_exp_id}")
 
                     if _nombre_exp_upper == "BOLUS TRACKING":
                         _actual["umbral_disparo"] = st.text_input("Umbral de disparo (UH)", value=str(_actual.get("umbral_disparo", "")), key=f"umbral_{_exp_id}")
@@ -3174,20 +3197,20 @@ with tab2:
                 with col_adq1:
                     st.markdown('<div class="section-header">⚙️ Parámetros Generales</div>', unsafe_allow_html=True)
                     _tipo_idx = TIPOS_EXPLORACION.index(_actual.get("tipo_exp", TIPOS_EXPLORACION[0])) if _actual.get("tipo_exp", TIPOS_EXPLORACION[0]) in TIPOS_EXPLORACION else 0
-                    _actual["tipo_exp"] = st.selectbox("Tipo de exploración", TIPOS_EXPLORACION, index=_tipo_idx, key=f"tipoexp_{_exp_id}")
+                    _actual["tipo_exp"] = selectbox_con_placeholder("Tipo de exploración", TIPOS_EXPLORACION, value=_actual.get("tipo_exp", TIPOS_EXPLORACION[0]), key=f"tipoexp_{_exp_id}")
 
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         _dm_idx = ["NO", "SI"].index(_actual.get("doble_muestreo", "NO")) if _actual.get("doble_muestreo", "NO") in ["NO", "SI"] else 0
-                        _actual["doble_muestreo"] = st.selectbox("Doble muestreo (eje Z)", ["NO", "SI"], index=_dm_idx, key=f"dm_{_exp_id}")
+                        _actual["doble_muestreo"] = selectbox_con_placeholder("Doble muestreo (eje Z)", ["NO", "SI"], value=_actual.get("doble_muestreo", "NO"), key=f"dm_{_exp_id}")
                     else:
                         _actual["doble_muestreo"] = "NO"
 
                     _voz_idx = INSTRUCCIONES_VOZ.index(_actual.get("voz_adq", INSTRUCCIONES_VOZ[0])) if _actual.get("voz_adq", INSTRUCCIONES_VOZ[0]) in INSTRUCCIONES_VOZ else 0
-                    _actual["voz_adq"] = st.selectbox("Instrucción de voz", INSTRUCCIONES_VOZ, index=_voz_idx, key=f"voz_{_exp_id}")
+                    _actual["voz_adq"] = selectbox_con_placeholder("Instrucción de voz", INSTRUCCIONES_VOZ, value=_actual.get("voz_adq", INSTRUCCIONES_VOZ[0]), key=f"voz_{_exp_id}")
 
                     st.markdown('<div class="section-header">⚡ Modulación de Corriente</div>', unsafe_allow_html=True)
                     _mod_idx = MODULACION_CORRIENTE.index(_actual.get("mod_corriente", MODULACION_CORRIENTE[0])) if _actual.get("mod_corriente", MODULACION_CORRIENTE[0]) in MODULACION_CORRIENTE else 0
-                    _actual["mod_corriente"] = st.selectbox("Modulación", MODULACION_CORRIENTE, index=_mod_idx, key=f"mod_{_exp_id}")
+                    _actual["mod_corriente"] = selectbox_con_placeholder("Modulación", MODULACION_CORRIENTE, value=_actual.get("mod_corriente", MODULACION_CORRIENTE[0]), key=f"mod_{_exp_id}")
 
                     _col_kv, _col_mas = st.columns(2)
                     with _col_kv:
@@ -3198,64 +3221,64 @@ with tab2:
                             _label_kv = "CARE kV"
                         elif _actual["mod_corriente"] == "AUTO mA":
                             _label_kv = "AUTO kV"
-                        _actual["kvp"] = st.selectbox(_label_kv, KVP_OPCIONES, index=_kv_idx, key=f"kv_{_exp_id}")
+                        _actual["kvp"] = selectbox_con_placeholder(_label_kv, KVP_OPCIONES, value=_actual.get("kvp", KVP_OPCIONES[0]), key=f"kv_{_exp_id}")
 
                     with _col_mas:
                         if _actual["mod_corriente"] == "CARE DOSE 4D":
                             _mas_base = _actual.get("mas_val", 200)
                             _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                            _actual["mas_val"] = st.selectbox("mAs REF", MAS_OPCIONES, index=_mas_idx, key=f"masref_{_exp_id}")
+                            _actual["mas_val"] = selectbox_con_placeholder("mAs REF", MAS_OPCIONES, value=_actual.get("mas_val", MAS_OPCIONES[0]), key=f"masref_{_exp_id}")
                             _ind_cal = _actual.get("ind_cal", INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0])
                             _ind_cal_idx = INDICE_CALIDAD.index(_ind_cal) if _ind_cal in INDICE_CALIDAD else (4 if len(INDICE_CALIDAD) > 4 else 0)
-                            _actual["ind_cal"] = st.selectbox("Índice de calidad", INDICE_CALIDAD, index=_ind_cal_idx, key=f"indcal_{_exp_id}")
+                            _actual["ind_cal"] = selectbox_con_placeholder("Índice de calidad", INDICE_CALIDAD, value=_actual.get("ind_cal", INDICE_CALIDAD[0]), key=f"indcal_{_exp_id}")
                         elif _actual["mod_corriente"] == "AUTO mA":
                             _rango_ma = _actual.get("rango_ma", RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0])
                             _rango_idx = RANGO_MA.index(_rango_ma) if _rango_ma in RANGO_MA else (2 if len(RANGO_MA) > 2 else 0)
-                            _actual["rango_ma"] = st.selectbox("Rango mA", RANGO_MA, index=_rango_idx, key=f"rangoma_{_exp_id}")
+                            _actual["rango_ma"] = selectbox_con_placeholder("Rango mA", RANGO_MA, value=_actual.get("rango_ma", RANGO_MA[0]), key=f"rangoma_{_exp_id}")
                             try:
                                 _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
                             except Exception:
                                 _actual["mas_val"] = 200
                             _ind_ruido = _actual.get("ind_ruido", INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0])
                             _ind_ruido_idx = INDICE_RUIDO.index(_ind_ruido) if _ind_ruido in INDICE_RUIDO else (2 if len(INDICE_RUIDO) > 2 else 0)
-                            _actual["ind_ruido"] = st.selectbox("Índice de ruido", INDICE_RUIDO, index=_ind_ruido_idx, key=f"indruido_{_exp_id}")
+                            _actual["ind_ruido"] = selectbox_con_placeholder("Índice de ruido", INDICE_RUIDO, value=_actual.get("ind_ruido", INDICE_RUIDO[0]), key=f"indruido_{_exp_id}")
                         else:
                             _mas_base = _actual.get("mas_val", 200)
                             _mas_idx = MAS_OPCIONES.index(_mas_base) if _mas_base in MAS_OPCIONES else 3
-                            _actual["mas_val"] = st.selectbox("mAs", MAS_OPCIONES, index=_mas_idx, key=f"mas_{_exp_id}")
+                            _actual["mas_val"] = selectbox_con_placeholder("mAs", MAS_OPCIONES, value=_actual.get("mas_val", MAS_OPCIONES[0]), key=f"mas_{_exp_id}")
 
                 with col_adq2:
                     st.markdown('<div class="section-header">🔧 Configuración Técnica</div>', unsafe_allow_html=True)
                     _conf_actual = _actual.get("conf_det", CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0])
                     _conf_idx = CONF_DETECTORES.index(_conf_actual) if _conf_actual in CONF_DETECTORES else (4 if len(CONF_DETECTORES) > 4 else 0)
-                    _actual["conf_det"] = st.selectbox("Configuración de detectores", CONF_DETECTORES, index=_conf_idx, key=f"confdet_{_exp_id}")
+                    _actual["conf_det"] = selectbox_con_placeholder("Configuración de detectores", CONF_DETECTORES, value=_actual.get("conf_det", CONF_DETECTORES[0]), key=f"confdet_{_exp_id}")
 
                     _sfov_actual = _actual.get("sfov", SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0])
                     _sfov_idx = SFOV_OPCIONES.index(_sfov_actual) if _sfov_actual in SFOV_OPCIONES else (2 if len(SFOV_OPCIONES) > 2 else 0)
-                    _actual["sfov"] = st.selectbox("SFOV", SFOV_OPCIONES, index=_sfov_idx, key=f"sfov_{_exp_id}")
+                    _actual["sfov"] = selectbox_con_placeholder("SFOV", SFOV_OPCIONES, value=_actual.get("sfov", SFOV_OPCIONES[0]), key=f"sfov_{_exp_id}")
 
                     _grosor_actual = str(_actual.get("grosor_prosp", GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]))
                     _grosor_opciones = [str(g) for g in GROSOR_PROSP]
                     _grosor_idx = _grosor_opciones.index(_grosor_actual) if _grosor_actual in _grosor_opciones else (2 if len(_grosor_opciones) > 2 else 0)
-                    _actual["grosor_prosp"] = st.selectbox("Corte prospectivo (mm)", _grosor_opciones, index=_grosor_idx, key=f"gpros_{_exp_id}")
+                    _actual["grosor_prosp"] = selectbox_con_placeholder("Corte prospectivo (mm)", _grosor_opciones, value=_actual.get("grosor_prosp", _grosor_opciones[0]), key=f"gpros_{_exp_id}")
 
                     _col_p, _col_r = st.columns(2)
                     with _col_p:
                         if _actual["tipo_exp"] == "HELICOIDAL":
                             _pitch_actual = _actual.get("pitch", PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0])
                             _pitch_idx = PITCH_OPCIONES.index(_pitch_actual) if _pitch_actual in PITCH_OPCIONES else (6 if len(PITCH_OPCIONES) > 6 else 0)
-                            _actual["pitch"] = st.selectbox("Pitch", PITCH_OPCIONES, index=_pitch_idx, key=f"pitch_{_exp_id}")
+                            _actual["pitch"] = selectbox_con_placeholder("Pitch", PITCH_OPCIONES, value=_actual.get("pitch", PITCH_OPCIONES[0]), key=f"pitch_{_exp_id}")
                         else:
                             _actual["pitch"] = 1.0
                             st.info("Pitch no aplica")
                     with _col_r:
                         _rot_actual = _actual.get("rot_tubo", ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0])
                         _rot_idx = ROT_TUBO.index(_rot_actual) if _rot_actual in ROT_TUBO else (1 if len(ROT_TUBO) > 1 else 0)
-                        _actual["rot_tubo"] = st.selectbox("Rotación tubo (sg)", ROT_TUBO, index=_rot_idx, key=f"rot_{_exp_id}")
+                        _actual["rot_tubo"] = selectbox_con_placeholder("Rotación tubo (sg)", ROT_TUBO, value=_actual.get("rot_tubo", ROT_TUBO[0]), key=f"rot_{_exp_id}")
 
                     _ret_actual = _actual.get("retardo", RETARDOS[0])
                     _ret_idx = RETARDOS.index(_ret_actual) if _ret_actual in RETARDOS else 0
-                    _actual["retardo"] = st.selectbox("Retardo (Delay)", RETARDOS, index=_ret_idx, key=f"delay_{_exp_id}")
+                    _actual["retardo"] = selectbox_con_placeholder("Retardo (Delay)", RETARDOS, value=_actual.get("retardo", RETARDOS[0]), key=f"delay_{_exp_id}")
 
                     st.markdown('<div class="section-header">📍 Rango de Exploración</div>', unsafe_allow_html=True)
                     _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
@@ -3265,12 +3288,12 @@ with tab2:
                     with _col_ini:
                         _ini_ref_actual = _actual.get("inicio_ref", _refs_ini[0])
                         _ini_ref_idx = _refs_ini.index(_ini_ref_actual) if _ini_ref_actual in _refs_ini else 0
-                        _actual["inicio_ref"] = st.selectbox("Inicio exploración", _refs_ini, index=_ini_ref_idx, key=f"iniref_{_exp_id}")
+                        _actual["inicio_ref"] = selectbox_con_placeholder("Inicio exploración", _refs_ini, value=_actual.get("inicio_ref", _refs_ini[0]), key=f"iniref_{_exp_id}")
                         _actual["ini_mm"] = st.number_input("mm inicio", value=int(_actual.get("ini_mm", 0)), step=10, key=f"inimm_{_exp_id}")
                     with _col_fin:
                         _fin_ref_actual = _actual.get("fin_ref", _refs_fin_lista[0])
                         _fin_ref_idx = _refs_fin_lista.index(_fin_ref_actual) if _fin_ref_actual in _refs_fin_lista else 0
-                        _actual["fin_ref"] = st.selectbox("Fin exploración", _refs_fin_lista, index=_fin_ref_idx, key=f"finref_{_exp_id}")
+                        _actual["fin_ref"] = selectbox_con_placeholder("Fin exploración", _refs_fin_lista, value=_actual.get("fin_ref", _refs_fin_lista[0]), key=f"finref_{_exp_id}")
                         _actual["fin_mm"] = st.number_input("mm fin", value=int(_actual.get("fin_mm", 400)), step=10, key=f"finmm_{_exp_id}")
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
@@ -3501,37 +3524,37 @@ with tab3:
 
                     _fase_actual = _rec_actual.get("fase_recons", FASES_RECONS[0] if len(FASES_RECONS) > 0 else "—")
                     _fase_idx = FASES_RECONS.index(_fase_actual) if _fase_actual in FASES_RECONS else 0
-                    _rec_actual["fase_recons"] = st.selectbox("Fase a reconstruir", FASES_RECONS, index=_fase_idx, key=f"fase_recons_{_rec_actual['id']}")
+                    _rec_actual["fase_recons"] = selectbox_con_placeholder("Fase a reconstruir", FASES_RECONS, value=_rec_actual.get("fase_recons", FASES_RECONS[0]), key=f"fase_recons_{_rec_actual['id']}")
 
                     _tipo_actual = _rec_actual.get("tipo_recons", TIPOS_RECONS[0] if len(TIPOS_RECONS) > 0 else "FILTRO")
                     _tipo_idx = TIPOS_RECONS.index(_tipo_actual) if _tipo_actual in TIPOS_RECONS else 0
-                    _rec_actual["tipo_recons"] = st.selectbox("Tipo de reconstrucción", TIPOS_RECONS, index=_tipo_idx, key=f"tipo_recons_{_rec_actual['id']}")
+                    _rec_actual["tipo_recons"] = selectbox_con_placeholder("Tipo de reconstrucción", TIPOS_RECONS, value=_rec_actual.get("tipo_recons", TIPOS_RECONS[0]), key=f"tipo_recons_{_rec_actual['id']}")
 
                     if _rec_actual["tipo_recons"] == "RECONS. ITERATIVA":
                         _alg_actual = _rec_actual.get("algoritmo_iter", ALGORITMOS_ITERATIVOS[0] if len(ALGORITMOS_ITERATIVOS) > 0 else "—")
                         _alg_idx = ALGORITMOS_ITERATIVOS.index(_alg_actual) if _alg_actual in ALGORITMOS_ITERATIVOS else 0
-                        _rec_actual["algoritmo_iter"] = st.selectbox("Algoritmo iterativo", ALGORITMOS_ITERATIVOS, index=_alg_idx, key=f"alg_iter_{_rec_actual['id']}")
+                        _rec_actual["algoritmo_iter"] = selectbox_con_placeholder("Algoritmo iterativo", ALGORITMOS_ITERATIVOS, value=_rec_actual.get("algoritmo_iter", ALGORITMOS_ITERATIVOS[0]), key=f"alg_iter_{_rec_actual['id']}")
                         _niveles_disp = NIVEL_ITERATIVO.get(_rec_actual["algoritmo_iter"], [1])
                         _nivel_actual = _rec_actual.get("nivel_iter", _niveles_disp[0] if len(_niveles_disp) > 0 else "—")
                         _nivel_idx = _niveles_disp.index(_nivel_actual) if _nivel_actual in _niveles_disp else 0
-                        _rec_actual["nivel_iter"] = st.selectbox("Nivel / Porcentaje / Modo", _niveles_disp, index=_nivel_idx, key=f"nivel_iter_{_rec_actual['id']}")
+                        _rec_actual["nivel_iter"] = selectbox_con_placeholder("Nivel / Porcentaje / Modo", _niveles_disp, value=_rec_actual.get("nivel_iter", _niveles_disp[0]), key=f"nivel_iter_{_rec_actual['id']}")
                     else:
                         _rec_actual["algoritmo_iter"] = "—"
                         _rec_actual["nivel_iter"] = "—"
 
                     _kernel_actual = _rec_actual.get("kernel_sel", KERNELS[1] if len(KERNELS) > 1 else KERNELS[0])
                     _kernel_idx = KERNELS.index(_kernel_actual) if _kernel_actual in KERNELS else (1 if len(KERNELS) > 1 else 0)
-                    _rec_actual["kernel_sel"] = st.selectbox("Algoritmo (Kernel)", KERNELS, index=_kernel_idx, key=f"kernel_sel_{_rec_actual['id']}")
+                    _rec_actual["kernel_sel"] = selectbox_con_placeholder("Algoritmo (Kernel)", KERNELS, value=_rec_actual.get("kernel_sel", KERNELS[0]), key=f"kernel_sel_{_rec_actual['id']}")
 
                     col_gr, col_inc = st.columns(2)
                     with col_gr:
                         _grosor_actual = _rec_actual.get("grosor_recons", GROSORES_RECONS[6] if len(GROSORES_RECONS) > 6 else GROSORES_RECONS[0])
                         _grosor_idx = GROSORES_RECONS.index(_grosor_actual) if _grosor_actual in GROSORES_RECONS else (6 if len(GROSORES_RECONS) > 6 else 0)
-                        _rec_actual["grosor_recons"] = st.selectbox("Grosor reconstrucción", GROSORES_RECONS, index=_grosor_idx, key=f"grosor_recons_{_rec_actual['id']}")
+                        _rec_actual["grosor_recons"] = selectbox_con_placeholder("Grosor reconstrucción", GROSORES_RECONS, value=_rec_actual.get("grosor_recons", GROSORES_RECONS[0]), key=f"grosor_recons_{_rec_actual['id']}")
                     with col_inc:
                         _inc_actual = _rec_actual.get("incremento", INCREMENTOS_RECONS[4] if len(INCREMENTOS_RECONS) > 4 else INCREMENTOS_RECONS[0])
                         _inc_idx = INCREMENTOS_RECONS.index(_inc_actual) if _inc_actual in INCREMENTOS_RECONS else (4 if len(INCREMENTOS_RECONS) > 4 else 0)
-                        _rec_actual["incremento"] = st.selectbox("Incremento", INCREMENTOS_RECONS, index=_inc_idx, key=f"incremento_{_rec_actual['id']}")
+                        _rec_actual["incremento"] = selectbox_con_placeholder("Incremento", INCREMENTOS_RECONS, value=_rec_actual.get("incremento", INCREMENTOS_RECONS[0]), key=f"incremento_{_rec_actual['id']}")
 
                 with col_r2:
                     st.markdown('<div class="section-header">🪟 Ventana de Visualización</div>', unsafe_allow_html=True)
@@ -3539,7 +3562,7 @@ with tab3:
                     _ventanas_disp = list(VENTANAS.keys())
                     _preset_actual = _rec_actual.get("ventana_preset", _ventanas_disp[0])
                     _preset_idx = _ventanas_disp.index(_preset_actual) if _preset_actual in _ventanas_disp else 0
-                    _rec_actual["ventana_preset"] = st.selectbox("Ventana preset", _ventanas_disp, index=_preset_idx, key=f"preset_{_rec_actual['id']}")
+                    _rec_actual["ventana_preset"] = selectbox_con_placeholder("Ventana preset", _ventanas_disp, value=_rec_actual.get("ventana_preset", _ventanas_disp[0]), key=f"preset_{_rec_actual['id']}")
 
                     _ww_default = VENTANAS[_rec_actual["ventana_preset"]]["ww"]
                     _wl_default = VENTANAS[_rec_actual["ventana_preset"]]["wl"]
@@ -3558,7 +3581,7 @@ with tab3:
 
                     _dfov_actual = _rec_actual.get("dfov", DFOV_OPCIONES[2] if len(DFOV_OPCIONES) > 2 else DFOV_OPCIONES[0])
                     _dfov_idx = DFOV_OPCIONES.index(_dfov_actual) if _dfov_actual in DFOV_OPCIONES else (2 if len(DFOV_OPCIONES) > 2 else 0)
-                    _rec_actual["dfov"] = st.selectbox("DFOV", DFOV_OPCIONES, index=_dfov_idx, key=f"dfov_{_rec_actual['id']}")
+                    _rec_actual["dfov"] = selectbox_con_placeholder("DFOV", DFOV_OPCIONES, value=_rec_actual.get("dfov", DFOV_OPCIONES[0]), key=f"dfov_{_rec_actual['id']}")
 
                     st.markdown('<div class="section-header">📍 Rango de Reconstrucción</div>', unsafe_allow_html=True)
                     refs_ini_r = REFS_INICIO.get(region_anat_r, REFS_INICIO["CUERPO"])
@@ -3568,11 +3591,11 @@ with tab3:
                     with col_ir:
                         _ini_actual = _rec_actual.get("inicio_recons", refs_ini_r[0])
                         _ini_idx = refs_ini_r.index(_ini_actual) if _ini_actual in refs_ini_r else 0
-                        _rec_actual["inicio_recons"] = st.selectbox("Inicio reconstrucción", refs_ini_r, index=_ini_idx, key=f"ini_rec_{_rec_actual['id']}")
+                        _rec_actual["inicio_recons"] = selectbox_con_placeholder("Inicio reconstrucción", refs_ini_r, value=_rec_actual.get("inicio_recons", refs_ini_r[0]), key=f"ini_rec_{_rec_actual['id']}")
                     with col_fr:
                         _fin_actual = _rec_actual.get("fin_recons", refs_fin_r[0])
                         _fin_idx = refs_fin_r.index(_fin_actual) if _fin_actual in refs_fin_r else 0
-                        _rec_actual["fin_recons"] = st.selectbox("Fin reconstrucción", refs_fin_r, index=_fin_idx, key=f"fin_rec_{_rec_actual['id']}")
+                        _rec_actual["fin_recons"] = selectbox_con_placeholder("Fin reconstrucción", refs_fin_r, value=_rec_actual.get("fin_recons", refs_fin_r[0]), key=f"fin_rec_{_rec_actual['id']}")
 
                 st.markdown("---")
                 st.markdown('<div class="param-summary">', unsafe_allow_html=True)
@@ -3597,10 +3620,10 @@ with tab4:
         st.markdown("**Acceso venoso**")
         col_vvp, col_g = st.columns(2)
         with col_vvp:
-            vvp_gauge = st.selectbox("VVP (Gauge)", VVP_GAUGE, index=1)
+            vvp_gauge = selectbox_con_placeholder("VVP (Gauge)", VVP_GAUGE, value=VVP_GAUGE[1])
         with col_g:
-            vol_max_mc = st.selectbox("Vol. máx. contraste (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], index=2)
-            vol_max_sf = st.selectbox("Vol. máx. suero (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], index=6)
+            vol_max_mc = selectbox_con_placeholder("Vol. máx. contraste (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=40)
+            vol_max_sf = selectbox_con_placeholder("Vol. máx. suero (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=100)
 
         st.markdown("---")
         st.markdown("**Fases de inyección**")
@@ -3612,11 +3635,11 @@ with tab4:
             with st.expander(f"Fase {i+1}", expanded=(i == 0)):
                 col_sol, col_vol, col_caud = st.columns(3)
                 with col_sol:
-                    sol = st.selectbox("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
+                    sol = selectbox_con_placeholder("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
                 with col_vol:
-                    vol = st.selectbox("Volumen (mL)", list(range(0, 160, 5)), index=10, key=f"vol_{i}")
+                    vol = selectbox_con_placeholder("Volumen (mL)", list(range(0, 160, 5)), value=50, key=f"vol_{i}")
                 with col_caud:
-                    caud = st.selectbox("Caudal (mL/sg)", CAUDAL_OPCIONES, index=5, key=f"caud_{i}")
+                    caud = selectbox_con_placeholder("Caudal (mL/sg)", CAUDAL_OPCIONES, value=CAUDAL_OPCIONES[5], key=f"caud_{i}")
                 duracion_fase = round(vol / caud, 1) if caud > 0 and sol != "PAUSA" else vol
                 st.caption(f"Duración: {duracion_fase} sg")
                 fases_data.append({"solucion": sol, "volumen": vol, "caudal": caud, "duracion": duracion_fase})
