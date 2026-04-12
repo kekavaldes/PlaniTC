@@ -2115,53 +2115,63 @@ tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 0: PORTADA
 # ───────────────────────────────────────────────────────────────
 with tab0:
-    _portada_html = (
-        """
-    <style>
-      body { margin:0; background:#000; font-family: sans-serif; }
-      .btn-start {
-        position: absolute; bottom: 18%; right: 10%;
-        background: rgba(255,255,255,0.92); color: #0D47A1;
-        border: none; border-radius: 30px;
-        padding: 0.65rem 1.8rem; font-size: 1.05rem;
-        font-weight: 700; cursor: pointer;
-        box-shadow: 0 4px 18px rgba(0,0,0,0.35);
-        letter-spacing: 0.03em; transition: all 0.2s;
-      }
-      .btn-start:hover { background:#1565C0; color:#fff; }
-      .guide { display:inline-block; background:#1A1A1A; border:1px solid #444;
-               border-radius:10px; padding:1.2rem 2rem; max-width:600px;
-               text-align:left; margin-top:1rem; }
-      .guide p { color:#CCCCCC; font-size:0.88rem; margin:0.3rem 0; }
-      .guide .title { color:#AAAAAA; font-size:0.9rem; font-weight:600; margin-bottom:0.8rem; }
-    </style>
-    <div style="text-align:center; padding:0.5rem 0;">
-      <div style="position:relative; display:inline-block; width:100%; max-width:900px;">
-        <img src="data:image/jpeg;base64,""" + IMG_PORTADA_B64 + """"
-             style="width:100%; border-radius:12px; border:2px solid #333; display:block;">
-        <button class="btn-start" onclick="
-          var tabs = window.parent.document.querySelectorAll('[data-baseweb=tab]');
-          if(tabs.length > 1) tabs[1].click();">
-          👤 Empezar aquí
-        </button>
-      </div>
-    </div>
-    <div style="text-align:center; margin-top:1rem;">
+    st.markdown("""
+    <div style="text-align:center; margin:0.2rem 0 1rem 0;">
       <p style="font-size:1.05rem; color:#AAAAAA; margin:0;">
         Simulador educativo de planificación de Tomografía Computada
       </p>
-      <div class="guide">
-        <p class="title">¿Cómo usar PlaniTC?</p>
-        <p><span style="color:#00FF88;">①</span>&nbsp;<strong>Ingreso</strong> — Datos del paciente y del examen</p>
-        <p><span style="color:#00AAFF;">②</span>&nbsp;<strong>Adquisición</strong> — Parámetros de exploración y topograma</p>
-        <p><span style="color:#FFAA00;">③</span>&nbsp;<strong>Reconstrucción</strong> — Kernel, ventana y algoritmo</p>
-        <p><span style="color:#FF66AA;">④</span>&nbsp;<strong>Jeringa Inyectora</strong> — Protocolo de contraste IV</p>
-        <p><span style="color:#AA88FF;">⑤</span>&nbsp;<strong>Imagen Simulada</strong> — Cortes TC según tus parámetros</p>
-      </div>
     </div>
-    """
-    )
-    st.components.v1.html(_portada_html, height=820, scrolling=False)
+    """, unsafe_allow_html=True)
+
+    col_inicio_img, col_inicio_guide = st.columns([1.35, 1], gap="large")
+
+    with col_inicio_img:
+        try:
+            _img_portada = Image.open(io.BytesIO(base64.b64decode(IMG_PORTADA_B64)))
+            st.image(_img_portada, use_container_width=True)
+        except Exception:
+            st.markdown(
+                f"""
+                <div style="background:#111; border:2px solid #333; border-radius:12px; padding:1rem;">
+                    <img src="data:image/jpeg;base64,{IMG_PORTADA_B64}"
+                         style="width:100%; border-radius:10px; display:block;">
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    with col_inicio_guide:
+        st.markdown("""
+        <div style="
+            background:#1A1A1A;
+            border:1px solid #444;
+            border-radius:12px;
+            padding:1.2rem 1.4rem;
+            margin-top:0.2rem;
+        ">
+            <p style="color:#AAAAAA; font-size:1.0rem; font-weight:700; margin:0 0 0.9rem 0;">
+                ¿Cómo usar PlaniTC?
+            </p>
+            <p style="color:#CCCCCC; font-size:0.95rem; margin:0.45rem 0;">
+                <span style="color:#00FF88;">①</span>&nbsp;<strong>Ingreso</strong> — Datos del paciente y del examen
+            </p>
+            <p style="color:#CCCCCC; font-size:0.95rem; margin:0.45rem 0;">
+                <span style="color:#00AAFF;">②</span>&nbsp;<strong>Adquisición</strong> — Parámetros de exploración y topograma
+            </p>
+            <p style="color:#CCCCCC; font-size:0.95rem; margin:0.45rem 0;">
+                <span style="color:#FFAA00;">③</span>&nbsp;<strong>Reconstrucción</strong> — Kernel, ventana y algoritmo
+            </p>
+            <p style="color:#CCCCCC; font-size:0.95rem; margin:0.45rem 0;">
+                <span style="color:#FF66AA;">④</span>&nbsp;<strong>Jeringa Inyectora</strong> — Protocolo de contraste IV
+            </p>
+            <p style="color:#CCCCCC; font-size:0.95rem; margin:0.45rem 0;">
+                <span style="color:#AA88FF;">⑤</span>&nbsp;<strong>Imagen Simulada</strong> — Cortes TC según tus parámetros
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
+        st.info("Comienza en la pestaña **Ingreso** para cargar los datos del paciente y del examen.")
 
 
 
