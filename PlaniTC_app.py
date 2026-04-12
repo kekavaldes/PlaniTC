@@ -2658,14 +2658,13 @@ def render_topograma_panel():
             st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente — Topograma 2</div>', unsafe_allow_html=True)
             col_t2e, col_t2f = st.columns(2)
             with col_t2e:
-                topo2_posicion = st.selectbox(
+                topo2_posicion = selectbox_con_placeholder(
                     "Posición paciente",
-                    [None] + POSICIONES_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
+                    POSICIONES_PACIENTE,
+                    value=_tstore.get("t2_posicion_paciente"),
                     key="t2_posicion_paciente"
                 )
+                _tstore["t2_posicion_paciente"] = topo2_posicion if topo2_posicion else None
             with col_t2f:
                 topo2_entrada = selectbox_con_placeholder(
                     "Entrada",
@@ -2742,9 +2741,9 @@ def render_topograma_panel():
                 st.markdown('<div class="section-header">✅ Topograma 2 adquirido</div>', unsafe_allow_html=True)
                 _img_topo_t2, _err_topo_t2 = obtener_imagen_topograma_adquirido(
                     st.session_state.get("examen", ""),
-                    topo2_posicion if topo2_posicion else "",
-                    topo2_entrada if topo2_entrada else "",
-                    st.session_state.get("t2pt", ""),
+                    _tstore.get("t2_posicion_paciente") or "",
+                    _tstore.get("t2_entrada") or "",
+                    _tstore.get("t2pt") or "",
                 )
                 if _img_topo_t2 is not None:
                     _col_topo2_sp1, _col_topo2_img_centro, _col_topo2_sp2 = st.columns([0.06, 0.88, 0.06])
@@ -3295,6 +3294,7 @@ with tab2:
             # Mostrar topogramas en Adquisición aunque el flag visual no haya quedado marcado.
             # Se consideran disponibles si fueron iniciados o si ya existe una configuración válida
             # en la pestaña de Topograma.
+            _tstore_adq = st.session_state.get("topograma_store", {})
             _hay_topo1_adq = bool(st.session_state.get("topograma_iniciado", False))
             _hay_topo2_adq = bool(
                 st.session_state.get("aplica_topo2", False)
@@ -3327,9 +3327,9 @@ with tab2:
             if _hay_topo2_adq:
                 _img_adq_2, _err_adq_2 = obtener_imagen_topograma_adquirido(
                     st.session_state.get("examen", ""),
-                    st.session_state.get("t2_posicion_paciente", ""),
-                    st.session_state.get("t2_entrada", ""),
-                    st.session_state.get("t2pt", ""),
+                    _tstore_adq.get("t2_posicion_paciente") or "",
+                    _tstore_adq.get("t2_entrada") or "",
+                    _tstore_adq.get("t2pt") or "",
                 )
                 if _img_adq_2 is not None:
                     _topos_adq.append({
