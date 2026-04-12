@@ -2336,34 +2336,37 @@ def render_topograma_panel():
         st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente</div>', unsafe_allow_html=True)
         col_pos_topo, col_ent_topo = st.columns(2)
         with col_pos_topo:
-            posicion = st.selectbox(
+            _posicion_guardada = st.session_state.get("posicion", "")
+            if _posicion_guardada not in POSICIONES_PACIENTE:
+                _posicion_guardada = None
+            posicion = selectbox_con_placeholder(
                 "Posición paciente",
-                [None] + POSICIONES_PACIENTE,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="posicion_topo"
+                POSICIONES_PACIENTE,
+                value=_posicion_guardada,
+                key="posicion_topo",
             )
             st.session_state["posicion"] = posicion if posicion else ""
         with col_ent_topo:
-            entrada = st.selectbox(
+            _entrada_guardada = st.session_state.get("entrada", "")
+            if _entrada_guardada not in ENTRADAS_PACIENTE:
+                _entrada_guardada = None
+            entrada = selectbox_con_placeholder(
                 "Entrada",
-                [None] + ENTRADAS_PACIENTE,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
-                key="entrada_topo"
+                ENTRADAS_PACIENTE,
+                value=_entrada_guardada,
+                key="entrada_topo",
             )
             st.session_state["entrada"] = entrada if entrada else ""
 
         col_tubo, col_extremidades = st.columns(2)
         with col_tubo:
-            topo1_pos = st.selectbox(
+            _tubo_guardado = st.session_state.get("t1pt", "")
+            if _tubo_guardado not in POS_TUBO:
+                _tubo_guardado = None
+            topo1_pos = selectbox_con_placeholder(
                 "Posición tubo",
-                [None] + POS_TUBO,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
+                POS_TUBO,
+                value=_tubo_guardado,
                 key="t1pt"
             )
         with col_extremidades:
@@ -3272,26 +3275,10 @@ with tab2:
             # Mostrar topogramas en Adquisición aunque el flag visual no haya quedado marcado.
             # Se consideran disponibles si fueron iniciados o si ya existe una configuración válida
             # en la pestaña de Topograma.
-            _hay_topo1_adq = bool(
-                st.session_state.get("topograma_iniciado", False)
-                or (
-                    st.session_state.get("examen", "")
-                    and st.session_state.get("posicion", "")
-                    and st.session_state.get("entrada", "")
-                    and st.session_state.get("t1pt", "")
-                )
-            )
+            _hay_topo1_adq = bool(st.session_state.get("topograma_iniciado", False))
             _hay_topo2_adq = bool(
                 st.session_state.get("aplica_topo2", False)
-                and (
-                    st.session_state.get("topograma2_iniciado", False)
-                    or (
-                        st.session_state.get("examen", "")
-                        and st.session_state.get("t2_posicion_paciente", "")
-                        and st.session_state.get("t2_entrada", "")
-                        and st.session_state.get("t2pt", "")
-                    )
-                )
+                and st.session_state.get("topograma2_iniciado", False)
             )
             _topos_adq = []
             _errores_topos_adq = []
