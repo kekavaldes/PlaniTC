@@ -2276,12 +2276,31 @@ with tab1:
                 )
 
 def render_topograma_panel():
+    if "topograma_store" not in st.session_state or not isinstance(st.session_state["topograma_store"], dict):
+        st.session_state["topograma_store"] = {
+            "region_anat": None,
+            "examen": None,
+            "posicion": None,
+            "entrada": None,
+            "t1pt": None,
+            "t1l": None,
+            "t1dir": None,
+            "t1vz": None,
+            "aplica_topo2": False,
+            "t2_posicion_paciente": None,
+            "t2_entrada": None,
+            "t2pt": None,
+            "t2l": None,
+            "t2dir": None,
+            "t2vz": None,
+        }
+    _tstore = st.session_state["topograma_store"]
     col_exam_block, col_pos_block, col_topo_img = st.columns([1.05, 1.15, 1.2])
 
     with col_exam_block:
         st.markdown('<div class="section-header">🏥 Datos del Examen</div>', unsafe_allow_html=True)
 
-        _region_guardada = st.session_state.get("region_anat", "CUERPO")
+        _region_guardada = _tstore.get("region_anat")
         if _region_guardada not in REGIONES:
             _region_guardada = None
         region_anat = selectbox_con_placeholder(
@@ -2291,12 +2310,13 @@ def render_topograma_panel():
             key="region_anat_topo_widget",
         )
         region_anat_seleccionada = region_anat
-        region_anat_real = region_anat if region_anat else "CUERPO"
-        st.session_state["region_anat"] = region_anat_real
+        region_anat_real = region_anat if region_anat else None
+        _tstore["region_anat"] = region_anat_real
+        st.session_state["region_anat"] = region_anat_real if region_anat_real else ""
 
-        examenes_base = REGIONES.get(region_anat_real, ["—"])
+        examenes_base = REGIONES.get(region_anat_real, []) if region_anat_real else []
         examenes_disp = examenes_base
-        _examen_guardado = st.session_state.get("examen", "")
+        _examen_guardado = _tstore.get("examen")
         if _examen_guardado not in examenes_disp:
             _examen_guardado = None
 
@@ -2306,6 +2326,7 @@ def render_topograma_panel():
             value=_examen_guardado,
             key="examen_topo_widget",
         )
+        _tstore["examen"] = examen if examen else None
         st.session_state["examen"] = examen if examen else ""
 
         if region_anat_seleccionada is None:
@@ -2336,7 +2357,7 @@ def render_topograma_panel():
         st.markdown('<div class="section-header">🛏️ Posicionamiento del paciente</div>', unsafe_allow_html=True)
         col_pos_topo, col_ent_topo = st.columns(2)
         with col_pos_topo:
-            _posicion_guardada = st.session_state.get("posicion", "")
+            _posicion_guardada = _tstore.get("posicion")
             if _posicion_guardada not in POSICIONES_PACIENTE:
                 _posicion_guardada = None
             posicion = selectbox_con_placeholder(
@@ -2345,9 +2366,10 @@ def render_topograma_panel():
                 value=_posicion_guardada,
                 key="posicion_topo",
             )
+            _tstore["posicion"] = posicion if posicion else None
             st.session_state["posicion"] = posicion if posicion else ""
         with col_ent_topo:
-            _entrada_guardada = st.session_state.get("entrada", "")
+            _entrada_guardada = _tstore.get("entrada")
             if _entrada_guardada not in ENTRADAS_PACIENTE:
                 _entrada_guardada = None
             entrada = selectbox_con_placeholder(
@@ -2356,11 +2378,12 @@ def render_topograma_panel():
                 value=_entrada_guardada,
                 key="entrada_topo",
             )
+            _tstore["entrada"] = entrada if entrada else None
             st.session_state["entrada"] = entrada if entrada else ""
 
         col_tubo, col_extremidades = st.columns(2)
         with col_tubo:
-            _tubo_guardado = st.session_state.get("t1pt", "")
+            _tubo_guardado = _tstore.get("t1pt")
             if _tubo_guardado not in POS_TUBO:
                 _tubo_guardado = None
             topo1_pos = selectbox_con_placeholder(
@@ -2369,6 +2392,7 @@ def render_topograma_panel():
                 value=_tubo_guardado,
                 key="t1pt"
             )
+            _tstore["t1pt"] = topo1_pos if topo1_pos else None
         with col_extremidades:
             posicion_extremidades = st.selectbox(
                 "Posición extremidades",
@@ -2398,11 +2422,11 @@ def render_topograma_panel():
                 st.info("Selecciona posición paciente, entrada y posición del tubo para ver la imagen correspondiente.")
 
     with col_topo_img:
-        _region_prev   = st.session_state.get("region_anat", "CUERPO")
-        _examen_prev   = st.session_state.get("examen", "")
-        _pos_tubo_prev = st.session_state.get("t1pt", "ARRIBA 0°")
-        _posicion_prev = st.session_state.get("posicion", "")
-        _entrada_prev  = st.session_state.get("entrada", "")
+        _region_prev   = _tstore.get("region_anat") or ""
+        _examen_prev   = _tstore.get("examen") or ""
+        _pos_tubo_prev = _tstore.get("t1pt") or ""
+        _posicion_prev = _tstore.get("posicion") or ""
+        _entrada_prev  = _tstore.get("entrada") or ""
 
         def _tubo_to_proy_prev(pos_tubo, region, examen):
             if not pos_tubo:
@@ -2466,9 +2490,10 @@ def render_topograma_panel():
 
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
     st.markdown('<div class="section-header">📡 Topograma 1</div>', unsafe_allow_html=True)
-    refs_inicio_topo = [None] + REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-    _refs_ini_topo_cfg = REFS_INICIO.get(st.session_state.get("region_anat", "CUERPO"), REFS_INICIO["CUERPO"])
-    _refs_fin_topo_cfg = REFS_FIN.get(st.session_state.get("region_anat", "CUERPO"), REFS_FIN["CUERPO"])
+    _region_refs = _tstore.get("region_anat") or "CUERPO"
+    refs_inicio_topo = [None] + REFS_INICIO.get(_region_refs, REFS_INICIO["CUERPO"])
+    _refs_ini_topo_cfg = REFS_INICIO.get(_region_refs, REFS_INICIO["CUERPO"])
+    _refs_fin_topo_cfg = REFS_FIN.get(_region_refs, REFS_FIN["CUERPO"])
     st.session_state["t1kv"] = 100
     st.session_state["t1ma"] = 40
     topo1_kv = 100
@@ -2529,37 +2554,36 @@ def render_topograma_panel():
 
         col_t1d, col_t1e, col_t1f = st.columns(3)
         with col_t1d:
-            topo1_long = st.selectbox(
+            topo1_long = selectbox_con_placeholder(
                 "Longitud de topograma (mm)",
-                [None] + LONGITUDES_TOPO,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else str(x),
+                LONGITUDES_TOPO,
+                value=_tstore.get("t1l"),
                 key="t1l"
             )
+            _tstore["t1l"] = topo1_long if topo1_long is not None else None
         with col_t1e:
-            topo1_dir = st.selectbox(
+            topo1_dir = selectbox_con_placeholder(
                 "Dirección topograma",
-                [None] + DIRECCIONES,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
+                DIRECCIONES,
+                value=_tstore.get("t1dir"),
                 key="t1dir"
             )
+            _tstore["t1dir"] = topo1_dir if topo1_dir else None
         with col_t1f:
-            topo1_voz = st.selectbox(
+            topo1_voz = selectbox_con_placeholder(
                 "Instrucción de voz",
-                [None] + INSTRUCCIONES_VOZ,
-                index=0,
-                format_func=lambda x: "Seleccionar" if x is None else x,
-                placeholder="Seleccionar",
+                INSTRUCCIONES_VOZ,
+                value=_tstore.get("t1vz"),
                 key="t1vz"
             )
+            _tstore["t1vz"] = topo1_voz if topo1_voz else None
 
     aplica_topo2 = st.checkbox(
         "¿Aplica Topograma 2?",
-        value=st.session_state.get("aplica_topo2", False),
+        value=_tstore.get("aplica_topo2", False),
         key="aplica_topo2_widget",
     )
+    _tstore["aplica_topo2"] = aplica_topo2
     st.session_state["aplica_topo2"] = aplica_topo2
 
     st.markdown("---")
@@ -2643,25 +2667,23 @@ def render_topograma_panel():
                     key="t2_posicion_paciente"
                 )
             with col_t2f:
-                topo2_entrada = st.selectbox(
+                topo2_entrada = selectbox_con_placeholder(
                     "Entrada",
-                    [None] + ENTRADAS_PACIENTE,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
+                    ENTRADAS_PACIENTE,
+                    value=_tstore.get("t2_entrada"),
                     key="t2_entrada"
                 )
+                _tstore["t2_entrada"] = topo2_entrada if topo2_entrada else None
 
             col_t2g, col_t2h = st.columns(2)
             with col_t2g:
-                topo2_pos = st.selectbox(
+                topo2_pos = selectbox_con_placeholder(
                     "Posición tubo",
-                    [None] + POS_TUBO,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
+                    POS_TUBO,
+                    value=_tstore.get("t2pt"),
                     key="t2pt"
                 )
+                _tstore["t2pt"] = topo2_pos if topo2_pos else None
             with col_t2h:
                 topo2_extremidades = st.selectbox(
                     "Posición extremidades",
@@ -2798,31 +2820,29 @@ def render_topograma_panel():
 
             col_t2d, col_t2e, col_t2f = st.columns(3)
             with col_t2d:
-                topo2_long = st.selectbox(
+                topo2_long = selectbox_con_placeholder(
                     "Longitud de topograma (mm)",
-                    [None] + LONGITUDES_TOPO,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else str(x),
+                    LONGITUDES_TOPO,
+                    value=_tstore.get("t2l"),
                     key="t2l"
                 )
+                _tstore["t2l"] = topo2_long if topo2_long is not None else None
             with col_t2e:
-                topo2_dir = st.selectbox(
+                topo2_dir = selectbox_con_placeholder(
                     "Dirección topograma",
-                    [None] + DIRECCIONES,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
+                    DIRECCIONES,
+                    value=_tstore.get("t2dir"),
                     key="t2dir"
                 )
+                _tstore["t2dir"] = topo2_dir if topo2_dir else None
             with col_t2f:
-                topo2_voz = st.selectbox(
+                topo2_voz = selectbox_con_placeholder(
                     "Instrucción de voz",
-                    [None] + INSTRUCCIONES_VOZ,
-                    index=0,
-                    format_func=lambda x: "Seleccionar" if x is None else x,
-                    placeholder="Seleccionar",
+                    INSTRUCCIONES_VOZ,
+                    value=_tstore.get("t2vz"),
                     key="t2vz"
                 )
+                _tstore["t2vz"] = topo2_voz if topo2_voz else None
 
         st.markdown("---")
 
@@ -2883,32 +2903,32 @@ with tab2:
             "orden": numero,
             "tipo": "adquisicion",
             "nombre": "SIN CONTRASTE",
-            "tipo_exp": TIPOS_EXPLORACION[0],
-            "doble_muestreo": "NO",
-            "voz_adq": INSTRUCCIONES_VOZ[0],
-            "mod_corriente": MODULACION_CORRIENTE[0],
-            "kvp": 120,
-            "mas_val": 200,
-            "ind_cal": INDICE_CALIDAD[4] if len(INDICE_CALIDAD) > 4 else INDICE_CALIDAD[0],
-            "ind_ruido": INDICE_RUIDO[2] if len(INDICE_RUIDO) > 2 else INDICE_RUIDO[0],
-            "rango_ma": RANGO_MA[2] if len(RANGO_MA) > 2 else RANGO_MA[0],
-            "conf_det": CONF_DETECTORES[4] if len(CONF_DETECTORES) > 4 else CONF_DETECTORES[0],
-            "sfov": SFOV_OPCIONES[2] if len(SFOV_OPCIONES) > 2 else SFOV_OPCIONES[0],
-            "grosor_prosp": str(GROSOR_PROSP[2] if len(GROSOR_PROSP) > 2 else GROSOR_PROSP[0]),
-            "pitch": PITCH_OPCIONES[6] if len(PITCH_OPCIONES) > 6 else PITCH_OPCIONES[0],
-            "rot_tubo": ROT_TUBO[1] if len(ROT_TUBO) > 1 else ROT_TUBO[0],
-            "retardo": RETARDOS[0],
-            "inicio_ref": REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0],
+            "tipo_exp": None,
+            "doble_muestreo": None,
+            "voz_adq": None,
+            "mod_corriente": None,
+            "kvp": None,
+            "mas_val": None,
+            "ind_cal": None,
+            "ind_ruido": None,
+            "rango_ma": None,
+            "conf_det": None,
+            "sfov": None,
+            "grosor_prosp": None,
+            "pitch": None,
+            "rot_tubo": None,
+            "retardo": None,
+            "inicio_ref": None,
             "ini_mm": 0,
-            "fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
+            "fin_ref": None,
             "fin_mm": 400,
-            "topo1_inicio_ref": REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0],
+            "topo1_inicio_ref": None,
             "topo1_ini_mm": 0,
-            "topo1_fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
+            "topo1_fin_ref": None,
             "topo1_fin_mm": 400,
-            "topo2_inicio_ref": REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])[0],
+            "topo2_inicio_ref": None,
             "topo2_ini_mm": 0,
-            "topo2_fin_ref": REFS_FIN.get(region_anat, REFS_FIN["CUERPO"])[0],
+            "topo2_fin_ref": None,
             "topo2_fin_mm": 400,
             "periodo_bolus": "1 sg",
             "n_imagenes_bolus": 15,
@@ -3550,7 +3570,7 @@ with tab2:
                         _actual["mod_corriente"] = selectbox_con_placeholder(
                             "Modulación corriente",
                             MODULACION_CORRIENTE,
-                            value=_actual.get("mod_corriente", MODULACION_CORRIENTE[0]),
+                            value=_actual.get("mod_corriente"),
                             key=f"mod_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3566,7 +3586,7 @@ with tab2:
                         _actual["kvp"] = selectbox_con_placeholder(
                             _label_kv,
                             KVP_OPCIONES,
-                            value=_actual.get("kvp", KVP_OPCIONES[0]),
+                            value=_actual.get("kvp"),
                             key=f"kv_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3577,7 +3597,7 @@ with tab2:
                             _actual["mas_val"] = selectbox_con_placeholder(
                                 "mAs REF",
                                 MAS_OPCIONES,
-                                value=_actual.get("mas_val", MAS_OPCIONES[0]),
+                                value=_actual.get("mas_val"),
                                 key=f"masref_{_exp_id}",
                                 label_visibility="collapsed"
                             )
@@ -3585,7 +3605,7 @@ with tab2:
                             _actual["ind_cal"] = selectbox_con_placeholder(
                                 "Índice de calidad",
                                 INDICE_CALIDAD,
-                                value=_actual.get("ind_cal", INDICE_CALIDAD[0]),
+                                value=_actual.get("ind_cal"),
                                 key=f"indcal_{_exp_id}",
                                 label_visibility="collapsed"
                             )
@@ -3595,7 +3615,7 @@ with tab2:
                             _actual["rango_ma"] = selectbox_con_placeholder(
                                 "Rango mA",
                                 RANGO_MA,
-                                value=_actual.get("rango_ma", RANGO_MA[0]),
+                                value=_actual.get("rango_ma"),
                                 key=f"rangoma_{_exp_id}",
                                 label_visibility="collapsed"
                             )
@@ -3607,7 +3627,7 @@ with tab2:
                             _actual["ind_ruido"] = selectbox_con_placeholder(
                                 "Índice de ruido",
                                 INDICE_RUIDO,
-                                value=_actual.get("ind_ruido", INDICE_RUIDO[0]),
+                                value=_actual.get("ind_ruido"),
                                 key=f"indruido_{_exp_id}",
                                 label_visibility="collapsed"
                             )
@@ -3625,17 +3645,13 @@ with tab2:
                             _actual["ind_ruido"] = selectbox_con_placeholder(
                                 "Índice de ruido",
                                 INDICE_RUIDO,
-                                value=_actual.get("ind_ruido", INDICE_RUIDO[0]),
+                                value=_actual.get("ind_ruido"),
                                 key=f"indruido_manual_{_exp_id}",
                                 label_visibility="collapsed"
                             )
                         _tercero_label, _cuarto_label = "mAs", "Índice ruido"
                     _adq_pair(_c3, _tercero_label, _render_tercero)
                     _adq_pair(_c4, _cuarto_label, _render_cuarto)
-
-                # Asegurar tipo de exploración principal
-                if _actual.get("tipo_exp") is None:
-                    _actual["tipo_exp"] = TIPOS_EXPLORACION[0]
 
                 # Fila 2: geometría / detectores
                 _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
@@ -3649,7 +3665,7 @@ with tab2:
                             _actual["doble_muestreo"] = selectbox_con_placeholder(
                                 "Doble muestreo (eje Z)",
                                 ["NO", "SI"],
-                                value=_actual.get("doble_muestreo", "NO"),
+                                value=_actual.get("doble_muestreo"),
                                 key=f"dm_{_exp_id}",
                                 label_visibility="collapsed"
                             )
@@ -3669,7 +3685,7 @@ with tab2:
                         _actual["conf_det"] = selectbox_con_placeholder(
                             "Configuración de detectores",
                             CONF_DETECTORES,
-                            value=_actual.get("conf_det", CONF_DETECTORES[0]),
+                            value=_actual.get("conf_det"),
                             key=f"confdet_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3679,7 +3695,7 @@ with tab2:
                         _actual["sfov"] = selectbox_con_placeholder(
                             "SFOV",
                             SFOV_OPCIONES,
-                            value=_actual.get("sfov", SFOV_OPCIONES[0]),
+                            value=_actual.get("sfov"),
                             key=f"sfov_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3689,7 +3705,7 @@ with tab2:
                         _actual["tipo_exp"] = selectbox_con_placeholder(
                             "Cobertura-colimación",
                             TIPOS_EXPLORACION,
-                            value=_actual.get("tipo_exp", TIPOS_EXPLORACION[0]),
+                            value=_actual.get("tipo_exp"),
                             key=f"tipoexp_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3700,7 +3716,7 @@ with tab2:
                         _actual["grosor_prosp"] = selectbox_con_placeholder(
                             "Corte prospectivo (mm)",
                             _grosor_opciones,
-                            value=_actual.get("grosor_prosp", _grosor_opciones[0]),
+                            value=_actual.get("grosor_prosp"),
                             key=f"gpros_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3717,7 +3733,7 @@ with tab2:
                         _actual["retardo"] = selectbox_con_placeholder(
                             "Retardo (Delay)",
                             RETARDOS,
-                            value=_actual.get("retardo", RETARDOS[0]),
+                            value=_actual.get("retardo"),
                             key=f"delay_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3728,7 +3744,7 @@ with tab2:
                             _actual["pitch"] = selectbox_con_placeholder(
                                 "Pitch",
                                 PITCH_OPCIONES,
-                                value=_actual.get("pitch", PITCH_OPCIONES[0]),
+                                value=_actual.get("pitch"),
                                 key=f"pitch_{_exp_id}",
                                 label_visibility="collapsed"
                             )
@@ -3742,7 +3758,7 @@ with tab2:
                         _actual["rot_tubo"] = selectbox_con_placeholder(
                             "Rotación tubo (sg)",
                             ROT_TUBO,
-                            value=_actual.get("rot_tubo", ROT_TUBO[0]),
+                            value=_actual.get("rot_tubo"),
                             key=f"rot_{_exp_id}",
                             label_visibility="collapsed"
                         )
@@ -3752,7 +3768,7 @@ with tab2:
                         _actual["voz_adq"] = selectbox_con_placeholder(
                             "Instrucción de voz",
                             INSTRUCCIONES_VOZ,
-                            value=_actual.get("voz_adq", INSTRUCCIONES_VOZ[0]),
+                            value=_actual.get("voz_adq"),
                             key=f"voz_{_exp_id}",
                             label_visibility="collapsed"
                         )
