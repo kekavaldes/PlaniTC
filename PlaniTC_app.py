@@ -3661,25 +3661,17 @@ with tab2:
                 with _row2_body:
                     _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
 
-                    if _actual["tipo_exp"] == "HELICOIDAL":
-                        def _render_dm():
-                            _actual["doble_muestreo"] = selectbox_con_placeholder(
-                                "Doble muestreo (eje Z)",
-                                ["NO", "SI"],
-                                value=_actual.get("doble_muestreo"),
-                                key=f"dm_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                    else:
-                        _actual["doble_muestreo"] = "NO"
-                        def _render_dm():
-                            st.text_input(
-                                "Doble muestreo (eje Z)",
-                                value="No aplica",
-                                key=f"dm_na_{_exp_id}",
-                                disabled=True,
-                                label_visibility="collapsed"
-                            )
+                    def _render_dm():
+                        _valor_dm = _actual.get("doble_muestreo")
+                        if _valor_dm not in ["NO", "SI"]:
+                            _valor_dm = "NO"
+                        _actual["doble_muestreo"] = selectbox_con_placeholder(
+                            "Doble muestreo (eje Z)",
+                            ["NO", "SI"],
+                            value=_valor_dm,
+                            key=f"dm_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
                     _adq_pair(_c1, "Doble muestreo", _render_dm)
 
                     def _render_confdet():
@@ -4292,3 +4284,4 @@ with tab5:
 **Consejo educativo**
 - {"Mayor mAs → menor ruido → mayor dosis" if isinstance(ruido_sum, float) and ruido_sum > 15 else "Balance dosis-calidad adecuado para este protocolo"}
         """)
+
