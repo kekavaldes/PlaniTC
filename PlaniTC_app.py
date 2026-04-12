@@ -3297,7 +3297,7 @@ with tab2:
             _tstore_adq = st.session_state.get("topograma_store", {})
             _hay_topo1_adq = bool(st.session_state.get("topograma_iniciado", False))
             _hay_topo2_adq = bool(
-                st.session_state.get("aplica_topo2", False)
+                (_tstore_adq.get("aplica_topo2") if isinstance(_tstore_adq, dict) else False)
                 and st.session_state.get("topograma2_iniciado", False)
             )
             _topos_adq = []
@@ -3306,18 +3306,18 @@ with tab2:
             if _hay_topo1_adq:
                 _img_adq_1, _err_adq_1 = obtener_imagen_topograma_adquirido(
                     st.session_state.get("examen", ""),
-                    st.session_state.get("posicion", ""),
-                    st.session_state.get("entrada", ""),
-                    st.session_state.get("t1pt", ""),
+                    _tstore_adq.get("posicion") or st.session_state.get("posicion", ""),
+                    _tstore_adq.get("entrada") or st.session_state.get("entrada", ""),
+                    _tstore_adq.get("t1pt") or st.session_state.get("t1pt", ""),
                 )
                 if _img_adq_1 is not None:
                     _topos_adq.append({
                         "titulo": "✅ Topograma 1",
                         "subtitulo": (
-                            f"Tubo: {st.session_state.get('t1pt', '—')} · "
-                            f"{st.session_state.get('t1l', '—')} mm · "
-                            f"{st.session_state.get('t1kv', '—')} kV · "
-                            f"{st.session_state.get('t1ma', '—')} mA"
+                            f"Tubo: {_tstore_adq.get('t1pt') or st.session_state.get('t1pt', '—')} · "
+                            f"{_tstore_adq.get('t1l') or st.session_state.get('t1l', '—')} mm · "
+                            f"{_tstore_adq.get('t1kv') or st.session_state.get('t1kv', '—')} kV · "
+                            f"{_tstore_adq.get('t1ma') or st.session_state.get('t1ma', '—')} mA"
                         ),
                         "img_b64": _pil_to_b64_jpeg(_img_adq_1),
                     })
@@ -3335,10 +3335,10 @@ with tab2:
                     _topos_adq.append({
                         "titulo": "✅ Topograma 2",
                         "subtitulo": (
-                            f"Tubo: {st.session_state.get('t2pt', '—')} · "
-                            f"{st.session_state.get('t2l', '—')} mm · "
-                            f"{st.session_state.get('t2kv', '—')} kV · "
-                            f"{st.session_state.get('t2ma', '—')} mA"
+                            f"Tubo: {_tstore_adq.get('t2pt') or st.session_state.get('t2pt', '—')} · "
+                            f"{_tstore_adq.get('t2l') or st.session_state.get('t2l', '—')} mm · "
+                            f"{_tstore_adq.get('t2kv') or st.session_state.get('t2kv', '—')} kV · "
+                            f"{_tstore_adq.get('t2ma') or st.session_state.get('t2ma', '—')} mA"
                         ),
                         "img_b64": _pil_to_b64_jpeg(_img_adq_2),
                     })
