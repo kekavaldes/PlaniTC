@@ -3812,9 +3812,9 @@ with tab2:
                         _cob_preview_str = "—"
 
                     def _render_cobertura():
+                        st.session_state[f"cobertura_prev_{_exp_id}"] = _cob_preview_str
                         st.text_input(
                             "Cobertura",
-                            value=_cob_preview_str,
                             key=f"cobertura_prev_{_exp_id}",
                             disabled=True,
                             label_visibility="collapsed"
