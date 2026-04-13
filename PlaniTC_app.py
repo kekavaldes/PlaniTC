@@ -4222,12 +4222,56 @@ with tab3:
 with tab4:
     st.markdown('<div class="section-header">💉 Jeringa Inyectora</div>', unsafe_allow_html=True)
 
-    top_preview = st.container()
+    vol_max_mc = MAX_JERINGA
+    vol_max_sf = MAX_JERINGA
+
+    n_fases_default = int(st.session_state.get("n_fases_iny", 2))
+    fases_data = []
+
+    top_left, top_right = st.columns([1.05, 1.35])
+
+    with top_right:
+        st.markdown('<div class="section-header">💉 Fases de inyección</div>', unsafe_allow_html=True)
+        n_fases = st.number_input("Número de fases", min_value=1, max_value=6, value=n_fases_default, key="n_fases_iny")
+
+        for i in range(int(n_fases)):
+            with st.expander(f"Fase {i+1}", expanded=(i == 0)):
+                col_sol, col_vol, col_caud = st.columns(3)
+                with col_sol:
+                    sol = selectbox_con_placeholder("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
+                with col_vol:
+                    vol = selectbox_con_placeholder("Volumen (mL)", list(range(0, 185, 5)), value=50, key=f"vol_{i}")
+                with col_caud:
+                    caud = selectbox_con_placeholder("Caudal (mL/sg)", CAUDAL_OPCIONES, value=CAUDAL_OPCIONES[5], key=f"caud_{i}")
+                duracion_fase = round(vol / caud, 1) if caud > 0 and sol != "PAUSA" else vol
+                st.caption(f"Duración: {duracion_fase} sg")
+                fases_data.append({"solucion": sol, "volumen": vol, "caudal": caud, "duracion": duracion_fase})
+
+    vol_total_mc = sum(f["volumen"] for f in fases_data if f["solucion"] == "MC")
+    vol_total_sf = sum(f["volumen"] for f in fases_data if f["solucion"] == "SF")
+    dur_total = sum(f["duracion"] for f in fases_data)
+
+    vvp_default = st.session_state.get("vvp_gauge_widget", VVP_GAUGE[1])
+    vvp_gauge = vvp_default if vvp_default in VVP_GAUGE else VVP_GAUGE[1]
+
+    with top_left:
+        st.markdown(render_inyectora_svg(vol_total_mc, vol_total_sf, vol_max_mc, vol_max_sf, fases_data, vvp_gauge), unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown('<div class="section-header">📊 Resumen del Protocolo</div>', unsafe_allow_html=True)
+
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.metric("Vol. total MC", f"{vol_total_mc} mL")
+        st.metric("Duración total", f"{dur_total} sg")
+    with col_m2:
+        st.metric("Vol. total SF", f"{vol_total_sf} mL")
+        st.metric("Vol. total", f"{vol_total_mc + vol_total_sf} mL")
 
     st.markdown("**Acceso venoso y capacidades**")
     col_vvp, col_cap = st.columns(2)
     with col_vvp:
-        vvp_gauge = selectbox_con_placeholder("VVP (Gauge)", VVP_GAUGE, value=VVP_GAUGE[1])
+        vvp_gauge = selectbox_con_placeholder("VVP (Gauge)", VVP_GAUGE, value=vvp_gauge, key="vvp_gauge_widget")
     with col_cap:
         st.markdown("<div style='height: 0.2rem;'></div>", unsafe_allow_html=True)
         st.markdown(
@@ -4238,51 +4282,6 @@ with tab4:
             f"</div>",
             unsafe_allow_html=True,
         )
-    vol_max_mc = MAX_JERINGA
-    vol_max_sf = MAX_JERINGA
-
-    st.markdown("---")
-
-    fases_data = []
-    with top_preview:
-        col_bottom_left, col_bottom_right = st.columns([1.15, 1.25])
-
-        with col_bottom_right:
-            st.markdown('<div class="section-header">💉 Fases de inyección</div>', unsafe_allow_html=True)
-            n_fases = st.number_input("Número de fases", min_value=1, max_value=6, value=2)
-
-            for i in range(int(n_fases)):
-                with st.expander(f"Fase {i+1}", expanded=(i == 0)):
-                    col_sol, col_vol, col_caud = st.columns(3)
-                    with col_sol:
-                        sol = selectbox_con_placeholder("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
-                    with col_vol:
-                        vol = selectbox_con_placeholder("Volumen (mL)", list(range(0, 160, 5)), value=50, key=f"vol_{i}")
-                    with col_caud:
-                        caud = selectbox_con_placeholder("Caudal (mL/sg)", CAUDAL_OPCIONES, value=CAUDAL_OPCIONES[5], key=f"caud_{i}")
-                    duracion_fase = round(vol / caud, 1) if caud > 0 and sol != "PAUSA" else vol
-                    st.caption(f"Duración: {duracion_fase} sg")
-                    fases_data.append({"solucion": sol, "volumen": vol, "caudal": caud, "duracion": duracion_fase})
-
-    vol_total_mc = sum(f["volumen"] for f in fases_data if f["solucion"] == "MC")
-    vol_total_sf = sum(f["volumen"] for f in fases_data if f["solucion"] == "SF")
-    dur_total = sum(f["duracion"] for f in fases_data)
-
-    with top_preview:
-        col_bottom_left, col_bottom_right = st.columns([1.15, 1.25])
-
-        with col_bottom_left:
-            st.markdown(render_inyectora_svg(vol_total_mc, vol_total_sf, vol_max_mc, vol_max_sf, fases_data, vvp_gauge), unsafe_allow_html=True)
-
-    st.markdown('<div class="section-header">📊 Resumen del Protocolo</div>', unsafe_allow_html=True)
-
-    col_m1, col_m2 = st.columns(2)
-    with col_m1:
-        st.metric("Vol. total MC", f"{vol_total_mc} mL")
-        st.metric("Duración total", f"{dur_total} sg")
-    with col_m2:
-        st.metric("Vol. total SF", f"{vol_total_sf} mL")
-        st.metric("Vol. total", f"{vol_total_mc + vol_total_sf} mL")
 
     if vol_total_mc > vol_max_mc:
         st.markdown(f'<div class="alert-warn">⚠️ Volumen de contraste ({vol_total_mc} mL) supera la capacidad fija ({vol_max_mc} mL)</div>', unsafe_allow_html=True)
