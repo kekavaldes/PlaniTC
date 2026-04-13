@@ -3735,6 +3735,8 @@ with tab2:
                             )
                         _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
                     else:
+                        _actual["ind_ruido"] = None
+                        _actual["ind_cal"] = None
                         def _render_tercero():
                             _actual["mas_val"] = selectbox_con_placeholder(
                                 "mAs",
@@ -3744,14 +3746,8 @@ with tab2:
                                 label_visibility="collapsed"
                             )
                         def _render_cuarto():
-                            _actual["ind_ruido"] = selectbox_con_placeholder(
-                                "Índice de ruido",
-                                INDICE_RUIDO,
-                                value=_actual.get("ind_ruido"),
-                                key=f"indruido_manual_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "mAs", "Índice ruido"
+                            st.markdown("<div style='height: 2.45rem;'></div>", unsafe_allow_html=True)
+                        _tercero_label, _cuarto_label = "mAs", ""
                     _adq_pair(_c3, _tercero_label, _render_tercero)
                     _adq_pair(_c4, _cuarto_label, _render_cuarto)
 
