@@ -3545,7 +3545,6 @@ with tab2:
                 }
                 .adq-grid-wrap [data-baseweb="select"] *{color:white !important;}
                 .adq-grid-wrap input{color:white !important;}
-                .adq-empty-slot{height:38px;}
                 .adq-grid-wrap div[data-testid="stHorizontalBlock"]{align-items:stretch;}
                 .adq-grid-wrap div[data-testid="column"] > div[data-testid="stVerticalBlock"]{
                     height:100%;
@@ -3577,6 +3576,76 @@ with tab2:
                         )
                     _adq_pair(_c1, "Modulación corriente", _render_modcorr)
 
+                    if _actual["mod_corriente"] == "CARE DOSE 4D":
+                        def _render_mas():
+                            _actual["mas_val"] = selectbox_con_placeholder(
+                                "mAs REF",
+                                MAS_OPCIONES,
+                                value=_actual.get("mas_val"),
+                                key=f"masref_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _mas_label = "mAs ref"
+                    elif _actual["mod_corriente"] == "AUTO mA":
+                        def _render_mas():
+                            _actual["rango_ma"] = selectbox_con_placeholder(
+                                "Rango mA",
+                                RANGO_MA,
+                                value=_actual.get("rango_ma"),
+                                key=f"rangoma_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                            try:
+                                _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
+                            except Exception:
+                                _actual["mas_val"] = 200
+                        _mas_label = "mAs"
+                    else:
+                        def _render_mas():
+                            _actual["mas_val"] = selectbox_con_placeholder(
+                                "mAs",
+                                MAS_OPCIONES,
+                                value=_actual.get("mas_val", MAS_OPCIONES[0]),
+                                key=f"mas_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _mas_label = "mAs"
+                    _adq_pair(_c2, _mas_label, _render_mas)
+
+                    if _actual["mod_corriente"] == "CARE DOSE 4D":
+                        def _render_indice():
+                            _actual["ind_cal"] = selectbox_con_placeholder(
+                                "Índice de calidad",
+                                INDICE_CALIDAD,
+                                value=_actual.get("ind_cal"),
+                                key=f"indcal_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _indice_label = "Índice calidad"
+                    elif _actual["mod_corriente"] == "AUTO mA":
+                        def _render_indice():
+                            _actual["ind_ruido"] = selectbox_con_placeholder(
+                                "Índice de ruido",
+                                INDICE_RUIDO,
+                                value=_actual.get("ind_ruido"),
+                                key=f"indruido_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _indice_label = "Índice ruido"
+                    else:
+                        _actual["ind_ruido"] = None
+                        _actual["ind_cal"] = None
+                        def _render_indice():
+                            st.text_input(
+                                "Índice",
+                                value="No aplica",
+                                key=f"indice_na_{_exp_id}",
+                                disabled=True,
+                                label_visibility="collapsed"
+                            )
+                        _indice_label = "Índice"
+                    _adq_pair(_c3, _indice_label, _render_indice)
+
                     _label_kv = "kV"
                     if _actual["mod_corriente"] == "CARE DOSE 4D":
                         _label_kv = "CARE kV"
@@ -3591,77 +3660,18 @@ with tab2:
                             key=f"kv_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c2, _label_kv, _render_kv)
+                    _adq_pair(_c4, _label_kv, _render_kv)
 
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        def _render_tercero():
-                            _actual["mas_val"] = selectbox_con_placeholder(
-                                "mAs REF",
-                                MAS_OPCIONES,
-                                value=_actual.get("mas_val"),
-                                key=f"masref_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        def _render_cuarto():
-                            _actual["ind_cal"] = selectbox_con_placeholder(
-                                "Índice de calidad",
-                                INDICE_CALIDAD,
-                                value=_actual.get("ind_cal"),
-                                key=f"indcal_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "mAs ref", "Índice calidad"
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        def _render_tercero():
-                            _actual["rango_ma"] = selectbox_con_placeholder(
-                                "Rango mA",
-                                RANGO_MA,
-                                value=_actual.get("rango_ma"),
-                                key=f"rangoma_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                            try:
-                                _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
-                            except Exception:
-                                _actual["mas_val"] = 200
-                        def _render_cuarto():
-                            _actual["ind_ruido"] = selectbox_con_placeholder(
-                                "Índice de ruido",
-                                INDICE_RUIDO,
-                                value=_actual.get("ind_ruido"),
-                                key=f"indruido_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
-                    else:
-                        _actual["ind_ruido"] = None
-                        _actual["ind_cal"] = None
-                        _actual["rango_ma"] = None
-
-                        def _render_tercero():
-                            _actual["mas_val"] = selectbox_con_placeholder(
-                                "mAs",
-                                MAS_OPCIONES,
-                                value=_actual.get("mas_val", MAS_OPCIONES[0]),
-                                key=f"mas_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        def _render_cuarto():
-                            st.markdown("<div class='adq-empty-slot'></div>", unsafe_allow_html=True)
-                        _tercero_label, _cuarto_label = "mAs", ""
-                    _adq_pair(_c3, _tercero_label, _render_tercero)
-                    _adq_pair(_c4, _cuarto_label, _render_cuarto)
-
-                # Fila 2: tipo / geometría / detectores
+                # Fila 2: geometría / detectores
                 _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
                 with _row2_icon:
                     st.markdown("<div class='adq-icon-box'>⚙️</div>", unsafe_allow_html=True)
                 with _row2_body:
-                    _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
+                    _c1, _c2, _c3, _c4, _c5, _c6 = st.columns(6, gap="small")
 
                     def _render_tipoexp():
                         _actual["tipo_exp"] = selectbox_con_placeholder(
-                            "Tipo de exploración",
+                            "Tipo exploración",
                             TIPOS_EXPLORACION,
                             value=_actual.get("tipo_exp"),
                             key=f"tipoexp_{_exp_id}",
@@ -3692,13 +3702,39 @@ with tab2:
 
                     def _render_confdet():
                         _actual["conf_det"] = selectbox_con_placeholder(
-                            "Configuración de detectores",
+                            "Configuración de detección",
                             CONF_DETECTORES,
                             value=_actual.get("conf_det"),
                             key=f"confdet_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c3, "Conf. detectores", _render_confdet)
+                    _adq_pair(_c3, "Conf. detección", _render_confdet)
+
+                    _cob_preview = calcular_cobertura_helical(
+                        _actual.get("conf_det", CONF_DETECTORES[0]),
+                        _actual.get("pitch", 1.0)
+                    )
+                    _cob_preview_str = f"{_cob_preview} mm/rot" if isinstance(_cob_preview, float) else "—"
+                    def _render_cobertura():
+                        st.text_input(
+                            "Cobertura",
+                            value=_cob_preview_str,
+                            key=f"cobertura_prev_{_exp_id}",
+                            disabled=True,
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c4, "Cobertura", _render_cobertura)
+
+                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
+                    def _render_gpros():
+                        _actual["grosor_prosp"] = selectbox_con_placeholder(
+                            "Grosor prospectivo (mm)",
+                            _grosor_opciones,
+                            value=_actual.get("grosor_prosp"),
+                            key=f"gpros_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c5, "Grosor prosp.", _render_gpros)
 
                     def _render_sfov():
                         _actual["sfov"] = selectbox_con_placeholder(
@@ -3708,18 +3744,7 @@ with tab2:
                             key=f"sfov_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c4, "SFOV", _render_sfov)
-
-                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
-                    def _render_gpros():
-                        _actual["grosor_prosp"] = selectbox_con_placeholder(
-                            "Corte prospectivo (mm)",
-                            _grosor_opciones,
-                            value=_actual.get("grosor_prosp"),
-                            key=f"gpros_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c5, "Corte prosp.", _render_gpros)
+                    _adq_pair(_c6, "SFOV", _render_sfov)
 
                 # Fila 3: tiempo / exploración
                 _row3_icon, _row3_body = st.columns([0.12, 1], gap="small")
@@ -3727,6 +3752,16 @@ with tab2:
                     st.markdown("<div class='adq-icon-box'>🕒</div>", unsafe_allow_html=True)
                 with _row3_body:
                     _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
+
+                    def _render_voz():
+                        _actual["voz_adq"] = selectbox_con_placeholder(
+                            "Instrucción de voz",
+                            INSTRUCCIONES_VOZ,
+                            value=_actual.get("voz_adq"),
+                            key=f"voz_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c1, "Instrucción voz", _render_voz)
 
                     def _render_delay():
                         _actual["retardo"] = selectbox_con_placeholder(
@@ -3736,7 +3771,7 @@ with tab2:
                             key=f"delay_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c1, "Retardo (Delay)", _render_delay)
+                    _adq_pair(_c2, "Retardo", _render_delay)
 
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         def _render_pitch():
@@ -3751,28 +3786,18 @@ with tab2:
                         _actual["pitch"] = 1.0
                         def _render_pitch():
                             st.text_input("Pitch", value="No aplica", key=f"pitch_na_{_exp_id}", disabled=True, label_visibility="collapsed")
-                    _adq_pair(_c2, "Pitch", _render_pitch)
+                    _adq_pair(_c3, "Pitch", _render_pitch)
 
                     def _render_rot():
                         _actual["rot_tubo"] = selectbox_con_placeholder(
-                            "Rotación tubo (sg)",
+                            "TPO ROTACION TUBO",
                             ROT_TUBO,
                             value=_actual.get("rot_tubo"),
                             key=f"rot_{_exp_id}",
-                            label_visibility="collapsed"
+                            label_visibility="collapsed",
+                            format_func=lambda x: "Seleccionar" if x is None else f"{x} sg."
                         )
-                    _adq_pair(_c3, "Rot. tubo", _render_rot)
-
-                    def _render_voz():
-                        _actual["voz_adq"] = selectbox_con_placeholder(
-                            "Instrucción de voz",
-                            INSTRUCCIONES_VOZ,
-                            value=_actual.get("voz_adq"),
-                            key=f"voz_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c4, "Instrucción voz", _render_voz)
-
+                    _adq_pair(_c4, "TPO ROTACION TUBO", _render_rot)
                 # Rango de exploración compacto
                 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
                 _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
