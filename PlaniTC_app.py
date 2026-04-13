@@ -812,6 +812,58 @@ ROT_TUBO = [0.3, 0.5, 0.7, 1.0]
 
 GROSOR_PROSP = [0.6, 0.625, 1.0, 1.2, 1.25, 1.5, 2.0, 3.0, 4.0, 5.0]
 
+COBERTURA_TABLA = {
+    "SECUENCIAL CONTIGUO": {
+        "8 x 1,25 mm": "10",
+        "16 x 0,625 mm": "10",
+        "32 x 0.6 mm": "19,2",
+        "32 x 0,625 mm": "20",
+        "32 x 1,2 mm": "38,4",
+        "32 x 1,25 mm": "40",
+        "64 x 0,6 mm": "38,4",
+        "64 x 0,625 mm": "40",
+    },
+    "HELICOIDAL": {
+        "8 x 1,25 mm": "10",
+        "16 x 0,625 mm": "10",
+        "32 x 0.6 mm": "19,2",
+        "32 x 0,625 mm": "20",
+        "32 x 1,2 mm": "38,4",
+        "32 x 1,25 mm": "40",
+        "64 x 0,6 mm": "38,4",
+        "64 x 0,625 mm": "40",
+    },
+    "DOBLE MUESTREO": {
+        "16 x 0,625 mm": "5",
+        "32 x 0.6 mm": "9,6",
+        "32 x 0,625 mm": "10",
+        "64 x 0,6 mm": "19,2",
+    },
+    "SECUENCIAL ESPACIADO": {
+        "1 x 1,25 mm": "1,25 - 20 mm",
+        "2 x 0,625 mm": "1,25 - 10 mm",
+    }
+}
+
+CONF_DETECTORES_POR_TIPO = {
+    "SECUENCIAL CONTIGUO": list(COBERTURA_TABLA["SECUENCIAL CONTIGUO"].keys()),
+    "HELICOIDAL": list(COBERTURA_TABLA["HELICOIDAL"].keys()),
+    "SECUENCIAL ESPACIADO": list(COBERTURA_TABLA["SECUENCIAL ESPACIADO"].keys()),
+}
+
+CONF_DETECTORES_DOBLE_MUESTREO = list(COBERTURA_TABLA["DOBLE MUESTREO"].keys())
+
+def obtener_opciones_conf_det(tipo_exp, doble_muestreo):
+    if tipo_exp == "HELICOIDAL" and doble_muestreo == "SI":
+        return CONF_DETECTORES_DOBLE_MUESTREO
+    return CONF_DETECTORES_POR_TIPO.get(tipo_exp, CONF_DETECTORES)
+
+def obtener_cobertura_tabla(tipo_exp, conf_det, doble_muestreo):
+    if not tipo_exp or not conf_det:
+        return "—"
+    tabla = "DOBLE MUESTREO" if tipo_exp == "HELICOIDAL" and doble_muestreo == "SI" else tipo_exp
+    return COBERTURA_TABLA.get(tabla, {}).get(conf_det, "—")
+
 # Inicio/fin por región y región anatómica
 REFS_INICIO = {
     "CABEZA":  ["VERTEX", "SOBRE SENO FRONTAL", "TECHO ORBITARIO", "CAE",
@@ -3700,7 +3752,8 @@ with tab2:
 
                 st.markdown("<div class='adq-grid-wrap'>", unsafe_allow_html=True)
 
-                # Fila 1: modulación / ruido
+
+                # Fila 1: modulación / mAs / índice / kV
                 _row1_icon, _row1_body = st.columns([0.12, 1], gap="small")
                 with _row1_icon:
                     st.markdown("<div class='adq-icon-box'>☢️</div>", unsafe_allow_html=True)
@@ -3717,24 +3770,8 @@ with tab2:
                         )
                     _adq_pair(_c1, "Modulación corriente", _render_modcorr)
 
-                    _label_kv = "kV"
                     if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        _label_kv = "CARE kV"
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        _label_kv = "AUTO kV"
-
-                    def _render_kv():
-                        _actual["kvp"] = selectbox_con_placeholder(
-                            _label_kv,
-                            KVP_OPCIONES,
-                            value=_actual.get("kvp"),
-                            key=f"kv_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c2, _label_kv, _render_kv)
-
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        def _render_tercero():
+                        def _render_mas():
                             _actual["mas_val"] = selectbox_con_placeholder(
                                 "mAs REF",
                                 MAS_OPCIONES,
@@ -3742,7 +3779,7 @@ with tab2:
                                 key=f"masref_{_exp_id}",
                                 label_visibility="collapsed"
                             )
-                        def _render_cuarto():
+                        def _render_indice():
                             _actual["ind_cal"] = selectbox_con_placeholder(
                                 "Índice de calidad",
                                 INDICE_CALIDAD,
@@ -3750,9 +3787,11 @@ with tab2:
                                 key=f"indcal_{_exp_id}",
                                 label_visibility="collapsed"
                             )
-                        _tercero_label, _cuarto_label = "mAs ref", "Índice calidad"
+                        _mas_label = "mAs"
+                        _indice_label = "Índice calidad"
+                        _actual["ind_ruido"] = None
                     elif _actual["mod_corriente"] == "AUTO mA":
-                        def _render_tercero():
+                        def _render_mas():
                             _actual["rango_ma"] = selectbox_con_placeholder(
                                 "Rango mA",
                                 RANGO_MA,
@@ -3764,7 +3803,7 @@ with tab2:
                                 _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
                             except Exception:
                                 _actual["mas_val"] = 200
-                        def _render_cuarto():
+                        def _render_indice():
                             _actual["ind_ruido"] = selectbox_con_placeholder(
                                 "Índice de ruido",
                                 INDICE_RUIDO,
@@ -3772,11 +3811,14 @@ with tab2:
                                 key=f"indruido_{_exp_id}",
                                 label_visibility="collapsed"
                             )
-                        _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
+                        _mas_label = "mAs"
+                        _indice_label = "Índice ruido"
+                        _actual["ind_cal"] = None
                     else:
                         _actual["ind_ruido"] = None
                         _actual["ind_cal"] = None
-                        def _render_tercero():
+                        _actual["rango_ma"] = None
+                        def _render_mas():
                             _actual["mas_val"] = selectbox_con_placeholder(
                                 "mAs",
                                 MAS_OPCIONES,
@@ -3784,25 +3826,47 @@ with tab2:
                                 key=f"mas_{_exp_id}",
                                 label_visibility="collapsed"
                             )
-                        def _render_cuarto():
+                        def _render_indice():
                             st.markdown("<div style='height: 2.45rem;'></div>", unsafe_allow_html=True)
-                        _tercero_label, _cuarto_label = "mAs", ""
-                    _adq_pair(_c3, _tercero_label, _render_tercero)
-                    _adq_pair(_c4, _cuarto_label, _render_cuarto)
+                        _mas_label = "mAs"
+                        _indice_label = ""
 
-                # Fila 2: geometría / detectores
+                    _adq_pair(_c2, _mas_label, _render_mas)
+                    _adq_pair(_c3, _indice_label, _render_indice)
+
+                    def _render_kv():
+                        _actual["kvp"] = selectbox_con_placeholder(
+                            "kV",
+                            KVP_OPCIONES,
+                            value=_actual.get("kvp"),
+                            key=f"kv_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c4, "kV", _render_kv)
+
+                # Fila 2: tipo exploración / doble muestreo / conf. detección / cobertura / grosor / SFOV
                 _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
                 with _row2_icon:
                     st.markdown("<div class='adq-icon-box'>⚙️</div>", unsafe_allow_html=True)
                 with _row2_body:
-                    _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
+                    _c1, _c2, _c3, _c4, _c5, _c6 = st.columns(6, gap="small")
+
+                    def _render_tipoexp():
+                        _actual["tipo_exp"] = selectbox_con_placeholder(
+                            "Tipo exploración",
+                            TIPOS_EXPLORACION,
+                            value=_actual.get("tipo_exp"),
+                            key=f"tipoexp_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c1, "Tipo exploración", _render_tipoexp)
 
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         def _render_dm():
                             _actual["doble_muestreo"] = selectbox_con_placeholder(
-                                "Doble muestreo (eje Z)",
+                                "Doble muestreo",
                                 ["NO", "SI"],
-                                value=_actual.get("doble_muestreo"),
+                                value=_actual.get("doble_muestreo", "NO"),
                                 key=f"dm_{_exp_id}",
                                 label_visibility="collapsed"
                             )
@@ -3810,23 +3874,54 @@ with tab2:
                         _actual["doble_muestreo"] = "NO"
                         def _render_dm():
                             st.text_input(
-                                "Doble muestreo (eje Z)",
+                                "Doble muestreo",
                                 value="No aplica",
                                 key=f"dm_na_{_exp_id}",
                                 disabled=True,
                                 label_visibility="collapsed"
                             )
-                    _adq_pair(_c1, "Doble muestreo", _render_dm)
+                    _adq_pair(_c2, "Doble muestreo", _render_dm)
+
+                    _opciones_conf = obtener_opciones_conf_det(_actual.get("tipo_exp"), _actual.get("doble_muestreo"))
+                    if _actual.get("conf_det") not in _opciones_conf:
+                        _actual["conf_det"] = _opciones_conf[0] if _opciones_conf else None
 
                     def _render_confdet():
                         _actual["conf_det"] = selectbox_con_placeholder(
-                            "Configuración de detectores",
-                            CONF_DETECTORES,
+                            "Configuración de detección",
+                            _opciones_conf,
                             value=_actual.get("conf_det"),
                             key=f"confdet_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c2, "Conf. detectores", _render_confdet)
+                    _adq_pair(_c3, "Conf. detección", _render_confdet)
+
+                    _cobertura_val = obtener_cobertura_tabla(
+                        _actual.get("tipo_exp"),
+                        _actual.get("conf_det"),
+                        _actual.get("doble_muestreo")
+                    )
+
+                    def _render_cobertura():
+                        st.text_input(
+                            "Cobertura",
+                            value=str(_cobertura_val),
+                            key=f"cobertura_{_exp_id}",
+                            disabled=True,
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c4, "Cobertura", _render_cobertura)
+
+                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
+                    def _render_gpros():
+                        _actual["grosor_prosp"] = selectbox_con_placeholder(
+                            "Grosor prospectivo",
+                            _grosor_opciones,
+                            value=_actual.get("grosor_prosp"),
+                            key=f"gpros_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c5, "Grosor prosp.", _render_gpros)
 
                     def _render_sfov():
                         _actual["sfov"] = selectbox_con_placeholder(
@@ -3836,45 +3931,34 @@ with tab2:
                             key=f"sfov_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c3, "SFOV", _render_sfov)
+                    _adq_pair(_c6, "SFOV", _render_sfov)
 
-                    def _render_tipoexp():
-                        _actual["tipo_exp"] = selectbox_con_placeholder(
-                            "Cobertura-colimación",
-                            TIPOS_EXPLORACION,
-                            value=_actual.get("tipo_exp"),
-                            key=f"tipoexp_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c4, "Cobertura-colimación", _render_tipoexp)
-
-                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
-                    def _render_gpros():
-                        _actual["grosor_prosp"] = selectbox_con_placeholder(
-                            "Corte prospectivo (mm)",
-                            _grosor_opciones,
-                            value=_actual.get("grosor_prosp"),
-                            key=f"gpros_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c5, "Corte prosp.", _render_gpros)
-
-                # Fila 3: tiempo / exploración
+                # Fila 3: instrucción de voz / retardo / pitch / TPO ROTACION TUBO
                 _row3_icon, _row3_body = st.columns([0.12, 1], gap="small")
                 with _row3_icon:
                     st.markdown("<div class='adq-icon-box'>🕒</div>", unsafe_allow_html=True)
                 with _row3_body:
                     _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
 
+                    def _render_voz():
+                        _actual["voz_adq"] = selectbox_con_placeholder(
+                            "Instrucción de voz",
+                            INSTRUCCIONES_VOZ,
+                            value=_actual.get("voz_adq"),
+                            key=f"voz_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c1, "Instrucción de voz", _render_voz)
+
                     def _render_delay():
                         _actual["retardo"] = selectbox_con_placeholder(
-                            "Retardo (Delay)",
+                            "Retardo",
                             RETARDOS,
                             value=_actual.get("retardo"),
                             key=f"delay_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c1, "Retardo (Delay)", _render_delay)
+                    _adq_pair(_c2, "Retardo", _render_delay)
 
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         def _render_pitch():
@@ -3888,28 +3972,25 @@ with tab2:
                     else:
                         _actual["pitch"] = 1.0
                         def _render_pitch():
-                            st.text_input("Pitch", value="No aplica", key=f"pitch_na_{_exp_id}", disabled=True, label_visibility="collapsed")
-                    _adq_pair(_c2, "Pitch", _render_pitch)
+                            st.text_input(
+                                "Pitch",
+                                value="No aplica",
+                                key=f"pitch_na_{_exp_id}",
+                                disabled=True,
+                                label_visibility="collapsed"
+                            )
+                    _adq_pair(_c3, "Pitch", _render_pitch)
 
                     def _render_rot():
                         _actual["rot_tubo"] = selectbox_con_placeholder(
-                            "Rotación tubo (sg)",
+                            "TPO ROTACION TUBO",
                             ROT_TUBO,
                             value=_actual.get("rot_tubo"),
                             key=f"rot_{_exp_id}",
-                            label_visibility="collapsed"
+                            label_visibility="collapsed",
+                            format_func=lambda x: "Seleccionar" if x is None else f"{x} sg."
                         )
-                    _adq_pair(_c3, "Rot. tubo", _render_rot)
-
-                    def _render_voz():
-                        _actual["voz_adq"] = selectbox_con_placeholder(
-                            "Instrucción de voz",
-                            INSTRUCCIONES_VOZ,
-                            value=_actual.get("voz_adq"),
-                            key=f"voz_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c4, "Instrucción voz", _render_voz)
+                    _adq_pair(_c4, "TPO ROTACION TUBO", _render_rot)
 
                 # Rango de exploración compacto
                 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
