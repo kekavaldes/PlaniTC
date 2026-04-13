@@ -20,6 +20,94 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 
 
+def render_inyectora_svg(vol_mc, vol_sf, max_mc, max_sf, fases_data, gauge):
+    def clamp_ratio(v, m):
+        try:
+            v = float(v or 0)
+            m = float(m or 0)
+            if m <= 0:
+                return 0.0
+            return max(0.0, min(v / m, 1.0))
+        except Exception:
+            return 0.0
+
+    ratio_mc = clamp_ratio(vol_mc, max_mc)
+    ratio_sf = clamp_ratio(vol_sf, max_sf)
+
+    colors = {
+        "MC": "#8FD16A",
+        "SF": "#63BFEA",
+        "PAUSA": "#9BB7CF",
+        "TEXT": "#F3F4F6",
+        "PANEL": "#A9C5DC",
+        "OUTLINE": "#2F3E4C",
+        "BODY": "#E7EEF5",
+        "EMPTY": "#DCE7F1",
+        "BG": "#7FA5C2",
+    }
+
+    phase_rows = []
+    for i, f in enumerate(fases_data[:4]):
+        sol = f.get("solucion", "")
+        color = colors.get(sol, colors["PAUSA"])
+        vol = f.get("volumen", 0)
+        dur = f.get("duracion", 0)
+        caud = f.get("caudal", "") if sol != "PAUSA" else ""
+        phase_rows.append(
+            f'<g transform="translate(390,{85 + i*58})">'
+            f'<rect x="0" y="0" width="58" height="34" fill="{color}" opacity="0.95"/>'
+            f'<rect x="72" y="0" width="58" height="34" fill="{color if sol != "PAUSA" else colors["PANEL"]}" opacity="0.95"/>'
+            f'<rect x="144" y="0" width="58" height="34" fill="#CFE0EC" opacity="0.95"/>'
+            f'<text x="29" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#11212B">{caud}</text>'
+            f'<text x="101" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#11212B">{vol if sol != "PAUSA" else ""}</text>'
+            f'<text x="173" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#11212B">{dur}</text>'
+            f'<text x="-8" y="23" text-anchor="end" font-size="14" font-weight="700" fill="{colors["TEXT"]}">{"Pausa" if sol == "PAUSA" else sol}</text>'
+            f'</g>'
+        )
+    phase_rows_str = "".join(phase_rows)
+
+    def syringe(x, label, ratio, vol, maxv, fill):
+        h = 220
+        y = 10
+        inner_h = int(round(h * ratio))
+        inner_y = y + h - inner_h
+        vol_txt = int(vol) if float(vol).is_integer() else vol
+        max_txt = int(maxv) if float(maxv).is_integer() else maxv
+        return (
+            f'<g transform="translate({x},60)">'
+            f'<rect x="0" y="0" width="64" height="10" rx="3" fill="{colors["BODY"]}" stroke="{colors["OUTLINE"]}" stroke-width="1.5"/>'
+            f'<rect x="6" y="10" width="52" height="220" rx="8" fill="{colors["EMPTY"]}" stroke="{colors["OUTLINE"]}" stroke-width="2"/>'
+            f'<rect x="6" y="{inner_y}" width="52" height="{max(inner_h,0)}" fill="{fill}"/>'
+            f'<rect x="6" y="106" width="52" height="2" fill="{colors["OUTLINE"]}" opacity="0.75"/>'
+            f'<polygon points="28,230 36,230 36,246 40,250 40,256 24,256 24,250 28,246" fill="{colors["EMPTY"]}" stroke="{colors["OUTLINE"]}" stroke-width="2"/>'
+            f'<text x="32" y="122" text-anchor="middle" font-size="36" font-weight="800" fill="#11212B">{label}</text>'
+            f'<text x="32" y="145" text-anchor="middle" font-size="22" font-weight="700" fill="#11212B">{vol_txt}</text>'
+            f'<text x="32" y="276" text-anchor="middle" font-size="15" font-weight="700" fill="{colors["TEXT"]}">{vol_txt} / {max_txt} mL</text>'
+            f'</g>'
+        )
+
+    svg = (
+        f'<div style="background:{colors["BG"]};border-radius:16px;padding:16px 18px 12px 18px;border:1px solid rgba(255,255,255,0.15);margin-top:8px;">'
+        f'<svg viewBox="0 0 620 340" width="100%" xmlns="http://www.w3.org/2000/svg">'
+        f'<text x="10" y="24" font-size="18" font-weight="700" fill="{colors["TEXT"]}">Según lo que requiera el examen</text>'
+        f'{syringe(25, "A", ratio_mc, vol_mc, max_mc, colors["MC"])}'
+        f'{syringe(120, "B", ratio_sf, vol_sf, max_sf, colors["SF"])}'
+        f'<g transform="translate(250,78)">'
+        f'<text x="0" y="-8" font-size="16" font-weight="700" fill="{colors["TEXT"]}">MC=A</text>'
+        f'<text x="0" y="12" font-size="16" font-weight="700" fill="{colors["TEXT"]}">Suero=B</text>'
+        f'<g transform="translate(0,28)"><rect x="0" y="0" width="48" height="34" fill="{colors["MC"]}" stroke="{colors["OUTLINE"]}" stroke-width="2"/><polygon points="48,0 88,17 48,34" fill="#F6F7FB" stroke="{colors["OUTLINE"]}" stroke-width="1"/><text x="24" y="24" text-anchor="middle" font-size="22" font-weight="800" fill="#11212B">A</text></g>'
+        f'<g transform="translate(0,70)"><rect x="0" y="0" width="48" height="34" fill="{colors["MC"]}" stroke="{colors["OUTLINE"]}" stroke-width="2"/><polygon points="48,0 88,17 48,34" fill="#F6F7FB" stroke="{colors["OUTLINE"]}" stroke-width="1"/><text x="24" y="24" text-anchor="middle" font-size="22" font-weight="800" fill="#11212B">A</text></g>'
+        f'<g transform="translate(0,112)"><rect x="0" y="0" width="48" height="34" fill="{colors["SF"]}" stroke="{colors["OUTLINE"]}" stroke-width="2"/><polygon points="48,0 88,17 48,34" fill="#F6F7FB" stroke="{colors["OUTLINE"]}" stroke-width="1"/><text x="24" y="24" text-anchor="middle" font-size="22" font-weight="800" fill="#11212B">B</text></g>'
+        f'<g transform="translate(0,154)"><rect x="0" y="0" width="48" height="34" fill="#89A7C1" stroke="{colors["OUTLINE"]}" stroke-width="2"/><polygon points="48,0 88,17 48,34" fill="#F6F7FB" stroke="{colors["OUTLINE"]}" stroke-width="1"/></g>'
+        f'</g>'
+        f'<g transform="translate(392,42)"><rect x="0" y="0" width="58" height="30" fill="#97B8D0"/><rect x="72" y="0" width="58" height="30" fill="#97B8D0"/><rect x="144" y="0" width="58" height="30" fill="#97B8D0"/><text x="29" y="20" text-anchor="middle" font-size="13" font-weight="700" fill="#F5F7FA">Caudal</text><text x="101" y="20" text-anchor="middle" font-size="13" font-weight="700" fill="#F5F7FA">Volumen</text><text x="173" y="20" text-anchor="middle" font-size="13" font-weight="700" fill="#F5F7FA">Duración</text></g>'
+        f'{phase_rows_str}'
+        f'<g transform="translate(26,304)"><rect x="0" y="0" width="145" height="44" fill="#C6DDF0" opacity="0.95"/><text x="14" y="18" font-size="13" font-weight="700" fill="#F7F8FA">Calibre VVP</text><text x="14" y="36" font-size="13" font-weight="700" fill="#F7F8FA">Volumen total</text><rect x="150" y="0" width="58" height="22" fill="#EFD0E2" opacity="0.98"/><rect x="150" y="22" width="58" height="22" fill="#F4F7FA" opacity="0.98"/><text x="179" y="16" text-anchor="middle" font-size="16" font-weight="800" fill="#6D5A67">{gauge}G</text><text x="179" y="39" text-anchor="middle" font-size="14" font-weight="700" fill="#11212B">{(vol_mc + vol_sf):.0f}</text></g>'
+        f'</svg></div>'
+    )
+    return svg
+
+
 def selectbox_con_placeholder(label, options, value=None, key=None, placeholder_text="Seleccionar", format_func=None, **kwargs):
     opciones = list(options)
     opciones_sin_placeholder = [
@@ -703,39 +791,6 @@ CONF_DETECTORES = [
     "64 x 0,6 mm", "64 x 0,625 mm",
 ]
 
-CONF_DETECTORES_POR_TIPO = {
-    "SECUENCIAL CONTIGUO": {
-        "8 x 1,25 mm": 10,
-        "16 x 0,625 mm": 10,
-        "32 x 0.6 mm": 19.2,
-        "32 x 0,625 mm": 20,
-        "32 x 1,2 mm": 38.4,
-        "32 x 1,25 mm": 40,
-        "64 x 0,6 mm": 38.4,
-        "64 x 0,625 mm": 40,
-    },
-    "HELICOIDAL": {
-        "8 x 1,25 mm": 10,
-        "16 x 0,625 mm": 10,
-        "32 x 0.6 mm": 19.2,
-        "32 x 0,625 mm": 20,
-        "32 x 1,2 mm": 38.4,
-        "32 x 1,25 mm": 40,
-        "64 x 0,6 mm": 38.4,
-        "64 x 0,625 mm": 40,
-    },
-    "DOBLE MUESTREO": {
-        "16 x 0,625 mm": 5,
-        "32 x 0.6 mm": 9.6,
-        "32 x 0,625 mm": 10,
-        "64 x 0,6 mm": 19.2,
-    },
-    "SECUENCIAL ESPACIADO": {
-        "1 x 1,25 mm": "1,25 - 20 mm",
-        "2 x 0,625 mm": "1,25 - 10 mm",
-    }
-}
-
 SFOV_OPCIONES = ["SMALL (200 mm)", "HEAD (300 mm)", "LARGE (500 mm)"]
 
 PITCH_OPCIONES = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
@@ -829,68 +884,22 @@ VVP_GAUGE = [18, 20, 22, 24]
 # FUNCIONES DE CÁLCULO
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def obtener_tabla_conf_det(tipo_exp, doble_muestreo="NO"):
-    """Devuelve la tabla de detectores aplicable según tipo de exploración."""
-    if tipo_exp == "HELICOIDAL" and doble_muestreo == "SI":
-        return CONF_DETECTORES_POR_TIPO["DOBLE MUESTREO"]
-    return CONF_DETECTORES_POR_TIPO.get(tipo_exp, CONF_DETECTORES_POR_TIPO["HELICOIDAL"])
-
-
-def obtener_opciones_conf_det(tipo_exp, doble_muestreo="NO"):
-    """Lista de configuraciones de detección válidas para el tipo seleccionado."""
-    return list(obtener_tabla_conf_det(tipo_exp, doble_muestreo).keys())
-
-
-def calcular_cobertura_adquisicion(tipo_exp, conf_det, pitch=1.0, doble_muestreo="NO"):
-    """Recupera la cobertura-tabla correcta según tipo de exploración y detectores.
-
-    Nota: la cobertura visible debe coincidir con la tabla de referencia del equipo,
-    por lo que aquí no se modifica por pitch. Si más adelante se requiere calcular
-    avance de mesa u otra magnitud derivada, debe hacerse en una variable aparte.
-    """
+def calcular_cobertura_helical(conf_det, pitch):
+    """Calcula cobertura en mm para exploración helicoidal."""
     try:
-        tabla = obtener_tabla_conf_det(tipo_exp, doble_muestreo)
-        cobertura = tabla.get(conf_det)
-        if cobertura is None:
-            return "—"
-        return cobertura
+        partes = conf_det.replace(",", ".").split("x")
+        n_det = int(partes[0].strip())
+        ancho = float(partes[1].strip().replace(" mm", ""))
+        return round(n_det * ancho * pitch, 2)
     except Exception:
         return "—"
 
-def valor_numerico_cobertura(cobertura):
-    """Convierte la cobertura-tabla a número cuando corresponde."""
-    try:
-        if isinstance(cobertura, (int, float)):
-            return float(cobertura)
-        if isinstance(cobertura, str):
-            txt = cobertura.strip().replace(',', '.')
-            if ' - ' in txt:
-                return None
-            return float(txt)
-        return None
-    except Exception:
-        return None
-
-
-def calcular_avance_mesa(tipo_exp, cobertura, pitch=1.0):
-    """Calcula el avance útil por rotación cuando aplica pitch."""
-    try:
-        cob_num = valor_numerico_cobertura(cobertura)
-        if cob_num is None:
-            return "—"
-        if tipo_exp == "HELICOIDAL":
-            return round(cob_num * float(pitch), 2)
-        return round(cob_num, 2)
-    except Exception:
-        return "—"
-
-
-def calcular_duracion(inicio_mm, fin_mm, avance_mesa_rot, rot_tubo):
+def calcular_duracion(inicio_mm, fin_mm, cobertura_rot, rot_tubo):
     """Duración estimada del scan en segundos."""
     try:
         longitud = abs(fin_mm - inicio_mm)
-        if avance_mesa_rot > 0 and rot_tubo > 0:
-            return round(longitud / avance_mesa_rot * rot_tubo, 1)
+        if cobertura_rot > 0 and rot_tubo > 0:
+            return round(longitud / cobertura_rot * rot_tubo, 1)
         return "—"
     except Exception:
         return "—"
@@ -3655,76 +3664,6 @@ with tab2:
                         )
                     _adq_pair(_c1, "Modulación corriente", _render_modcorr)
 
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        def _render_mas():
-                            _actual["mas_val"] = selectbox_con_placeholder(
-                                "mAs REF",
-                                MAS_OPCIONES,
-                                value=_actual.get("mas_val"),
-                                key=f"masref_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _mas_label = "mAs ref"
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        def _render_mas():
-                            _actual["rango_ma"] = selectbox_con_placeholder(
-                                "Rango mA",
-                                RANGO_MA,
-                                value=_actual.get("rango_ma"),
-                                key=f"rangoma_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                            try:
-                                _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
-                            except Exception:
-                                _actual["mas_val"] = 200
-                        _mas_label = "mAs"
-                    else:
-                        def _render_mas():
-                            _actual["mas_val"] = selectbox_con_placeholder(
-                                "mAs",
-                                MAS_OPCIONES,
-                                value=_actual.get("mas_val", MAS_OPCIONES[0]),
-                                key=f"mas_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _mas_label = "mAs"
-                    _adq_pair(_c2, _mas_label, _render_mas)
-
-                    if _actual["mod_corriente"] == "CARE DOSE 4D":
-                        def _render_indice():
-                            _actual["ind_cal"] = selectbox_con_placeholder(
-                                "Índice de calidad",
-                                INDICE_CALIDAD,
-                                value=_actual.get("ind_cal"),
-                                key=f"indcal_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _indice_label = "Índice calidad"
-                    elif _actual["mod_corriente"] == "AUTO mA":
-                        def _render_indice():
-                            _actual["ind_ruido"] = selectbox_con_placeholder(
-                                "Índice de ruido",
-                                INDICE_RUIDO,
-                                value=_actual.get("ind_ruido"),
-                                key=f"indruido_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _indice_label = "Índice ruido"
-                    else:
-                        _actual["ind_ruido"] = None
-                        _actual["ind_cal"] = None
-                        def _render_indice():
-                            st.text_input(
-                                "Índice",
-                                value="No aplica",
-                                key=f"indice_na_{_exp_id}",
-                                disabled=True,
-                                label_visibility="collapsed"
-                            )
-                        _indice_label = "Índice"
-                    _adq_pair(_c3, _indice_label, _render_indice)
-
                     _label_kv = "kV"
                     if _actual["mod_corriente"] == "CARE DOSE 4D":
                         _label_kv = "CARE kV"
@@ -3739,28 +3678,77 @@ with tab2:
                             key=f"kv_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c4, _label_kv, _render_kv)
+                    _adq_pair(_c2, _label_kv, _render_kv)
+
+                    if _actual["mod_corriente"] == "CARE DOSE 4D":
+                        def _render_tercero():
+                            _actual["mas_val"] = selectbox_con_placeholder(
+                                "mAs REF",
+                                MAS_OPCIONES,
+                                value=_actual.get("mas_val"),
+                                key=f"masref_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        def _render_cuarto():
+                            _actual["ind_cal"] = selectbox_con_placeholder(
+                                "Índice de calidad",
+                                INDICE_CALIDAD,
+                                value=_actual.get("ind_cal"),
+                                key=f"indcal_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _tercero_label, _cuarto_label = "mAs ref", "Índice calidad"
+                    elif _actual["mod_corriente"] == "AUTO mA":
+                        def _render_tercero():
+                            _actual["rango_ma"] = selectbox_con_placeholder(
+                                "Rango mA",
+                                RANGO_MA,
+                                value=_actual.get("rango_ma"),
+                                key=f"rangoma_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                            try:
+                                _actual["mas_val"] = int(str(_actual["rango_ma"]).split("-")[1].strip())
+                            except Exception:
+                                _actual["mas_val"] = 200
+                        def _render_cuarto():
+                            _actual["ind_ruido"] = selectbox_con_placeholder(
+                                "Índice de ruido",
+                                INDICE_RUIDO,
+                                value=_actual.get("ind_ruido"),
+                                key=f"indruido_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
+                    else:
+                        def _render_tercero():
+                            _actual["mas_val"] = selectbox_con_placeholder(
+                                "mAs",
+                                MAS_OPCIONES,
+                                value=_actual.get("mas_val", MAS_OPCIONES[0]),
+                                key=f"mas_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        def _render_cuarto():
+                            _actual["ind_ruido"] = selectbox_con_placeholder(
+                                "Índice de ruido",
+                                INDICE_RUIDO,
+                                value=_actual.get("ind_ruido"),
+                                key=f"indruido_manual_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                        _tercero_label, _cuarto_label = "mAs", "Índice ruido"
+                    _adq_pair(_c3, _tercero_label, _render_tercero)
+                    _adq_pair(_c4, _cuarto_label, _render_cuarto)
 
                 # Fila 2: geometría / detectores
                 _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
                 with _row2_icon:
                     st.markdown("<div class='adq-icon-box'>⚙️</div>", unsafe_allow_html=True)
                 with _row2_body:
-                    _c1, _c2, _c3, _c4, _c5, _c6 = st.columns(6, gap="small")
+                    _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
 
-                    def _render_tipoexp():
-                        _actual["tipo_exp"] = selectbox_con_placeholder(
-                            "Tipo exploración",
-                            TIPOS_EXPLORACION,
-                            value=_actual.get("tipo_exp"),
-                            key=f"tipoexp_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c1, "Tipo exploración", _render_tipoexp)
-
-                    _tipo_exp_sel = _actual.get("tipo_exp") or "HELICOIDAL"
-
-                    if _tipo_exp_sel == "HELICOIDAL":
+                    if _actual["tipo_exp"] == "HELICOIDAL":
                         def _render_dm():
                             _actual["doble_muestreo"] = selectbox_con_placeholder(
                                 "Doble muestreo (eje Z)",
@@ -3779,58 +3767,17 @@ with tab2:
                                 disabled=True,
                                 label_visibility="collapsed"
                             )
-                    _adq_pair(_c2, "Doble muestreo", _render_dm)
-
-                    _dm_sel = _actual.get("doble_muestreo", "NO") or "NO"
-                    _opciones_conf_det = obtener_opciones_conf_det(_tipo_exp_sel, _dm_sel)
-                    if _actual.get("conf_det") not in _opciones_conf_det:
-                        _actual["conf_det"] = None
+                    _adq_pair(_c1, "Doble muestreo", _render_dm)
 
                     def _render_confdet():
                         _actual["conf_det"] = selectbox_con_placeholder(
-                            "Configuración de detección",
-                            _opciones_conf_det,
+                            "Configuración de detectores",
+                            CONF_DETECTORES,
                             value=_actual.get("conf_det"),
                             key=f"confdet_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c3, "Conf. detección", _render_confdet)
-
-                    _conf_det_sel = _actual.get("conf_det")
-                    _cob_preview = calcular_cobertura_adquisicion(
-                        _tipo_exp_sel,
-                        _conf_det_sel,
-                        _actual.get("pitch", 1.0),
-                        _dm_sel,
-                    )
-                    # La cobertura visible junto a "Conf. detección" debe mostrar
-                    # el valor fijo de la tabla del equipo, sin mezclarlo con pitch
-                    # ni con unidades de avance por rotación.
-                    if _cob_preview not in (None, ""):
-                        _cob_preview_str = str(_cob_preview)
-                    else:
-                        _cob_preview_str = "—"
-
-                    def _render_cobertura():
-                        st.session_state[f"cobertura_prev_{_exp_id}"] = _cob_preview_str
-                        st.text_input(
-                            "Cobertura",
-                            key=f"cobertura_prev_{_exp_id}",
-                            disabled=True,
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c4, "Cobertura", _render_cobertura)
-
-                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
-                    def _render_gpros():
-                        _actual["grosor_prosp"] = selectbox_con_placeholder(
-                            "Grosor prospectivo (mm)",
-                            _grosor_opciones,
-                            value=_actual.get("grosor_prosp"),
-                            key=f"gpros_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c5, "Grosor prosp.", _render_gpros)
+                    _adq_pair(_c2, "Conf. detectores", _render_confdet)
 
                     def _render_sfov():
                         _actual["sfov"] = selectbox_con_placeholder(
@@ -3840,7 +3787,28 @@ with tab2:
                             key=f"sfov_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c6, "SFOV", _render_sfov)
+                    _adq_pair(_c3, "SFOV", _render_sfov)
+
+                    def _render_tipoexp():
+                        _actual["tipo_exp"] = selectbox_con_placeholder(
+                            "Cobertura-colimación",
+                            TIPOS_EXPLORACION,
+                            value=_actual.get("tipo_exp"),
+                            key=f"tipoexp_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c4, "Cobertura-colimación", _render_tipoexp)
+
+                    _grosor_opciones = [str(g) for g in GROSOR_PROSP]
+                    def _render_gpros():
+                        _actual["grosor_prosp"] = selectbox_con_placeholder(
+                            "Corte prospectivo (mm)",
+                            _grosor_opciones,
+                            value=_actual.get("grosor_prosp"),
+                            key=f"gpros_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c5, "Corte prosp.", _render_gpros)
 
                 # Fila 3: tiempo / exploración
                 _row3_icon, _row3_body = st.columns([0.12, 1], gap="small")
@@ -3848,16 +3816,6 @@ with tab2:
                     st.markdown("<div class='adq-icon-box'>🕒</div>", unsafe_allow_html=True)
                 with _row3_body:
                     _c1, _c2, _c3, _c4 = st.columns(4, gap="small")
-
-                    def _render_voz():
-                        _actual["voz_adq"] = selectbox_con_placeholder(
-                            "Instrucción de voz",
-                            INSTRUCCIONES_VOZ,
-                            value=_actual.get("voz_adq"),
-                            key=f"voz_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c1, "Instrucción voz", _render_voz)
 
                     def _render_delay():
                         _actual["retardo"] = selectbox_con_placeholder(
@@ -3867,7 +3825,7 @@ with tab2:
                             key=f"delay_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c2, "Retardo", _render_delay)
+                    _adq_pair(_c1, "Retardo (Delay)", _render_delay)
 
                     if _actual["tipo_exp"] == "HELICOIDAL":
                         def _render_pitch():
@@ -3882,18 +3840,28 @@ with tab2:
                         _actual["pitch"] = 1.0
                         def _render_pitch():
                             st.text_input("Pitch", value="No aplica", key=f"pitch_na_{_exp_id}", disabled=True, label_visibility="collapsed")
-                    _adq_pair(_c3, "Pitch", _render_pitch)
+                    _adq_pair(_c2, "Pitch", _render_pitch)
 
                     def _render_rot():
                         _actual["rot_tubo"] = selectbox_con_placeholder(
-                            "TPO ROTACION TUBO",
+                            "Rotación tubo (sg)",
                             ROT_TUBO,
                             value=_actual.get("rot_tubo"),
                             key=f"rot_{_exp_id}",
-                            label_visibility="collapsed",
-                            format_func=lambda x: "Seleccionar" if x is None else f"{x} sg."
+                            label_visibility="collapsed"
                         )
-                    _adq_pair(_c4, "TPO ROTACION TUBO", _render_rot)
+                    _adq_pair(_c3, "Rot. tubo", _render_rot)
+
+                    def _render_voz():
+                        _actual["voz_adq"] = selectbox_con_placeholder(
+                            "Instrucción de voz",
+                            INSTRUCCIONES_VOZ,
+                            value=_actual.get("voz_adq"),
+                            key=f"voz_{_exp_id}",
+                            label_visibility="collapsed"
+                        )
+                    _adq_pair(_c4, "Instrucción voz", _render_voz)
+
                 # Rango de exploración compacto
                 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
                 _refs_ini = REFS_INICIO.get(region_anat, REFS_INICIO["CUERPO"])
@@ -3919,33 +3887,29 @@ with tab2:
                 st.markdown("</div>", unsafe_allow_html=True)
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
-            _conf_det = _actual.get("conf_det")
+            _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
             _pitch = _actual.get("pitch", 1.0)
             _rot_tubo = _actual.get("rot_tubo", ROT_TUBO[0])
             _ini_mm = _actual.get("ini_mm", 0)
             _fin_mm = _actual.get("fin_mm", 400)
             _grosor_float = float(str(_actual.get("grosor_prosp", 1.0)).replace(",", ".")) if _actual.get("grosor_prosp") is not None else 1.0
 
-            _tipo_exp_actual = _actual.get("tipo_exp", "HELICOIDAL")
-            _cob = calcular_cobertura_adquisicion(_tipo_exp_actual, _conf_det, _pitch, _actual.get("doble_muestreo", "NO"))
-            _cob_num = valor_numerico_cobertura(_cob)
-            _cob_str = f"{_cob} mm" if _cob_num is not None else str(_cob)
-            _avance_mesa = calcular_avance_mesa(_tipo_exp_actual, _cob, _pitch)
+            _cob = calcular_cobertura_helical(_conf_det, _pitch)
+            _cob_str = f"{_cob} mm/rot" if isinstance(_cob, float) else "—"
             _ctdi = estimar_dosis_ctdi(_kvp, _mas_val, _conf_det)
-            _duracion = calcular_duracion(_ini_mm, _fin_mm, _avance_mesa if isinstance(_avance_mesa, (int, float)) else 1, _rot_tubo)
+            _duracion = calcular_duracion(_ini_mm, _fin_mm, _cob if isinstance(_cob, float) else 1, _rot_tubo)
             _ruido_est = nivel_ruido_estimado(_mas_val, _kvp, _grosor_float)
 
             _actual["ctdi"] = _ctdi
             _actual["ruido_est"] = _ruido_est
             _actual["cobertura"] = _cob
-            _actual["avance_mesa"] = _avance_mesa
             _actual["duracion"] = _duracion
 
             st.markdown("---")
             st.markdown("**Resumen calculado automáticamente**")
             _col_m1, _col_m2, _col_m3, _col_m4 = st.columns(4)
             with _col_m1:
-                st.metric("Cobertura", _cob_str)
+                st.metric("Cobertura/rot.", _cob_str)
             with _col_m2:
                 st.metric("CTDIvol estimado", f"{_ctdi} mGy" if _ctdi != "—" else "—")
             with _col_m3:
@@ -4290,16 +4254,22 @@ with tab4:
         elif vol_total_mc > 0:
             st.markdown(f'<div class="alert-info">✅ Volumen de contraste dentro del límite ({vol_total_mc}/{vol_max_mc} mL)</div>', unsafe_allow_html=True)
 
-        if vvp_gauge >= 22 and any(f["caudal"] > 3.0 for f in fases_data):
+        if vol_total_sf > vol_max_sf:
+            st.markdown(f'<div class="alert-warn">⚠️ Volumen de suero ({vol_total_sf} mL) supera el máximo configurado ({vol_max_sf} mL)</div>', unsafe_allow_html=True)
+
+        if vvp_gauge >= 22 and any(f["caudal"] > 3.0 for f in fases_data if f["solucion"] != "PAUSA"):
             st.markdown('<div class="alert-warn">⚠️ Calibre VVP puede ser insuficiente para el caudal seleccionado. Se recomienda VVP 18-20G para caudales altos.</div>', unsafe_allow_html=True)
+
+        st.markdown(render_inyectora_svg(vol_total_mc, vol_total_sf, vol_max_mc, vol_max_sf, fases_data, vvp_gauge), unsafe_allow_html=True)
 
         st.markdown("---")
         st.markdown("**Diagrama de fases:**")
         for i, f in enumerate(fases_data):
-            color = "#1565C0" if f["solucion"] == "MC" else "#2E7D32" if f["solucion"] == "SF" else "#757575"
+            color = "#8FD16A" if f["solucion"] == "MC" else "#63BFEA" if f["solucion"] == "SF" else "#757575"
+            text_color = "#11212B" if f["solucion"] != "PAUSA" else "white"
             st.markdown(
-                f'<div style="background:{color};color:white;border-radius:6px;'
-                f'padding:6px 10px;margin:3px 0;font-size:0.85rem;">'
+                f'<div style="background:{color};color:{text_color};border-radius:6px;'
+                f'padding:6px 10px;margin:3px 0;font-size:0.85rem;font-weight:700;">'
                 f'Fase {i+1} — {f["solucion"]} | {f["volumen"]} mL | {f["caudal"]} mL/sg | {f["duracion"]} sg'
                 f'</div>', unsafe_allow_html=True
             )
