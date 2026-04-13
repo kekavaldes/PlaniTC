@@ -4205,19 +4205,15 @@ with tab3:
 with tab4:
     st.markdown('<div class="section-header">💉 Jeringa Inyectora</div>', unsafe_allow_html=True)
 
-    col_top_left, col_top_right = st.columns([1.15, 1.25])
+    top_preview = st.container()
 
-    with col_top_left:
-        st.markdown("**Visualización de jeringas**")
-
-    with col_top_right:
-        st.markdown("**Acceso venoso y capacidades**")
-        col_vvp, col_g = st.columns(2)
-        with col_vvp:
-            vvp_gauge = selectbox_con_placeholder("VVP (Gauge)", VVP_GAUGE, value=VVP_GAUGE[1])
-        with col_g:
-            vol_max_mc = selectbox_con_placeholder("Vol. máx. contraste (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=40)
-            vol_max_sf = selectbox_con_placeholder("Vol. máx. suero (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=100)
+    st.markdown("**Acceso venoso y capacidades**")
+    col_vvp, col_g = st.columns(2)
+    with col_vvp:
+        vvp_gauge = selectbox_con_placeholder("VVP (Gauge)", VVP_GAUGE, value=VVP_GAUGE[1])
+    with col_g:
+        vol_max_mc = selectbox_con_placeholder("Vol. máx. contraste (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=40)
+        vol_max_sf = selectbox_con_placeholder("Vol. máx. suero (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=100)
 
     st.markdown("---")
     st.markdown("**Fases de inyección**")
@@ -4242,43 +4238,44 @@ with tab4:
     vol_total_sf = sum(f["volumen"] for f in fases_data if f["solucion"] == "SF")
     dur_total = sum(f["duracion"] for f in fases_data)
 
-    col_bottom_left, col_bottom_right = st.columns([1.15, 1.25])
+    with top_preview:
+        col_bottom_left, col_bottom_right = st.columns([1.15, 1.25])
 
-    with col_bottom_left:
-        st.markdown(render_inyectora_svg(vol_total_mc, vol_total_sf, vol_max_mc, vol_max_sf, fases_data, vvp_gauge), unsafe_allow_html=True)
+        with col_bottom_left:
+            st.markdown(render_inyectora_svg(vol_total_mc, vol_total_sf, vol_max_mc, vol_max_sf, fases_data, vvp_gauge), unsafe_allow_html=True)
 
-    with col_bottom_right:
-        st.markdown('<div class="section-header">📊 Resumen del Protocolo</div>', unsafe_allow_html=True)
+        with col_bottom_right:
+            st.markdown('<div class="section-header">📊 Resumen del Protocolo</div>', unsafe_allow_html=True)
 
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            st.metric("Vol. total MC", f"{vol_total_mc} mL")
-            st.metric("Duración total", f"{dur_total} sg")
-        with col_m2:
-            st.metric("Vol. total SF", f"{vol_total_sf} mL")
-            st.metric("Vol. total", f"{vol_total_mc + vol_total_sf} mL")
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.metric("Vol. total MC", f"{vol_total_mc} mL")
+                st.metric("Duración total", f"{dur_total} sg")
+            with col_m2:
+                st.metric("Vol. total SF", f"{vol_total_sf} mL")
+                st.metric("Vol. total", f"{vol_total_mc + vol_total_sf} mL")
 
-        if vol_total_mc > vol_max_mc:
-            st.markdown(f'<div class="alert-warn">⚠️ Volumen de contraste ({vol_total_mc} mL) supera el máximo configurado ({vol_max_mc} mL)</div>', unsafe_allow_html=True)
-        elif vol_total_mc > 0:
-            st.markdown(f'<div class="alert-info">✅ Volumen de contraste dentro del límite ({vol_total_mc}/{vol_max_mc} mL)</div>', unsafe_allow_html=True)
+            if vol_total_mc > vol_max_mc:
+                st.markdown(f'<div class="alert-warn">⚠️ Volumen de contraste ({vol_total_mc} mL) supera el máximo configurado ({vol_max_mc} mL)</div>', unsafe_allow_html=True)
+            elif vol_total_mc > 0:
+                st.markdown(f'<div class="alert-info">✅ Volumen de contraste dentro del límite ({vol_total_mc}/{vol_max_mc} mL)</div>', unsafe_allow_html=True)
 
-        if vol_total_sf > vol_max_sf:
-            st.markdown(f'<div class="alert-warn">⚠️ Volumen de suero ({vol_total_sf} mL) supera el máximo configurado ({vol_max_sf} mL)</div>', unsafe_allow_html=True)
+            if vol_total_sf > vol_max_sf:
+                st.markdown(f'<div class="alert-warn">⚠️ Volumen de suero ({vol_total_sf} mL) supera el máximo configurado ({vol_max_sf} mL)</div>', unsafe_allow_html=True)
 
-        if vvp_gauge >= 22 and any(f["caudal"] > 3.0 for f in fases_data if f["solucion"] != "PAUSA"):
-            st.markdown('<div class="alert-warn">⚠️ Calibre VVP puede ser insuficiente para el caudal seleccionado. Se recomienda VVP 18-20G para caudales altos.</div>', unsafe_allow_html=True)
+            if vvp_gauge >= 22 and any(f["caudal"] > 3.0 for f in fases_data if f["solucion"] != "PAUSA"):
+                st.markdown('<div class="alert-warn">⚠️ Calibre VVP puede ser insuficiente para el caudal seleccionado. Se recomienda VVP 18-20G para caudales altos.</div>', unsafe_allow_html=True)
 
-        st.markdown("**Diagrama de fases:**")
-        for i, f in enumerate(fases_data):
-            color = "#8FD16A" if f["solucion"] == "MC" else "#63BFEA" if f["solucion"] == "SF" else "#757575"
-            text_color = "#11212B" if f["solucion"] != "PAUSA" else "white"
-            st.markdown(
-                f'<div style="background:{color};color:{text_color};border-radius:6px;'
-                f'padding:6px 10px;margin:3px 0;font-size:0.85rem;font-weight:700;">'
-                f'Fase {i+1} — {f["solucion"]} | {f["volumen"]} mL | {f["caudal"]} mL/sg | {f["duracion"]} sg'
-                f'</div>', unsafe_allow_html=True
-            )
+            st.markdown("**Diagrama de fases:**")
+            for i, f in enumerate(fases_data):
+                color = "#8FD16A" if f["solucion"] == "MC" else "#63BFEA" if f["solucion"] == "SF" else "#757575"
+                text_color = "#11212B" if f["solucion"] != "PAUSA" else "white"
+                st.markdown(
+                    f'<div style="background:{color};color:{text_color};border-radius:6px;'
+                    f'padding:6px 10px;margin:3px 0;font-size:0.85rem;font-weight:700;">'
+                    f'Fase {i+1} — {f["solucion"]} | {f["volumen"]} mL | {f["caudal"]} mL/sg | {f["duracion"]} sg'
+                    f'</div>', unsafe_allow_html=True
+                )
 
 # ───────────────────────────────────────────────────────────────
 # TAB 5: IMAGEN SIMULADA
