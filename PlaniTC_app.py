@@ -1327,6 +1327,36 @@ def render_topogram_interactivo(img_b64, inicio_ref, fin_ref, proyeccion="AP", w
 
 
 
+
+_PALETA_EXPLORACIONES = ["#00D2FF", "#FF7A59", "#6EEB83", "#C084FC", "#FFD166", "#FF4D6D", "#7BDFF2", "#A3E635"]
+
+def color_exploracion(exp):
+    if not exp:
+        return "#4DA3FF"
+    try:
+        orden = max(1, int(exp.get("orden", 1)))
+    except Exception:
+        orden = 1
+    return _PALETA_EXPLORACIONES[(orden - 1) % len(_PALETA_EXPLORACIONES)]
+
+def chip_color_html(color, titulo, subtitulo=""):
+    subt = f"<div style='font-size:0.76rem;color:#cfd8dc;margin-top:2px;'>{subtitulo}</div>" if subtitulo else ""
+    return f"""
+    <div style="
+        border-left: 7px solid {color};
+        background: rgba(255,255,255,0.03);
+        border-radius: 12px;
+        padding: 0.45rem 0.65rem 0.45rem 0.7rem;
+        margin: 0.10rem 0 0.35rem 0;
+    ">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:12px;height:12px;border-radius:999px;background:{color};box-shadow:0 0 0 2px rgba(255,255,255,0.08) inset;"></div>
+            <div style="font-size:0.93rem;font-weight:700;color:#ffffff;">{titulo}</div>
+        </div>
+        {subt}
+    </div>
+    """
+
 def render_topogramas_independientes_interactivos(topos, width=760, modo="rect", storage_key=None, color="#00D2FF", show_labels=False, roi_label="ROI", canvas_css_width=None, canvas_css_height=None, canvas_width=None, canvas_height=None):
     """
     Renderiza uno o más canvas interactivos.
@@ -3283,6 +3313,15 @@ with tab2:
             _icono = "📡" if _exp.get("tipo") == "topograma" else "⚡"
             _nombre_base = "Topograma" if _exp.get("tipo") == "topograma" else (_exp.get("nombre") or "SIN CONTRASTE").strip()
             _label = f"{_icono} {_nombre_base}"
+            _color_nav = color_exploracion(_exp) if _exp.get("tipo") == "adquisicion" else "#7c8a96"
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:8px;margin:0 0 0.18rem 0.12rem;'>"
+                f"<div style='width:11px;height:11px;border-radius:999px;background:{_color_nav};'></div>"
+                f"<div style='font-size:0.78rem;color:#d7e1e7;'>"
+                f"{'Exploración' if _exp.get('tipo') == 'adquisicion' else 'Topograma'} {_exp.get('orden', '')}"
+                f"</div></div>",
+                unsafe_allow_html=True
+            )
             if st.button(
                 _label,
                 key=f"btn_sel_{_exp['id']}",
@@ -3735,6 +3774,8 @@ with tab2:
                             )
                         _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
                     else:
+                        _actual["ind_ruido"] = None
+                        _actual["ind_cal"] = None
                         def _render_tercero():
                             _actual["mas_val"] = selectbox_con_placeholder(
                                 "mAs",
@@ -3744,14 +3785,8 @@ with tab2:
                                 label_visibility="collapsed"
                             )
                         def _render_cuarto():
-                            _actual["ind_ruido"] = selectbox_con_placeholder(
-                                "Índice de ruido",
-                                INDICE_RUIDO,
-                                value=_actual.get("ind_ruido"),
-                                key=f"indruido_manual_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "mAs", "Índice ruido"
+                            st.markdown("<div style='height: 2.45rem;'></div>", unsafe_allow_html=True)
+                        _tercero_label, _cuarto_label = "mAs", ""
                     _adq_pair(_c3, _tercero_label, _render_tercero)
                     _adq_pair(_c4, _cuarto_label, _render_cuarto)
 
@@ -4036,7 +4071,15 @@ with tab3:
                 _activa = st.session_state.get("exploracion_rec_activa") == _exp_id
                 _n_rec = len(st.session_state["reconstrucciones_por_exp"].get(_exp_id, []))
                 _label = f"⚡ {_exp.get('nombre', _exp_id)}"
-                st.caption(f"{_exp.get('tipo_exp', 'HELICOIDAL')} · {_n_rec} reconstrucción(es)")
+                _color_exp = color_exploracion(_exp)
+                st.markdown(
+                    chip_color_html(
+                        _color_exp,
+                        _exp.get('nombre', _exp_id),
+                        f"{_exp.get('tipo_exp', 'HELICOIDAL')} · {_n_rec} reconstrucción(es)"
+                    ),
+                    unsafe_allow_html=True
+                )
                 if st.button(
                     _label,
                     key=f"btn_rec_sel_{_exp_id}",
@@ -4062,13 +4105,34 @@ with tab3:
                 _rec_actual = next((r for r in _recs_exp if r.get("id") == _rec_activa_id), _recs_exp[0])
                 st.session_state["recon_activa_por_exp"][_exp_id] = _rec_actual.get("id")
 
-                st.markdown(f'<div class="section-header">🔄 Reconstrucciones de {_exp_activa.get("nombre", "Exploración")}</div>', unsafe_allow_html=True)
+                _color_exp_activa = color_exploracion(_exp_activa)
+                st.markdown(
+                    chip_color_html(
+                        _color_exp_activa,
+                        f"Reconstrucciones de {_exp_activa.get('nombre', 'Exploración')}",
+                        "Todas las reconstrucciones de este bloque heredan el mismo color de referencia."
+                    ),
+                    unsafe_allow_html=True
+                )
                 st.caption("Puedes programar una o más reconstrucciones para esta adquisición.")
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:8px;margin:0.25rem 0 0.55rem 0.1rem;'>"
+                    f"<div style='width:11px;height:11px;border-radius:999px;background:{_color_exp_activa};'></div>"
+                    f"<div style='font-size:0.82rem;color:#d7e1e7;'>Reconstrucción activa asociada a { _exp_activa.get('nombre', 'Exploración')}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
 
                 _cols_rec_nav = st.columns([1, 1, 1, 0.8, 0.8, 0.8])
                 _boton_cols = _cols_rec_nav[:3]
                 for _idx_btn, _rec_btn in enumerate(_recs_exp[:3]):
                     with _boton_cols[_idx_btn]:
+                        st.markdown(
+                            f"<div style='display:flex;align-items:center;gap:6px;margin:0 0 0.18rem 0.1rem;'>"
+                            f"<div style='width:10px;height:10px;border-radius:999px;background:{_color_exp_activa};'></div>"
+                            f"<div style='font-size:0.76rem;color:#cfd8dc;'>Asociada a exploración</div></div>",
+                            unsafe_allow_html=True
+                        )
                         if st.button(
                             f"🧱 {_rec_btn.get('nombre', 'Reconstrucción')}",
                             key=f"btn_rec_item_{_rec_btn['id']}",
@@ -4083,6 +4147,12 @@ with tab3:
                     _cols_extra = st.columns(min(len(_recs_exp) - 3, 4))
                     for _idx_extra, _rec_btn in enumerate(_recs_exp[3:7]):
                         with _cols_extra[_idx_extra]:
+                            st.markdown(
+                                f"<div style='display:flex;align-items:center;gap:6px;margin:0 0 0.18rem 0.1rem;'>"
+                                f"<div style='width:10px;height:10px;border-radius:999px;background:{_color_exp_activa};'></div>"
+                                f"<div style='font-size:0.76rem;color:#cfd8dc;'>Asociada a exploración</div></div>",
+                                unsafe_allow_html=True
+                            )
                             if st.button(
                                 f"🧱 {_rec_btn.get('nombre', 'Reconstrucción')}",
                                 key=f"btn_rec_item_extra_{_rec_btn['id']}",
