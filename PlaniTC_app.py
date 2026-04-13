@@ -3901,11 +3901,12 @@ with tab2:
                         _actual.get("conf_det"),
                         _actual.get("doble_muestreo")
                     )
+                    _actual["cobertura_tabla"] = _cobertura_val
+                    st.session_state[f"cobertura_{_exp_id}"] = str(_cobertura_val)
 
                     def _render_cobertura():
                         st.text_input(
                             "Cobertura",
-                            value=str(_cobertura_val),
                             key=f"cobertura_{_exp_id}",
                             disabled=True,
                             label_visibility="collapsed"
