@@ -54,12 +54,14 @@ def render_inyectora_svg(vol_mc, vol_sf, max_mc, max_sf, fases_data, gauge):
         vol = f.get("volumen", 0)
         dur = f.get("duracion", 0)
         caud = f.get("caudal", "") if sol != "PAUSA" else ""
+        box_fill_left = color if sol != "PAUSA" else "#111111"
+        box_fill_mid = color if sol != "PAUSA" else "#111111"
         phase_rows.append(
             f'<g transform="translate(390,{85 + i*58})">'
-            f'<rect x="0" y="0" width="58" height="34" fill="{color}" opacity="0.95"/>'
-            f'<rect x="72" y="0" width="58" height="34" fill="{color if sol != "PAUSA" else colors["PANEL"]}" opacity="0.95"/>'
+            f'<rect x="0" y="0" width="58" height="34" fill="{box_fill_left}" opacity="0.95"/>'
+            f'<rect x="72" y="0" width="58" height="34" fill="{box_fill_mid}" opacity="0.95"/>'
             f'<rect x="144" y="0" width="58" height="34" fill="#CFE0EC" opacity="0.95"/>'
-            f'<text x="29" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#11212B">{caud}</text>'
+            f'<text x="29" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#11212B">{caud if sol != "PAUSA" else ""}</text>'
             f'<text x="101" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#11212B">{vol if sol != "PAUSA" else ""}</text>'
             f'<text x="173" y="23" text-anchor="middle" font-size="18" font-weight="700" fill="#11212B">{dur}</text>'
             f'<text x="-8" y="23" text-anchor="end" font-size="14" font-weight="700" fill="{colors["TEXT"]}">{"Pausa" if sol == "PAUSA" else sol}</text>'
@@ -4231,14 +4233,29 @@ with tab4:
 
         for i in range(int(n_fases)):
             with st.expander(f"Fase {i+1}", expanded=(i == 0)):
-                col_sol, col_vol, col_caud = st.columns(3)
-                with col_sol:
-                    sol = selectbox_con_placeholder("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
-                with col_vol:
-                    vol = selectbox_con_placeholder("Volumen (mL)", list(range(0, 185, 5)), value=50, key=f"vol_{i}")
-                with col_caud:
-                    caud = selectbox_con_placeholder("Caudal (mL/sg)", CAUDAL_OPCIONES, value=CAUDAL_OPCIONES[5], key=f"caud_{i}")
-                duracion_fase = round(vol / caud, 1) if caud > 0 and sol != "PAUSA" else vol
+                sol = selectbox_con_placeholder("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
+
+                if sol == "PAUSA":
+                    col_dur = st.columns(1)[0]
+                    with col_dur:
+                        duracion_fase = st.number_input(
+                            "Duración (sg)",
+                            min_value=2,
+                            max_value=30,
+                            value=int(st.session_state.get(f"dur_pause_{i}", 10)),
+                            step=1,
+                            key=f"dur_pause_{i}",
+                        )
+                    vol = 0
+                    caud = 0
+                else:
+                    col_vol, col_caud = st.columns(2)
+                    with col_vol:
+                        vol = selectbox_con_placeholder("Volumen (mL)", list(range(0, 185, 5)), value=50, key=f"vol_{i}")
+                    with col_caud:
+                        caud = selectbox_con_placeholder("Caudal (mL/sg)", CAUDAL_OPCIONES, value=CAUDAL_OPCIONES[5], key=f"caud_{i}")
+                    duracion_fase = round(vol / caud, 1) if caud > 0 else 0
+
                 st.caption(f"Duración: {duracion_fase} sg")
                 fases_data.append({"solucion": sol, "volumen": vol, "caudal": caud, "duracion": duracion_fase})
 
