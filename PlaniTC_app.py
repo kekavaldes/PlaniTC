@@ -703,6 +703,39 @@ CONF_DETECTORES = [
     "64 x 0,6 mm", "64 x 0,625 mm",
 ]
 
+CONF_DETECTORES_POR_TIPO = {
+    "SECUENCIAL CONTIGUO": {
+        "8 x 1,25 mm": 10,
+        "16 x 0,625 mm": 10,
+        "32 x 0.6 mm": 19.2,
+        "32 x 0,625 mm": 20,
+        "32 x 1,2 mm": 38.4,
+        "32 x 1,25 mm": 40,
+        "64 x 0,6 mm": 38.4,
+        "64 x 0,625 mm": 40,
+    },
+    "HELICOIDAL": {
+        "8 x 1,25 mm": 10,
+        "16 x 0,625 mm": 10,
+        "32 x 0.6 mm": 19.2,
+        "32 x 0,625 mm": 20,
+        "32 x 1,2 mm": 38.4,
+        "32 x 1,25 mm": 40,
+        "64 x 0,6 mm": 38.4,
+        "64 x 0,625 mm": 40,
+    },
+    "DOBLE MUESTREO": {
+        "16 x 0,625 mm": 5,
+        "32 x 0.6 mm": 9.6,
+        "32 x 0,625 mm": 10,
+        "64 x 0,6 mm": 19.2,
+    },
+    "SECUENCIAL ESPACIADO": {
+        "1 x 1,25 mm": "1,25 - 20 mm",
+        "2 x 0,625 mm": "1,25 - 10 mm",
+    }
+}
+
 SFOV_OPCIONES = ["SMALL (200 mm)", "HEAD (300 mm)", "LARGE (500 mm)"]
 
 PITCH_OPCIONES = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
@@ -796,13 +829,28 @@ VVP_GAUGE = [18, 20, 22, 24]
 # FUNCIONES DE CÁLCULO
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def calcular_cobertura_helical(conf_det, pitch):
-    """Calcula cobertura en mm para exploración helicoidal."""
+def obtener_tabla_conf_det(tipo_exp, doble_muestreo="NO"):
+    """Devuelve la tabla de detectores aplicable según tipo de exploración."""
+    if tipo_exp == "HELICOIDAL" and doble_muestreo == "SI":
+        return CONF_DETECTORES_POR_TIPO["DOBLE MUESTREO"]
+    return CONF_DETECTORES_POR_TIPO.get(tipo_exp, CONF_DETECTORES_POR_TIPO["HELICOIDAL"])
+
+
+def obtener_opciones_conf_det(tipo_exp, doble_muestreo="NO"):
+    """Lista de configuraciones de detección válidas para el tipo seleccionado."""
+    return list(obtener_tabla_conf_det(tipo_exp, doble_muestreo).keys())
+
+
+def calcular_cobertura_adquisicion(tipo_exp, conf_det, pitch=1.0, doble_muestreo="NO"):
+    """Calcula o recupera la cobertura según el tipo de exploración y detectores."""
     try:
-        partes = conf_det.replace(",", ".").split("x")
-        n_det = int(partes[0].strip())
-        ancho = float(partes[1].strip().replace(" mm", ""))
-        return round(n_det * ancho * pitch, 2)
+        tabla = obtener_tabla_conf_det(tipo_exp, doble_muestreo)
+        cobertura = tabla.get(conf_det)
+        if cobertura is None:
+            return "—"
+        if tipo_exp == "HELICOIDAL" and doble_muestreo != "SI":
+            return round(float(cobertura) * float(pitch), 2)
+        return cobertura
     except Exception:
         return "—"
 
@@ -3679,7 +3727,9 @@ with tab2:
                         )
                     _adq_pair(_c1, "Tipo exploración", _render_tipoexp)
 
-                    if _actual["tipo_exp"] == "HELICOIDAL":
+                    _tipo_exp_sel = _actual.get("tipo_exp") or "HELICOIDAL"
+
+                    if _tipo_exp_sel == "HELICOIDAL":
                         def _render_dm():
                             _actual["doble_muestreo"] = selectbox_con_placeholder(
                                 "Doble muestreo (eje Z)",
@@ -3700,21 +3750,33 @@ with tab2:
                             )
                     _adq_pair(_c2, "Doble muestreo", _render_dm)
 
+                    _dm_sel = _actual.get("doble_muestreo", "NO") or "NO"
+                    _opciones_conf_det = obtener_opciones_conf_det(_tipo_exp_sel, _dm_sel)
+                    if _actual.get("conf_det") not in _opciones_conf_det:
+                        _actual["conf_det"] = None
+
                     def _render_confdet():
                         _actual["conf_det"] = selectbox_con_placeholder(
                             "Configuración de detección",
-                            CONF_DETECTORES,
+                            _opciones_conf_det,
                             value=_actual.get("conf_det"),
                             key=f"confdet_{_exp_id}",
                             label_visibility="collapsed"
                         )
                     _adq_pair(_c3, "Conf. detección", _render_confdet)
 
-                    _cob_preview = calcular_cobertura_helical(
-                        _actual.get("conf_det", CONF_DETECTORES[0]),
-                        _actual.get("pitch", 1.0)
+                    _conf_det_sel = _actual.get("conf_det")
+                    _cob_preview = calcular_cobertura_adquisicion(
+                        _tipo_exp_sel,
+                        _conf_det_sel,
+                        _actual.get("pitch", 1.0),
+                        _dm_sel,
                     )
-                    _cob_preview_str = f"{_cob_preview} mm/rot" if isinstance(_cob_preview, float) else "—"
+                    if isinstance(_cob_preview, (int, float)):
+                        _cob_preview_str = f"{_cob_preview} mm/rot"
+                    else:
+                        _cob_preview_str = _cob_preview or "—"
+
                     def _render_cobertura():
                         st.text_input(
                             "Cobertura",
@@ -3823,14 +3885,14 @@ with tab2:
                 st.markdown("</div>", unsafe_allow_html=True)
             _kvp = _actual.get("kvp", 120)
             _mas_val = _actual.get("mas_val", 200)
-            _conf_det = _actual.get("conf_det", CONF_DETECTORES[0])
+            _conf_det = _actual.get("conf_det")
             _pitch = _actual.get("pitch", 1.0)
             _rot_tubo = _actual.get("rot_tubo", ROT_TUBO[0])
             _ini_mm = _actual.get("ini_mm", 0)
             _fin_mm = _actual.get("fin_mm", 400)
             _grosor_float = float(str(_actual.get("grosor_prosp", 1.0)).replace(",", ".")) if _actual.get("grosor_prosp") is not None else 1.0
 
-            _cob = calcular_cobertura_helical(_conf_det, _pitch)
+            _cob = calcular_cobertura_adquisicion(_actual.get("tipo_exp", "HELICOIDAL"), _conf_det, _pitch, _actual.get("doble_muestreo", "NO"))
             _cob_str = f"{_cob} mm/rot" if isinstance(_cob, float) else "—"
             _ctdi = estimar_dosis_ctdi(_kvp, _mas_val, _conf_det)
             _duracion = calcular_duracion(_ini_mm, _fin_mm, _cob if isinstance(_cob, float) else 1, _rot_tubo)
