@@ -3615,18 +3615,19 @@ with tab2:
                 .adq-row{margin-bottom:8px;}
                 .adq-row:last-child{margin-bottom:4px;}
                 .adq-icon-box{
-                    min-height:92px;
-                    max-height:92px;
+                    min-height:40px;
+                    max-height:40px;
                     display:flex;
                     align-items:center;
                     justify-content:center;
-                    font-size:1.45rem;
+                    font-size:1.05rem;
                     line-height:1;
                     color:#b8d6e6;
-                    border-radius:12px;
+                    border-radius:10px;
                     background:rgba(255,255,255,0.035);
                     border:1px solid rgba(184,214,230,0.16);
-                    margin-top:18px;
+                    margin-top:22px;
+                    width:100%;
                 }
                 .adq-pair-label{
                     color:#d8edf7;
