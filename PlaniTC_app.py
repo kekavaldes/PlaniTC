@@ -857,12 +857,40 @@ def calcular_cobertura_adquisicion(tipo_exp, conf_det, pitch=1.0, doble_muestreo
     except Exception:
         return "—"
 
-def calcular_duracion(inicio_mm, fin_mm, cobertura_rot, rot_tubo):
+def valor_numerico_cobertura(cobertura):
+    """Convierte la cobertura-tabla a número cuando corresponde."""
+    try:
+        if isinstance(cobertura, (int, float)):
+            return float(cobertura)
+        if isinstance(cobertura, str):
+            txt = cobertura.strip().replace(',', '.')
+            if ' - ' in txt:
+                return None
+            return float(txt)
+        return None
+    except Exception:
+        return None
+
+
+def calcular_avance_mesa(tipo_exp, cobertura, pitch=1.0):
+    """Calcula el avance útil por rotación cuando aplica pitch."""
+    try:
+        cob_num = valor_numerico_cobertura(cobertura)
+        if cob_num is None:
+            return "—"
+        if tipo_exp == "HELICOIDAL":
+            return round(cob_num * float(pitch), 2)
+        return round(cob_num, 2)
+    except Exception:
+        return "—"
+
+
+def calcular_duracion(inicio_mm, fin_mm, avance_mesa_rot, rot_tubo):
     """Duración estimada del scan en segundos."""
     try:
         longitud = abs(fin_mm - inicio_mm)
-        if cobertura_rot > 0 and rot_tubo > 0:
-            return round(longitud / cobertura_rot * rot_tubo, 1)
+        if avance_mesa_rot > 0 and rot_tubo > 0:
+            return round(longitud / avance_mesa_rot * rot_tubo, 1)
         return "—"
     except Exception:
         return "—"
@@ -3895,22 +3923,26 @@ with tab2:
             _fin_mm = _actual.get("fin_mm", 400)
             _grosor_float = float(str(_actual.get("grosor_prosp", 1.0)).replace(",", ".")) if _actual.get("grosor_prosp") is not None else 1.0
 
-            _cob = calcular_cobertura_adquisicion(_actual.get("tipo_exp", "HELICOIDAL"), _conf_det, _pitch, _actual.get("doble_muestreo", "NO"))
-            _cob_str = f"{_cob} mm/rot" if isinstance(_cob, float) else "—"
+            _tipo_exp_actual = _actual.get("tipo_exp", "HELICOIDAL")
+            _cob = calcular_cobertura_adquisicion(_tipo_exp_actual, _conf_det, _pitch, _actual.get("doble_muestreo", "NO"))
+            _cob_num = valor_numerico_cobertura(_cob)
+            _cob_str = f"{_cob} mm" if _cob_num is not None else str(_cob)
+            _avance_mesa = calcular_avance_mesa(_tipo_exp_actual, _cob, _pitch)
             _ctdi = estimar_dosis_ctdi(_kvp, _mas_val, _conf_det)
-            _duracion = calcular_duracion(_ini_mm, _fin_mm, _cob if isinstance(_cob, float) else 1, _rot_tubo)
+            _duracion = calcular_duracion(_ini_mm, _fin_mm, _avance_mesa if isinstance(_avance_mesa, (int, float)) else 1, _rot_tubo)
             _ruido_est = nivel_ruido_estimado(_mas_val, _kvp, _grosor_float)
 
             _actual["ctdi"] = _ctdi
             _actual["ruido_est"] = _ruido_est
             _actual["cobertura"] = _cob
+            _actual["avance_mesa"] = _avance_mesa
             _actual["duracion"] = _duracion
 
             st.markdown("---")
             st.markdown("**Resumen calculado automáticamente**")
             _col_m1, _col_m2, _col_m3, _col_m4 = st.columns(4)
             with _col_m1:
-                st.metric("Cobertura/rot.", _cob_str)
+                st.metric("Cobertura", _cob_str)
             with _col_m2:
                 st.metric("CTDIvol estimado", f"{_ctdi} mGy" if _ctdi != "—" else "—")
             with _col_m3:
