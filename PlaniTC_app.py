@@ -3803,10 +3803,13 @@ with tab2:
                         _actual.get("pitch", 1.0),
                         _dm_sel,
                     )
-                    if isinstance(_cob_preview, (int, float)):
-                        _cob_preview_str = f"{_cob_preview} mm/rot"
+                    # La cobertura visible junto a "Conf. detección" debe mostrar
+                    # el valor fijo de la tabla del equipo, sin mezclarlo con pitch
+                    # ni con unidades de avance por rotación.
+                    if _cob_preview not in (None, ""):
+                        _cob_preview_str = str(_cob_preview)
                     else:
-                        _cob_preview_str = _cob_preview or "—"
+                        _cob_preview_str = "—"
 
                     def _render_cobertura():
                         st.text_input(
