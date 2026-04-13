@@ -3510,19 +3510,18 @@ with tab2:
                 .adq-row{margin-bottom:8px;}
                 .adq-row:last-child{margin-bottom:4px;}
                 .adq-icon-box{
-                    min-height:58px;
-                    max-height:58px;
+                    min-height:92px;
+                    max-height:92px;
                     display:flex;
                     align-items:center;
                     justify-content:center;
-                    font-size:1.05rem;
+                    font-size:1.45rem;
                     line-height:1;
                     color:#b8d6e6;
-                    border-radius:10px;
+                    border-radius:12px;
                     background:rgba(255,255,255,0.035);
                     border:1px solid rgba(184,214,230,0.16);
-                    margin-top:22px;
-                    padding:0;
+                    margin-top:18px;
                 }
                 .adq-pair-label{
                     color:#d8edf7;
@@ -3546,6 +3545,7 @@ with tab2:
                 }
                 .adq-grid-wrap [data-baseweb="select"] *{color:white !important;}
                 .adq-grid-wrap input{color:white !important;}
+                .adq-empty-slot{height:38px;}
                 .adq-grid-wrap div[data-testid="stHorizontalBlock"]{align-items:stretch;}
                 .adq-grid-wrap div[data-testid="column"] > div[data-testid="stVerticalBlock"]{
                     height:100%;
@@ -3634,6 +3634,10 @@ with tab2:
                             )
                         _tercero_label, _cuarto_label = "Rango mA", "Índice ruido"
                     else:
+                        _actual["ind_ruido"] = None
+                        _actual["ind_cal"] = None
+                        _actual["rango_ma"] = None
+
                         def _render_tercero():
                             _actual["mas_val"] = selectbox_con_placeholder(
                                 "mAs",
@@ -3643,36 +3647,48 @@ with tab2:
                                 label_visibility="collapsed"
                             )
                         def _render_cuarto():
-                            _actual["ind_ruido"] = selectbox_con_placeholder(
-                                "Índice de ruido",
-                                INDICE_RUIDO,
-                                value=_actual.get("ind_ruido"),
-                                key=f"indruido_manual_{_exp_id}",
-                                label_visibility="collapsed"
-                            )
-                        _tercero_label, _cuarto_label = "mAs", "Índice ruido"
+                            st.markdown("<div class='adq-empty-slot'></div>", unsafe_allow_html=True)
+                        _tercero_label, _cuarto_label = "mAs", ""
                     _adq_pair(_c3, _tercero_label, _render_tercero)
                     _adq_pair(_c4, _cuarto_label, _render_cuarto)
 
-                # Fila 2: geometría / detectores
+                # Fila 2: tipo / geometría / detectores
                 _row2_icon, _row2_body = st.columns([0.12, 1], gap="small")
                 with _row2_icon:
                     st.markdown("<div class='adq-icon-box'>⚙️</div>", unsafe_allow_html=True)
                 with _row2_body:
                     _c1, _c2, _c3, _c4, _c5 = st.columns(5, gap="small")
 
-                    def _render_dm():
-                        _valor_dm = _actual.get("doble_muestreo")
-                        if _valor_dm not in ["NO", "SI"]:
-                            _valor_dm = "NO"
-                        _actual["doble_muestreo"] = selectbox_con_placeholder(
-                            "Doble muestreo (eje Z)",
-                            ["NO", "SI"],
-                            value=_valor_dm,
-                            key=f"dm_{_exp_id}",
+                    def _render_tipoexp():
+                        _actual["tipo_exp"] = selectbox_con_placeholder(
+                            "Tipo de exploración",
+                            TIPOS_EXPLORACION,
+                            value=_actual.get("tipo_exp"),
+                            key=f"tipoexp_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c1, "Doble muestreo", _render_dm)
+                    _adq_pair(_c1, "Tipo exploración", _render_tipoexp)
+
+                    if _actual["tipo_exp"] == "HELICOIDAL":
+                        def _render_dm():
+                            _actual["doble_muestreo"] = selectbox_con_placeholder(
+                                "Doble muestreo (eje Z)",
+                                ["NO", "SI"],
+                                value=_actual.get("doble_muestreo"),
+                                key=f"dm_{_exp_id}",
+                                label_visibility="collapsed"
+                            )
+                    else:
+                        _actual["doble_muestreo"] = "NO"
+                        def _render_dm():
+                            st.text_input(
+                                "Doble muestreo (eje Z)",
+                                value="No aplica",
+                                key=f"dm_na_{_exp_id}",
+                                disabled=True,
+                                label_visibility="collapsed"
+                            )
+                    _adq_pair(_c2, "Doble muestreo", _render_dm)
 
                     def _render_confdet():
                         _actual["conf_det"] = selectbox_con_placeholder(
@@ -3682,7 +3698,7 @@ with tab2:
                             key=f"confdet_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c2, "Conf. detectores", _render_confdet)
+                    _adq_pair(_c3, "Conf. detectores", _render_confdet)
 
                     def _render_sfov():
                         _actual["sfov"] = selectbox_con_placeholder(
@@ -3692,17 +3708,7 @@ with tab2:
                             key=f"sfov_{_exp_id}",
                             label_visibility="collapsed"
                         )
-                    _adq_pair(_c3, "SFOV", _render_sfov)
-
-                    def _render_tipoexp():
-                        _actual["tipo_exp"] = selectbox_con_placeholder(
-                            "Cobertura-colimación",
-                            TIPOS_EXPLORACION,
-                            value=_actual.get("tipo_exp"),
-                            key=f"tipoexp_{_exp_id}",
-                            label_visibility="collapsed"
-                        )
-                    _adq_pair(_c4, "Cobertura-colimación", _render_tipoexp)
+                    _adq_pair(_c4, "SFOV", _render_sfov)
 
                     _grosor_opciones = [str(g) for g in GROSOR_PROSP]
                     def _render_gpros():
@@ -4284,4 +4290,3 @@ with tab5:
 **Consejo educativo**
 - {"Mayor mAs → menor ruido → mayor dosis" if isinstance(ruido_sum, float) and ruido_sum > 15 else "Balance dosis-calidad adecuado para este protocolo"}
         """)
-
