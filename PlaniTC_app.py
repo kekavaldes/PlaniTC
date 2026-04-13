@@ -4242,23 +4242,30 @@ with tab4:
     vol_max_sf = MAX_JERINGA
 
     st.markdown("---")
-    st.markdown("**Fases de inyección**")
-
-    n_fases = st.number_input("Número de fases", min_value=1, max_value=6, value=2)
 
     fases_data = []
-    for i in range(int(n_fases)):
-        with st.expander(f"Fase {i+1}", expanded=(i == 0)):
-            col_sol, col_vol, col_caud = st.columns(3)
-            with col_sol:
-                sol = selectbox_con_placeholder("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
-            with col_vol:
-                vol = selectbox_con_placeholder("Volumen (mL)", list(range(0, 160, 5)), value=50, key=f"vol_{i}")
-            with col_caud:
-                caud = selectbox_con_placeholder("Caudal (mL/sg)", CAUDAL_OPCIONES, value=CAUDAL_OPCIONES[5], key=f"caud_{i}")
-            duracion_fase = round(vol / caud, 1) if caud > 0 and sol != "PAUSA" else vol
-            st.caption(f"Duración: {duracion_fase} sg")
-            fases_data.append({"solucion": sol, "volumen": vol, "caudal": caud, "duracion": duracion_fase})
+    with top_preview:
+        col_bottom_left, col_bottom_right = st.columns([1.15, 1.25])
+
+        with col_bottom_left:
+            st.markdown(render_inyectora_svg(0, 0, vol_max_mc, vol_max_sf, [], vvp_gauge), unsafe_allow_html=True)
+
+        with col_bottom_right:
+            st.markdown('<div class="section-header">💉 Fases de inyección</div>', unsafe_allow_html=True)
+            n_fases = st.number_input("Número de fases", min_value=1, max_value=6, value=2)
+
+            for i in range(int(n_fases)):
+                with st.expander(f"Fase {i+1}", expanded=(i == 0)):
+                    col_sol, col_vol, col_caud = st.columns(3)
+                    with col_sol:
+                        sol = selectbox_con_placeholder("Solución", ["MC", "SF", "PAUSA"], key=f"sol_{i}")
+                    with col_vol:
+                        vol = selectbox_con_placeholder("Volumen (mL)", list(range(0, 160, 5)), value=50, key=f"vol_{i}")
+                    with col_caud:
+                        caud = selectbox_con_placeholder("Caudal (mL/sg)", CAUDAL_OPCIONES, value=CAUDAL_OPCIONES[5], key=f"caud_{i}")
+                    duracion_fase = round(vol / caud, 1) if caud > 0 and sol != "PAUSA" else vol
+                    st.caption(f"Duración: {duracion_fase} sg")
+                    fases_data.append({"solucion": sol, "volumen": vol, "caudal": caud, "duracion": duracion_fase})
 
     vol_total_mc = sum(f["volumen"] for f in fases_data if f["solucion"] == "MC")
     vol_total_sf = sum(f["volumen"] for f in fases_data if f["solucion"] == "SF")
