@@ -18,6 +18,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
+MAX_JERINGA = 180  # mL fijos para ambas jeringas
 
 
 def render_inyectora_svg(vol_mc, vol_sf, max_mc, max_sf, fases_data, gauge):
@@ -4224,12 +4225,21 @@ with tab4:
     top_preview = st.container()
 
     st.markdown("**Acceso venoso y capacidades**")
-    col_vvp, col_g = st.columns(2)
+    col_vvp, col_cap = st.columns(2)
     with col_vvp:
         vvp_gauge = selectbox_con_placeholder("VVP (Gauge)", VVP_GAUGE, value=VVP_GAUGE[1])
-    with col_g:
-        vol_max_mc = selectbox_con_placeholder("Vol. máx. contraste (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=40)
-        vol_max_sf = selectbox_con_placeholder("Vol. máx. suero (mL)", [20, 30, 40, 50, 60, 80, 100, 120, 150], value=100)
+    with col_cap:
+        st.markdown("<div style='height: 0.2rem;'></div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='card' style='padding:0.85rem 1rem;'>"
+            f"<div style='font-size:0.92rem;font-weight:700;margin-bottom:0.35rem;'>Capacidad fija de jeringas</div>"
+            f"<div style='font-size:1.1rem;font-weight:800;color:#F3F4F6;'>{MAX_JERINGA} mL / {MAX_JERINGA} cc</div>"
+            f"<div style='font-size:0.82rem;color:#C9D1D9;'>Aplicada por defecto a medio de contraste y suero.</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    vol_max_mc = MAX_JERINGA
+    vol_max_sf = MAX_JERINGA
 
     st.markdown("---")
     st.markdown("**Fases de inyección**")
@@ -4272,12 +4282,12 @@ with tab4:
                 st.metric("Vol. total", f"{vol_total_mc + vol_total_sf} mL")
 
             if vol_total_mc > vol_max_mc:
-                st.markdown(f'<div class="alert-warn">⚠️ Volumen de contraste ({vol_total_mc} mL) supera el máximo configurado ({vol_max_mc} mL)</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="alert-warn">⚠️ Volumen de contraste ({vol_total_mc} mL) supera la capacidad fija ({vol_max_mc} mL)</div>', unsafe_allow_html=True)
             elif vol_total_mc > 0:
                 st.markdown(f'<div class="alert-info">✅ Volumen de contraste dentro del límite ({vol_total_mc}/{vol_max_mc} mL)</div>', unsafe_allow_html=True)
 
             if vol_total_sf > vol_max_sf:
-                st.markdown(f'<div class="alert-warn">⚠️ Volumen de suero ({vol_total_sf} mL) supera el máximo configurado ({vol_max_sf} mL)</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="alert-warn">⚠️ Volumen de suero ({vol_total_sf} mL) supera la capacidad fija ({vol_max_sf} mL)</div>', unsafe_allow_html=True)
 
             if vvp_gauge >= 22 and any(f["caudal"] > 3.0 for f in fases_data if f["solucion"] != "PAUSA"):
                 st.markdown('<div class="alert-warn">⚠️ Calibre VVP puede ser insuficiente para el caudal seleccionado. Se recomienda VVP 18-20G para caudales altos.</div>', unsafe_allow_html=True)
