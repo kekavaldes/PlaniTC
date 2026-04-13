@@ -92,7 +92,6 @@ def render_inyectora_svg(vol_mc, vol_sf, max_mc, max_sf, fases_data, gauge):
     svg = (
         f'<div style="background:transparent;padding:0;margin:0;">'
         f'<svg viewBox="0 0 620 410" width="100%" xmlns="http://www.w3.org/2000/svg">'
-        f'<text x="10" y="24" font-size="18" font-weight="700" fill="{colors["TEXT"]}">Según lo que requiera el examen</text>'
         f'{syringe(25, "A", ratio_mc, vol_mc, max_mc, colors["MC"])}'
         f'{syringe(120, "B", ratio_sf, vol_sf, max_sf, colors["SF"])}'
         f'<g transform="translate(24,332)">'
