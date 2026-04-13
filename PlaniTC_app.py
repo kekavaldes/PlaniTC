@@ -842,14 +842,17 @@ def obtener_opciones_conf_det(tipo_exp, doble_muestreo="NO"):
 
 
 def calcular_cobertura_adquisicion(tipo_exp, conf_det, pitch=1.0, doble_muestreo="NO"):
-    """Calcula o recupera la cobertura según el tipo de exploración y detectores."""
+    """Recupera la cobertura-tabla correcta según tipo de exploración y detectores.
+
+    Nota: la cobertura visible debe coincidir con la tabla de referencia del equipo,
+    por lo que aquí no se modifica por pitch. Si más adelante se requiere calcular
+    avance de mesa u otra magnitud derivada, debe hacerse en una variable aparte.
+    """
     try:
         tabla = obtener_tabla_conf_det(tipo_exp, doble_muestreo)
         cobertura = tabla.get(conf_det)
         if cobertura is None:
             return "—"
-        if tipo_exp == "HELICOIDAL" and doble_muestreo != "SI":
-            return round(float(cobertura) * float(pitch), 2)
         return cobertura
     except Exception:
         return "—"
